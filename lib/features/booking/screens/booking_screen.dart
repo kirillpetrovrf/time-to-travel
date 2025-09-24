@@ -181,7 +181,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Widget _buildDispatcherView(CustomTheme theme) {
-    return const AdminPanelScreen();
+    return AdminPanelScreen();
   }
 }
 

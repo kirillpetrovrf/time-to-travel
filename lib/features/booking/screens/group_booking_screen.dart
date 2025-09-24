@@ -616,7 +616,7 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
     // Для диспетчеров открываем административную панель
     Navigator.push(
       context,
-      CupertinoPageRoute(builder: (context) => const AdminPanelScreen()),
+      CupertinoPageRoute(builder: (context) => AdminPanelScreen()),
     );
   }
 

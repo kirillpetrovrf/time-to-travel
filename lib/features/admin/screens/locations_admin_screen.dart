@@ -10,18 +10,9 @@ class LocationsAdminScreen extends StatelessWidget {
     final themeManager = context.themeManager;
     final theme = themeManager.currentTheme;
 
-    return CupertinoPageScaffold(
-      backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text(
-          'Управление местами',
-          style: TextStyle(color: theme.label),
-        ),
-      ),
-      child: SafeArea(
-        child: PickupDropoffWidget(theme: theme),
-      ),
+    return Container(
+      color: theme.systemBackground,
+      child: SafeArea(child: PickupDropoffWidget(theme: theme)),
     );
   }
 }

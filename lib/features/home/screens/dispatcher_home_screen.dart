@@ -6,7 +6,6 @@ import '../../../models/trip_type.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
-import '../../admin/screens/admin_panel_screen.dart';
 
 class DispatcherHomeScreen extends StatefulWidget {
   const DispatcherHomeScreen({super.key});
@@ -361,35 +360,11 @@ class _DispatcherHomeScreenState extends State<DispatcherHomeScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildActionCard(
-                'Админ панель',
-                'Настройка маршрутов и цен',
-                CupertinoIcons.settings,
-                CupertinoColors.systemPurple,
-                () => _openAdminPanel(),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionCard(
                 'Подтвердить заказы',
                 'Обработать ожидающие заказы',
                 CupertinoIcons.checkmark_circle,
                 CupertinoColors.systemOrange,
                 () => _showConfirmOrdersDialog(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionCard(
-                'Статистика',
-                'Подробная аналитика',
-                CupertinoIcons.chart_bar,
-                CupertinoColors.systemGreen,
-                () => _showStatisticsDialog(),
               ),
             ),
           ],
@@ -443,13 +418,6 @@ class _DispatcherHomeScreenState extends State<DispatcherHomeScreen> {
     _showInfoDialog('Перейдите на вкладку "Заказы" в нижнем меню');
   }
 
-  void _openAdminPanel() {
-    Navigator.push(
-      context,
-      CupertinoPageRoute(builder: (context) => const AdminPanelScreen()),
-    );
-  }
-
   void _showConfirmOrdersDialog() {
     final pendingBookings = _activeBookings
         .where((b) => b.status == BookingStatus.pending)
@@ -483,53 +451,6 @@ class _DispatcherHomeScreenState extends State<DispatcherHomeScreen> {
         ],
       ),
     );
-  }
-
-  void _showStatisticsDialog() {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Подробная статистика'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildStatRow('Всего заказов:', '${_getTotalOrders()}'),
-            _buildStatRow('Активных:', '${_activeBookings.length}'),
-            _buildStatRow(
-              'Завершённых:',
-              '${_stats[BookingStatus.completed.toString()] ?? 0}',
-            ),
-            _buildStatRow(
-              'Отменённых:',
-              '${_stats[BookingStatus.cancelled.toString()] ?? 0}',
-            ),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('Закрыть'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  int _getTotalOrders() {
-    return _stats.values.fold(0, (sum, count) => sum + count);
   }
 
   void _showInfoDialog(String message) {

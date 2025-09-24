@@ -6,6 +6,7 @@ import '../../../models/trip_type.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
+import 'home_screen.dart';
 
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key});
@@ -90,11 +91,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
             // Последние поездки
             _buildRecentTrips(theme),
-
-            const SizedBox(height: 24),
-
-            // Информация о маршрутах
-            _buildRouteInfo(theme),
           ],
         ),
       ),
@@ -304,24 +300,36 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   void _switchToBookingTab() {
-    // Показываем информационное сообщение о переходе на вкладку бронирования
-    _showInfoDialog('Перейдите на вкладку "Бронирование" в нижнем меню');
-  }
-
-  void _showInfoDialog(String message) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Информация'),
-        content: Text(message),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
+    print('🚀 Попытка переключения на вкладку бронирования');
+    // Переключаемся на вкладку бронирования (индекс 0 для клиентов)
+    final homeScreenState = HomeScreen.homeScreenKey.currentState;
+    if (homeScreenState != null) {
+      final currentIndex = homeScreenState.currentIndex;
+      if (currentIndex != 0) {
+        print('✅ HomeScreen найден, переключаемся на таб 0 (бронирование)');
+        homeScreenState.switchToTab(0);
+      } else {
+        print('ℹ️ Уже находимся на экране бронирования');
+        // Показываем сообщение что мы уже на экране бронирования
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Информация'),
+            content: const Text(
+              'Вы уже находитесь на экране бронирования поездки',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
+      }
+    } else {
+      print('❌ HomeScreen не найден!');
+    }
   }
 
   Widget _buildRecentTrips(theme) {
@@ -348,39 +356,47 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   Widget _buildEmptyTrips(theme) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: theme.secondarySystemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.separator.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            CupertinoIcons.car,
-            size: 48,
-            color: theme.secondaryLabel.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'У вас пока нет поездок',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: theme.secondaryLabel,
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () {
+        print('🔥 Нажатие на пустой блок поездок');
+        _switchToBookingTab();
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.separator.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              CupertinoIcons.car,
+              size: 48,
+              color: theme.secondaryLabel.withOpacity(0.5),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Забронируйте свою первую поездку',
-            style: TextStyle(
-              fontSize: 14,
-              color: theme.secondaryLabel.withOpacity(0.7),
+            const SizedBox(height: 16),
+            Text(
+              'У вас пока нет поездок',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: theme.secondaryLabel,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Нажмите чтобы забронировать поездку',
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -460,123 +476,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildRouteInfo(theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Наши маршруты',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: theme.label,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.secondarySystemBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.separator.withOpacity(0.2)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: CupertinoColors.systemBlue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.location_solid,
-                      color: CupertinoColors.systemBlue,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Донецк ↔ Ростов-на-Дону',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: theme.label,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Ежедневные рейсы • 6 часов в пути',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.secondaryLabel,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInfoItem(
-                      'Групповая поездка',
-                      'от 1200 ₽',
-                      CupertinoIcons.group,
-                      theme,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildInfoItem(
-                      'Индивидуальная',
-                      'от 3000 ₽',
-                      CupertinoIcons.car_detailed,
-                      theme,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoItem(String title, String price, IconData icon, theme) {
-    return Row(
-      children: [
-        Icon(icon, color: theme.secondaryLabel, size: 20),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: theme.label,
-              ),
-            ),
-            Text(
-              price,
-              style: TextStyle(fontSize: 12, color: theme.secondaryLabel),
-            ),
-          ],
-        ),
-      ],
     );
   }
 

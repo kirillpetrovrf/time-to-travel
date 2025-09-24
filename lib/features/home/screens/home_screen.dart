@@ -7,11 +7,14 @@ import '../../orders/screens/orders_screen.dart';
 import '../../tracking/screens/tracking_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../admin/screens/admin_panel_screen.dart';
-import 'client_home_screen.dart';
 import 'dispatcher_home_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  HomeScreen({Key? key}) : super(key: key ?? homeScreenKey);
+
+  // Глобальный ключ для доступа к состоянию HomeScreen
+  static final GlobalKey<_HomeScreenState> homeScreenKey =
+      GlobalKey<_HomeScreenState>();
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -42,23 +45,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (lastScreen != null) {
       int tabIndex = 0;
-      switch (lastScreen) {
-        case '/home':
-          tabIndex = 0;
-          break;
-        case '/booking':
-        case '/admin':
-          tabIndex = 1;
-          break;
-        case '/orders':
-          tabIndex = 2;
-          break;
-        case '/tracking':
-          tabIndex = 3;
-          break;
-        case '/profile':
-          tabIndex = 4;
-          break;
+
+      if (_userType == UserType.dispatcher) {
+        switch (lastScreen) {
+          case '/home':
+            tabIndex = 0;
+            break;
+          case '/admin':
+            tabIndex = 1;
+            break;
+          case '/orders':
+            tabIndex = 2;
+            break;
+          case '/tracking':
+            tabIndex = 3;
+            break;
+          case '/profile':
+            tabIndex = 4;
+            break;
+        }
+      } else {
+        // Для клиентов
+        switch (lastScreen) {
+          case '/booking':
+            tabIndex = 0;
+            break;
+          case '/orders':
+            tabIndex = 1;
+            break;
+          case '/tracking':
+            tabIndex = 2;
+            break;
+          case '/profile':
+            tabIndex = 3;
+            break;
+        }
       }
 
       if (mounted) {
@@ -70,32 +91,65 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabChanged(int index) async {
+    print(
+      '📱 _onTabChanged вызван с индексом: $index, текущий: $_currentIndex',
+    );
     setState(() {
       _currentIndex = index;
     });
+    print('📱 Состояние обновлено, новый _currentIndex: $_currentIndex');
 
     // Сохраняем текущую вкладку
     final authService = AuthService.instance;
     String route = '/home';
-    switch (index) {
-      case 0:
-        route = '/home';
-        break;
-      case 1:
-        route = _userType == UserType.dispatcher ? '/admin' : '/booking';
-        break;
-      case 2:
-        route = '/orders';
-        break;
-      case 3:
-        route = '/tracking';
-        break;
-      case 4:
-        route = '/profile';
-        break;
+
+    if (_userType == UserType.dispatcher) {
+      switch (index) {
+        case 0:
+          route = '/home';
+          break;
+        case 1:
+          route = '/admin';
+          break;
+        case 2:
+          route = '/orders';
+          break;
+        case 3:
+          route = '/tracking';
+          break;
+        case 4:
+          route = '/profile';
+          break;
+      }
+    } else {
+      // Для клиентов
+      switch (index) {
+        case 0:
+          route = '/booking';
+          break;
+        case 1:
+          route = '/orders';
+          break;
+        case 2:
+          route = '/tracking';
+          break;
+        case 3:
+          route = '/profile';
+          break;
+      }
     }
+
     await authService.saveLastScreen(route);
   }
+
+  // Публичный метод для переключения вкладок
+  void switchToTab(int index) {
+    print('🔄 switchToTab вызван с индексом: $index');
+    _onTabChanged(index);
+  }
+
+  // Геттер для получения текущего индекса
+  int get currentIndex => _currentIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -111,54 +165,80 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _onTabChanged,
         iconSize: 24.0, // Размер иконок
         height: 55.0, // Компактная высота панели без текста
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.home, size: 24),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(
-              _userType == UserType.dispatcher
-                  ? CupertinoIcons.settings
-                  : CupertinoIcons.car,
-              size: 24,
-            ),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.list_dash, size: 24),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.location, size: 24),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.person, size: 24),
-            label: '',
-          ),
-        ],
+        items: _userType == UserType.dispatcher
+            ? [
+                // Для диспетчеров: Главная, Админ панель, Заказы, Отслеживание, Профиль
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.home, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.settings, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.list_dash, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.location, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.person, size: 24),
+                  label: '',
+                ),
+              ]
+            : [
+                // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.car, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.list_dash, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.location, size: 24),
+                  label: '',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.person, size: 24),
+                  label: '',
+                ),
+              ],
       ),
       tabBuilder: (context, index) {
-        switch (index) {
-          case 0:
-            return _userType == UserType.dispatcher
-                ? const DispatcherHomeScreen()
-                : const ClientHomeScreen();
-          case 1:
-            return _userType == UserType.dispatcher
-                ? const AdminPanelScreen()
-                : const BookingScreen();
-          case 2:
-            return const OrdersScreen();
-          case 3:
-            return const TrackingScreen();
-          case 4:
-            return const ProfileScreen();
-          default:
-            return _userType == UserType.dispatcher
-                ? const DispatcherHomeScreen()
-                : const ClientHomeScreen();
+        if (_userType == UserType.dispatcher) {
+          switch (index) {
+            case 0:
+              return const DispatcherHomeScreen();
+            case 1:
+              return AdminPanelScreen();
+            case 2:
+              return const OrdersScreen();
+            case 3:
+              return const TrackingScreen();
+            case 4:
+              return const ProfileScreen();
+            default:
+              return const DispatcherHomeScreen();
+          }
+        } else {
+          // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
+          switch (index) {
+            case 0:
+              return const BookingScreen(); // Бронирование
+            case 1:
+              return const OrdersScreen(); // Мои заказы
+            case 2:
+              return const TrackingScreen(); // Отслеживание
+            case 3:
+              return const ProfileScreen(); // Профиль
+            default:
+              return const BookingScreen();
+          }
         }
       },
     );

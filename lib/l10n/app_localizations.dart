@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// The title of the application
   ///
   /// In en, this message translates to:
-  /// **'Taxi Poputchik'**
+  /// **'Time to Travel'**
   String get appTitle;
 
   /// Label for phone number input

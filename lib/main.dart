@@ -51,7 +51,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
             child = const AuthScreen();
             break;
           case '/home':
-            child = const HomeScreen();
+            child = HomeScreen();
             break;
           case '/theme-editor':
             child = const ThemeEditorScreen();

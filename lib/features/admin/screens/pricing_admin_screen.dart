@@ -10,18 +10,9 @@ class PricingAdminScreen extends StatelessWidget {
     final themeManager = context.themeManager;
     final theme = themeManager.currentTheme;
 
-    return CupertinoPageScaffold(
-      backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text(
-          'Управление ценами',
-          style: TextStyle(color: theme.label),
-        ),
-      ),
-      child: SafeArea(
-        child: PricingSettingsWidget(theme: theme),
-      ),
+    return Container(
+      color: theme.systemBackground,
+      child: SafeArea(child: PricingSettingsWidget(theme: theme)),
     );
   }
 }
