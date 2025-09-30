@@ -9,6 +9,10 @@ class AuthService {
   static const String _formDataPrefix = 'form_data_';
   static const String _userTypeKey = 'user_type';
 
+  // НОВОЕ: Ключи для оффлайн авторизации
+  static const String _offlineUserKey = 'offline_user';
+  static const String _isOfflineModeKey = 'is_offline_mode';
+
   static AuthService? _instance;
 
   static AuthService get instance {
@@ -21,103 +25,76 @@ class AuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final UserService _userService = UserService();
 
+  // НОВОЕ: Проверка, работаем ли мы в оффлайн режиме
+  Future<bool> _isOfflineMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_isOfflineModeKey) ??
+        true; // По умолчанию - оффлайн режим
+  }
+
+  // НОВОЕ: Создание демо-пользователя для оффлайн режима
+  Future<void> _createOfflineUser() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final demoUser = app_user.User(
+      id: 'offline_user_demo',
+      phone: '+7900000000',
+      name: 'Демо Пользователь',
+      userType: app_user.UserType.client,
+      createdAt: DateTime.now(),
+    );
+
+    await prefs.setString(_offlineUserKey, jsonEncode(demoUser.toJson()));
+    await prefs.setBool(_isOfflineModeKey, true);
+  }
+
   // Проверка авторизации
   Future<bool> isLoggedIn() async {
-    final user = _firebaseAuth.currentUser;
-    return user != null;
+    if (await _isOfflineMode()) {
+      final prefs = await SharedPreferences.getInstance();
+      // В оффлайн режиме всегда считаем пользователя авторизованным
+      // Создаем демо-пользователя если его нет
+      if (!prefs.containsKey(_offlineUserKey)) {
+        await _createOfflineUser();
+      }
+      return true;
+    } else {
+      final user = _firebaseAuth.currentUser;
+      return user != null;
+    }
   }
 
   // Текущий пользователь Firebase
   User? get currentFirebaseUser => _firebaseAuth.currentUser;
 
-  // Получение текущего пользователя приложения
+  // ОБНОВЛЕННОЕ: Получение текущего пользователя приложения (поддерживает оффлайн режим)
   Future<app_user.User?> getCurrentUser() async {
-    final firebaseUser = _firebaseAuth.currentUser;
-    if (firebaseUser != null) {
-      return await _userService.getUserById(firebaseUser.uid);
-    }
-    return null;
-  }
+    if (await _isOfflineMode()) {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString(_offlineUserKey);
 
-  // Отправка SMS кода для авторизации
-  Future<void> sendVerificationCode({
-    required String phoneNumber,
-    required Function(String) onCodeSent,
-    required Function(String) onError,
-  }) async {
-    try {
-      await _firebaseAuth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // Автоматическая верификация (Android)
-          await _firebaseAuth.signInWithCredential(credential);
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          onError(e.message ?? 'Ошибка отправки SMS');
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          onCodeSent(verificationId);
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          // Тайм-аут автоматического получения
-        },
-      );
-    } catch (e) {
-      onError('Ошибка: $e');
-    }
-  }
-
-  // Подтверждение SMS кода и авторизация
-  Future<bool> verifyCode({
-    required String verificationId,
-    required String smsCode,
-    required String name,
-    required app_user.UserType userType,
-  }) async {
-    try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-
-      final authResult = await _firebaseAuth.signInWithCredential(credential);
-      final firebaseUser = authResult.user;
-
-      if (firebaseUser != null) {
-        // Проверяем, существует ли пользователь в Firestore
-        app_user.User? existingUser = await _userService.getUserById(
-          firebaseUser.uid,
-        );
-
-        if (existingUser == null) {
-          // Создаём нового пользователя
-          final newUser = app_user.User(
-            id: firebaseUser.uid,
-            phone: firebaseUser.phoneNumber ?? '',
-            name: name,
-            userType: userType,
-            createdAt: DateTime.now(),
-          );
-          await _userService.createUser(newUser);
+      if (userJson != null) {
+        try {
+          final userMap = jsonDecode(userJson) as Map<String, dynamic>;
+          return app_user.User.fromJson(userMap);
+        } catch (e) {
+          print('Ошибка парсинга оффлайн пользователя: $e');
+          // Создаем нового демо-пользователя если произошла ошибка
+          await _createOfflineUser();
+          return getCurrentUser();
         }
-
-        // Сохраняем тип пользователя локально
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_userTypeKey, userType.toString());
-
-        return true;
+      } else {
+        // Создаем демо-пользователя если его нет
+        await _createOfflineUser();
+        return getCurrentUser();
       }
-      return false;
-    } catch (e) {
-      return false;
+    } else {
+      final firebaseUser = _firebaseAuth.currentUser;
+      if (firebaseUser != null) {
+        return await _userService.getUserById(firebaseUser.uid);
+      }
+      return null;
     }
-  }
-
-  // Выход из системы
-  Future<void> logout() async {
-    await _firebaseAuth.signOut();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // Очищаем все локальные данные
   }
 
   // Получение типа пользователя
@@ -131,7 +108,7 @@ class AuthService {
       );
     }
 
-    // Если нет в локальном хранилище, получаем из Firestore
+    // Если нет в локальном хранилище, получаем из пользователя
     final user = await getCurrentUser();
     return user?.userType ?? app_user.UserType.client;
   }
@@ -140,6 +117,7 @@ class AuthService {
   Future<void> setUserType(app_user.UserType userType) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_userTypeKey, userType.toString());
+    print('🔧 Сохранен тип пользователя: $userType');
   }
 
   // Переключение типа пользователя (для тестирования)
@@ -153,6 +131,50 @@ class AuthService {
     print('✅ AuthService: Переключение завершено');
   }
 
+  /// НОВОЕ (ТЗ v3.0): Повышение до диспетчера через секретный вход
+  Future<void> upgradeToDispatcher() async {
+    try {
+      // Устанавливаем тип диспетчера локально
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _userTypeKey,
+        app_user.UserType.dispatcher.toString(),
+      );
+
+      if (await _isOfflineMode()) {
+        // В оффлайн режиме обновляем локального пользователя
+        final currentUser = await getCurrentUser();
+        if (currentUser != null) {
+          final updatedUser = currentUser.copyWith(
+            userType: app_user.UserType.dispatcher,
+          );
+          await prefs.setString(
+            _offlineUserKey,
+            jsonEncode(updatedUser.toJson()),
+          );
+        }
+      }
+
+      print('🎯 Пользователь повышен до диспетчера');
+    } catch (e) {
+      print('❌ Ошибка повышения до диспетчера: $e');
+    }
+  }
+
+  // Выход из системы
+  Future<void> logout() async {
+    if (await _isOfflineMode()) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_offlineUserKey);
+      await prefs.remove(_userTypeKey);
+      return;
+    }
+
+    await _firebaseAuth.signOut();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Очищаем все локальные данные
+  }
+
   // Сохранение последнего экрана
   Future<void> saveLastScreen(String screenRoute) async {
     final prefs = await SharedPreferences.getInstance();
@@ -163,32 +185,5 @@ class AuthService {
   Future<String?> getLastScreen() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_lastScreenKey);
-  }
-
-  // Сохранение данных формы (для восстановления незавершенных действий)
-  Future<void> saveFormData(String key, Map<String, dynamic> formData) async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = jsonEncode(formData);
-    await prefs.setString('$_formDataPrefix$key', jsonString);
-  }
-
-  // Получение данных формы
-  Future<Map<String, dynamic>?> getFormData(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString('$_formDataPrefix$key');
-    if (jsonString != null) {
-      try {
-        return jsonDecode(jsonString) as Map<String, dynamic>;
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  // Очистка данных формы
-  Future<void> clearFormData(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_formDataPrefix$key');
   }
 }

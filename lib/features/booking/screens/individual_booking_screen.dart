@@ -1,13 +1,22 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../../models/route_stop.dart';
 import '../../../models/trip_type.dart';
 import '../../../models/booking.dart';
+import '../../../models/baggage.dart';
+import '../../../models/pet_info.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
+import 'baggage_selection_screen_v3.dart';
+import 'pet_selection_screen.dart';
+import 'vehicle_selection_screen.dart';
 
 class IndividualBookingScreen extends StatefulWidget {
-  const IndividualBookingScreen({super.key});
+  final RouteStop? fromStop;
+  final RouteStop? toStop;
+
+  const IndividualBookingScreen({super.key, this.fromStop, this.toStop});
 
   @override
   State<IndividualBookingScreen> createState() =>
@@ -23,6 +32,14 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _dropoffController = TextEditingController();
+
+  // Багаж и животные
+  List<BaggageItem> _selectedBaggage = [];
+  List<PetInfo> _selectedPets = [];
+  bool _hasVKDiscount = false;
+
+  // НОВОЕ (ТЗ v3.0): Выбор транспорта для индивидуальных поездок
+  VehicleClass? _selectedVehicleClass;
 
   @override
   void dispose() {
@@ -75,6 +92,24 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     // Количество пассажиров
                     _buildSectionTitle('Количество пассажиров', theme),
                     _buildPassengerCountPicker(theme),
+
+                    const SizedBox(height: 24),
+
+                    // Багаж
+                    _buildSectionTitle('Багаж', theme),
+                    _buildBaggageSection(theme),
+
+                    const SizedBox(height: 24),
+
+                    // Животные
+                    _buildSectionTitle('Животные', theme),
+                    _buildPetsSection(theme),
+
+                    const SizedBox(height: 24),
+
+                    // НОВОЕ (ТЗ v3.0): Выбор транспорта
+                    _buildSectionTitle('Тип транспорта', theme),
+                    _buildVehicleSection(theme),
 
                     const SizedBox(height: 24),
 
@@ -440,13 +475,19 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   Widget _buildPricingSummary(theme) {
     final totalPrice = _calculatePrice();
-    final basePrice = _selectedDirection == Direction.donetskToRostov
-        ? TripPricing.individualTripPrice
-        : TripPricing.individualTripPrice;
+    final baseTimeString =
+        '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
+    final basePrice = TripPricing.getIndividualTripPrice(
+      baseTimeString,
+      _selectedDirection,
+    );
     final nightSurcharge =
         _isNightTime() && _selectedDirection == Direction.donetskToRostov
         ? 2000
         : 0;
+    final baggagePrice = _calculateBaggagePrice();
+    final petPrice = _calculatePetPrice();
+    final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -464,36 +505,30 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           ),
           const SizedBox(height: 8),
 
+          // Базовая стоимость
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Базовая стоимость',
+                style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+              ),
+              Text(
+                '${basePrice - nightSurcharge} ₽',
+                style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+              ),
+            ],
+          ),
+
+          // Ночная доплата (если есть)
           if (nightSurcharge > 0) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Базовая стоимость',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: theme.secondaryLabel.withOpacity(0.7),
-                  ),
-                ),
-                Text(
-                  '$basePrice ₽',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: theme.secondaryLabel.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Ночная доплата',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: theme.secondaryLabel.withOpacity(0.7),
-                  ),
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
                 ),
                 Text(
                   '+$nightSurcharge ₽',
@@ -504,16 +539,72 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Divider(color: theme.separator.withOpacity(0.3)),
-            const SizedBox(height: 8),
           ],
 
+          // Багаж (если есть)
+          if (baggagePrice > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Багаж',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+                Text(
+                  '+${baggagePrice.toInt()} ₽',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+              ],
+            ),
+          ],
+
+          // Животные (если есть)
+          if (petPrice > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Животные',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+                Text(
+                  '+${petPrice.toInt()} ₽',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+              ],
+            ),
+          ],
+
+          // VK скидка (если есть)
+          if (vkDiscount > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Скидка VK',
+                  style: TextStyle(fontSize: 16, color: theme.systemGreen),
+                ),
+                Text(
+                  '-${vkDiscount.toInt()} ₽',
+                  style: TextStyle(fontSize: 16, color: theme.systemGreen),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 8),
+
+          // Итоговая сумма
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Общая стоимость',
+                'Итого:',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -533,10 +624,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           const SizedBox(height: 8),
           Text(
             'Оплата при посадке в автомобиль\nВключена подача до адреса',
-            style: TextStyle(
-              fontSize: 14,
-              color: theme.secondaryLabel.withOpacity(0.6),
-            ),
+            style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
           ),
         ],
       ),
@@ -547,10 +635,153 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     return _selectedTime.hour >= 22;
   }
 
+  Widget _buildBaggageSection(theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(CupertinoIcons.bag, color: theme.primary),
+            title: Text(
+              _selectedBaggage.isEmpty
+                  ? 'Выберите багаж'
+                  : '${_selectedBaggage.length} ${_getBaggageCountText(_selectedBaggage.length)}',
+              style: TextStyle(color: theme.label),
+            ),
+            subtitle: _selectedBaggage.isNotEmpty
+                ? Text(
+                    '+${_calculateBaggagePrice().toInt()} ₽',
+                    style: TextStyle(color: theme.primary),
+                  )
+                : Text(
+                    'Размеры S, M, L, Custom',
+                    style: TextStyle(color: theme.secondaryLabel),
+                  ),
+            trailing: Icon(
+              CupertinoIcons.chevron_right,
+              color: theme.secondaryLabel,
+            ),
+            onTap: () => _openBaggageSelection(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPetsSection(theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(CupertinoIcons.paw, color: theme.primary),
+            title: Text(
+              _selectedPets.isEmpty
+                  ? 'Добавить животных'
+                  : '${_selectedPets.length} ${_getPetCountText(_selectedPets.length)}',
+              style: TextStyle(color: theme.label),
+            ),
+            subtitle: _selectedPets.isNotEmpty
+                ? Text(
+                    '+${_calculatePetPrice().toInt()} ₽',
+                    style: TextStyle(color: theme.primary),
+                  )
+                : Text(
+                    'S, M, L размеры',
+                    style: TextStyle(color: theme.secondaryLabel),
+                  ),
+            trailing: Icon(
+              CupertinoIcons.chevron_right,
+              color: theme.secondaryLabel,
+            ),
+            onTap: () => _openPetSelection(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getBaggageCountText(int count) {
+    if (count == 1) return 'предмет багажа';
+    if (count < 5) return 'предмета багажа';
+    return 'предметов багажа';
+  }
+
+  String _getPetCountText(int count) {
+    if (count == 1) return 'животное';
+    if (count < 5) return 'животных';
+    return 'животных';
+  }
+
+  double _calculateBaggagePrice() {
+    return _selectedBaggage.fold(0.0, (sum, item) {
+      // ОБНОВЛЕНО под ТЗ v3.0: используем новый метод расчета стоимости
+      return sum + item.calculateCost();
+    });
+  }
+
+  double _calculatePetPrice() {
+    return _selectedPets.fold(0.0, (sum, pet) => sum + pet.cost);
+  }
+
+  Future<void> _openBaggageSelection() async {
+    await Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (context) => BaggageSelectionScreen(
+          initialBaggage: _selectedBaggage,
+          onBaggageSelected: (List<BaggageItem> baggage) {
+            setState(() {
+              _selectedBaggage = baggage;
+            });
+            // Navigator.pop будет вызван в самом BaggageSelectionScreen
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPetSelection() async {
+    await Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (context) => PetSelectionScreen(
+          initialPetInfo: _selectedPets.isNotEmpty ? _selectedPets.first : null,
+          onPetSelected: (PetInfo? pet) {
+            setState(() {
+              if (pet != null) {
+                _selectedPets = [pet]; // Заменяем список одним животным
+              } else {
+                _selectedPets = [];
+              }
+            });
+            // Navigator.pop будет вызван в самом PetSelectionScreen
+          },
+        ),
+      ),
+    );
+  }
+
   int _calculatePrice() {
     final timeString =
         '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
-    return TripPricing.getIndividualTripPrice(timeString, _selectedDirection);
+    final basePrice = TripPricing.getIndividualTripPrice(
+      timeString,
+      _selectedDirection,
+    );
+    final baggagePrice = _calculateBaggagePrice();
+    final petPrice = _calculatePetPrice();
+    final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
+
+    return (basePrice + baggagePrice + petPrice - vkDiscount).toInt();
   }
 
   void _showDatePicker() {
@@ -743,6 +974,85 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVehicleSection(theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(CupertinoIcons.car, color: theme.primary),
+            title: Text(
+              _selectedVehicleClass == null
+                  ? 'Выберите тип транспорта'
+                  : _getVehicleClassName(_selectedVehicleClass!),
+              style: TextStyle(color: theme.label),
+            ),
+            subtitle: _selectedVehicleClass != null
+                ? Text(
+                    '+${_getVehiclePrice(_selectedVehicleClass!).toInt()} ₽',
+                    style: TextStyle(color: theme.primary),
+                  )
+                : Text(
+                    'Седан, Универсал, Минивэн, Микроавтобус',
+                    style: TextStyle(color: theme.secondaryLabel),
+                  ),
+            trailing: Icon(
+              CupertinoIcons.chevron_right,
+              color: theme.secondaryLabel,
+            ),
+            onTap: () => _openVehicleSelection(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getVehicleClassName(VehicleClass vehicleClass) {
+    switch (vehicleClass) {
+      case VehicleClass.sedan:
+        return 'Седан';
+      case VehicleClass.wagon:
+        return 'Универсал';
+      case VehicleClass.minivan:
+        return 'Минивэн';
+      case VehicleClass.microbus:
+        return 'Микроавтобус';
+    }
+  }
+
+  double _getVehiclePrice(VehicleClass vehicleClass) {
+    switch (vehicleClass) {
+      case VehicleClass.sedan:
+        return 0.0;
+      case VehicleClass.wagon:
+        return 300.0;
+      case VehicleClass.minivan:
+        return 800.0;
+      case VehicleClass.microbus:
+        return 1500.0;
+    }
+  }
+
+  Future<void> _openVehicleSelection() async {
+    await Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (context) => VehicleSelectionScreen(
+          initialSelection: _selectedVehicleClass,
+          onVehicleSelected: (VehicleClass? vehicle) {
+            setState(() {
+              _selectedVehicleClass = vehicle;
+            });
+          },
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
+import 'booking_detail_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -113,100 +114,117 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildBookingCard(Booking booking, theme) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.secondarySystemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.separator.withOpacity(0.2)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(booking.status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    _getStatusText(booking.status),
-                    style: TextStyle(
-                      color: _getStatusColor(booking.status),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+    return GestureDetector(
+      onTap: () => _openBookingDetail(booking),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.separator.withOpacity(0.2)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(booking.status).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _getStatusText(booking.status),
+                      style: TextStyle(
+                        color: _getStatusColor(booking.status),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  '${booking.totalPrice} ₽',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: theme.primary,
+                  const Spacer(),
+                  Text(
+                    '${booking.totalPrice} ₽',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: theme.primary,
+                    ),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              _getDirectionText(booking.direction),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: theme.label,
+                  const SizedBox(width: 8),
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    color: theme.secondaryLabel,
+                    size: 16,
+                  ),
+                ],
               ),
-            ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 12),
 
-            Row(
-              children: [
-                Icon(
-                  CupertinoIcons.calendar,
-                  size: 16,
-                  color: theme.secondaryLabel.withOpacity(0.6),
+              Text(
+                _getDirectionText(booking.direction),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: theme.label,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '${_formatDate(booking.departureDate)} в ${booking.departureTime}',
-                  style: TextStyle(
-                    color: theme.secondaryLabel.withOpacity(0.8),
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.calendar,
+                    size: 16,
+                    color: theme.secondaryLabel.withOpacity(0.6),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 4),
-
-            Row(
-              children: [
-                Icon(
-                  CupertinoIcons.person_2,
-                  size: 16,
-                  color: theme.secondaryLabel.withOpacity(0.6),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Пассажиров: ${booking.passengerCount}',
-                  style: TextStyle(
-                    color: theme.secondaryLabel.withOpacity(0.8),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${_formatDate(booking.departureDate)} в ${booking.departureTime}',
+                    style: TextStyle(
+                      color: theme.secondaryLabel.withOpacity(0.8),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.person_2,
+                    size: 16,
+                    color: theme.secondaryLabel.withOpacity(0.6),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Пассажиров: ${booking.passengerCount}',
+                    style: TextStyle(
+                      color: theme.secondaryLabel.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void _openBookingDetail(Booking booking) {
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => BookingDetailScreen(booking: booking),
       ),
     );
   }

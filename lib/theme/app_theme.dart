@@ -14,6 +14,11 @@ class CustomTheme {
   final Color warning;
   final Color danger;
 
+  // Системные цвета
+  final Color systemRed;
+  final Color systemBlue;
+  final Color systemGreen;
+
   // Цвета фона
   final Color systemBackground;
   final Color secondarySystemBackground;
@@ -23,6 +28,8 @@ class CustomTheme {
   final Color label;
   final Color secondaryLabel;
   final Color tertiaryLabel;
+  final Color quaternaryLabel;
+  final Color placeholderText;
 
   // Цвета разделителей
   final Color separator;
@@ -52,12 +59,17 @@ class CustomTheme {
     required this.success,
     required this.warning,
     required this.danger,
+    required this.systemRed,
+    required this.systemBlue,
+    required this.systemGreen,
     required this.systemBackground,
     required this.secondarySystemBackground,
     required this.tertiarySystemBackground,
     required this.label,
     required this.secondaryLabel,
     required this.tertiaryLabel,
+    required this.quaternaryLabel,
+    required this.placeholderText,
     required this.separator,
     required this.opaqueSeparator,
     required this.buttonHeight,
@@ -81,12 +93,17 @@ class CustomTheme {
     Color? success,
     Color? warning,
     Color? danger,
+    Color? systemRed,
+    Color? systemBlue,
+    Color? systemGreen,
     Color? systemBackground,
     Color? secondarySystemBackground,
     Color? tertiarySystemBackground,
     Color? label,
     Color? secondaryLabel,
     Color? tertiaryLabel,
+    Color? quaternaryLabel,
+    Color? placeholderText,
     Color? separator,
     Color? opaqueSeparator,
     double? buttonHeight,
@@ -108,6 +125,9 @@ class CustomTheme {
       success: success ?? this.success,
       warning: warning ?? this.warning,
       danger: danger ?? this.danger,
+      systemRed: systemRed ?? this.systemRed,
+      systemBlue: systemBlue ?? this.systemBlue,
+      systemGreen: systemGreen ?? this.systemGreen,
       systemBackground: systemBackground ?? this.systemBackground,
       secondarySystemBackground:
           secondarySystemBackground ?? this.secondarySystemBackground,
@@ -116,6 +136,8 @@ class CustomTheme {
       label: label ?? this.label,
       secondaryLabel: secondaryLabel ?? this.secondaryLabel,
       tertiaryLabel: tertiaryLabel ?? this.tertiaryLabel,
+      quaternaryLabel: quaternaryLabel ?? this.quaternaryLabel,
+      placeholderText: placeholderText ?? this.placeholderText,
       separator: separator ?? this.separator,
       opaqueSeparator: opaqueSeparator ?? this.opaqueSeparator,
       buttonHeight: buttonHeight ?? this.buttonHeight,
@@ -141,12 +163,17 @@ class CustomTheme {
       'success': success.toARGB32(),
       'warning': warning.toARGB32(),
       'danger': danger.toARGB32(),
+      'systemRed': systemRed.toARGB32(),
+      'systemBlue': systemBlue.toARGB32(),
+      'systemGreen': systemGreen.toARGB32(),
       'systemBackground': systemBackground.toARGB32(),
       'secondarySystemBackground': secondarySystemBackground.toARGB32(),
       'tertiarySystemBackground': tertiarySystemBackground.toARGB32(),
       'label': label.toARGB32(),
       'secondaryLabel': secondaryLabel.toARGB32(),
       'tertiaryLabel': tertiaryLabel.toARGB32(),
+      'quaternaryLabel': quaternaryLabel.toARGB32(),
+      'placeholderText': placeholderText.toARGB32(),
       'separator': separator.toARGB32(),
       'opaqueSeparator': opaqueSeparator.toARGB32(),
       'buttonHeight': buttonHeight,
@@ -172,12 +199,17 @@ class CustomTheme {
       success: Color(json['success']),
       warning: Color(json['warning']),
       danger: Color(json['danger']),
+      systemRed: Color(json['systemRed'] ?? 0xFFFF3B30),
+      systemBlue: Color(json['systemBlue'] ?? 0xFF007AFF),
+      systemGreen: Color(json['systemGreen'] ?? 0xFF34C759),
       systemBackground: Color(json['systemBackground']),
       secondarySystemBackground: Color(json['secondarySystemBackground']),
       tertiarySystemBackground: Color(json['tertiarySystemBackground']),
       label: Color(json['label']),
       secondaryLabel: Color(json['secondaryLabel']),
       tertiaryLabel: Color(json['tertiaryLabel']),
+      quaternaryLabel: Color(json['quaternaryLabel'] ?? json['tertiaryLabel']),
+      placeholderText: Color(json['placeholderText'] ?? json['tertiaryLabel']),
       separator: Color(json['separator']),
       opaqueSeparator: Color(json['opaqueSeparator']),
       buttonHeight: json['buttonHeight'],
@@ -205,12 +237,17 @@ class AppTheme {
     success: AppColors.success,
     warning: AppColors.warning,
     danger: AppColors.danger,
+    systemRed: CupertinoColors.systemRed,
+    systemBlue: CupertinoColors.systemBlue,
+    systemGreen: CupertinoColors.systemGreen,
     systemBackground: AppColors.systemBackground,
     secondarySystemBackground: AppColors.secondarySystemBackground,
     tertiarySystemBackground: AppColors.tertiarySystemBackground,
     label: AppColors.label,
     secondaryLabel: AppColors.secondaryLabel,
     tertiaryLabel: AppColors.tertiaryLabel,
+    quaternaryLabel: AppColors.quaternaryLabel,
+    placeholderText: AppColors.placeholderText,
     separator: AppColors.separator,
     opaqueSeparator: AppColors.opaqueSeparator,
     buttonHeight: AppDimensions.buttonHeightM,
@@ -234,12 +271,17 @@ class AppTheme {
     success: AppColors.success,
     warning: AppColors.warning,
     danger: AppColors.danger,
+    systemRed: CupertinoColors.systemRed,
+    systemBlue: CupertinoColors.systemBlue,
+    systemGreen: CupertinoColors.systemGreen,
     systemBackground: AppColors.darkSystemBackground,
     secondarySystemBackground: AppColors.darkSecondarySystemBackground,
     tertiarySystemBackground: AppColors.darkTertiarySystemBackground,
     label: AppColors.darkLabel,
     secondaryLabel: AppColors.darkSecondaryLabel,
     tertiaryLabel: AppColors.darkTertiaryLabel,
+    quaternaryLabel: AppColors.darkQuaternaryLabel,
+    placeholderText: AppColors.darkPlaceholderText,
     separator: AppColors.separator,
     opaqueSeparator: AppColors.opaqueSeparator,
     buttonHeight: AppDimensions.buttonHeightM,
@@ -263,12 +305,17 @@ class AppTheme {
     success: AppColors.success,
     warning: AppColors.warning,
     danger: AppColors.danger,
+    systemRed: CupertinoColors.systemRed,
+    systemBlue: CupertinoColors.systemBlue,
+    systemGreen: CupertinoColors.systemGreen,
     systemBackground: AppColors.systemBackground,
     secondarySystemBackground: AppColors.secondarySystemBackground,
     tertiarySystemBackground: AppColors.tertiarySystemBackground,
     label: AppColors.label,
     secondaryLabel: AppColors.secondaryLabel,
     tertiaryLabel: AppColors.tertiaryLabel,
+    quaternaryLabel: AppColors.quaternaryLabel,
+    placeholderText: AppColors.placeholderText,
     separator: AppColors.separator,
     opaqueSeparator: AppColors.opaqueSeparator,
     buttonHeight: AppDimensions.buttonHeightS,
@@ -280,6 +327,40 @@ class AppTheme {
     showBorders: false,
     showIcons: true,
     compactMode: true,
+  );
+
+  /// Time to Travel темная тема (основанная на дизайне сайта клиента)
+  static const CustomTheme timeToTravelDark = CustomTheme(
+    id: 'time_to_travel_dark',
+    name: 'Time to Travel',
+    isDark: true,
+    primary: TimeToTravelColors.redPrimary,
+    secondary: TimeToTravelColors.darkBgSecondary,
+    success: AppColors.success,
+    warning: AppColors.warning,
+    danger: TimeToTravelColors.redPrimary,
+    systemRed: TimeToTravelColors.redPrimary,
+    systemBlue: CupertinoColors.systemBlue,
+    systemGreen: CupertinoColors.systemGreen,
+    systemBackground: TimeToTravelColors.darkBg,
+    secondarySystemBackground: TimeToTravelColors.darkBgSecondary,
+    tertiarySystemBackground: TimeToTravelColors.darkBgTertiary,
+    label: TimeToTravelColors.textPrimary,
+    secondaryLabel: TimeToTravelColors.textSecondary,
+    tertiaryLabel: TimeToTravelColors.textMuted,
+    quaternaryLabel: TimeToTravelColors.textMuted,
+    placeholderText: TimeToTravelColors.textMuted,
+    separator: AppColors.darkSeparator,
+    opaqueSeparator: TimeToTravelColors.darkBorder,
+    buttonHeight: AppDimensions.buttonHeightM,
+    borderRadius: AppDimensions.radiusM,
+    iconSize: AppDimensions.iconM,
+    baseFontSize: AppTextStyles.fontSizeM,
+    baseFontWeight: AppTextStyles.weightRegular,
+    showShadows: true,
+    showBorders: true,
+    showIcons: true,
+    compactMode: false,
   );
 
   /// Получение CupertinoThemeData из CustomTheme
@@ -330,6 +411,7 @@ class AppTheme {
     defaultLight,
     defaultDark,
     compact,
+    timeToTravelDark,
   ];
 
   /// Получение темы по ID

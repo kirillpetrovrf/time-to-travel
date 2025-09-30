@@ -24,6 +24,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   UserType? _userType;
 
+  // НОВОЕ (ТЗ v3.0): Секретный вход диспетчера (7 тапов)
+  int _secretTapCount = 0;
+  DateTime? _lastTapTime;
+
   @override
   void initState() {
     super.initState();
@@ -151,96 +155,164 @@ class _HomeScreenState extends State<HomeScreen> {
   // Геттер для получения текущего индекса
   int get currentIndex => _currentIndex;
 
+  /// НОВОЕ (ТЗ v3.0): Обработка секретных тапов для входа диспетчера
+  void _handleSecretTap() {
+    final now = DateTime.now();
+
+    // Сброс счетчика если прошло больше 3 секунд с последнего тапа
+    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 3) {
+      _secretTapCount = 0;
+    }
+
+    _secretTapCount++;
+    _lastTapTime = now;
+
+    print('🔒 Секретный тап $_secretTapCount/7');
+
+    if (_secretTapCount >= 7) {
+      _secretTapCount = 0;
+      _showDispatcherLogin();
+    }
+  }
+
+  /// Показать диалог входа диспетчера
+  void _showDispatcherLogin() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Вход диспетчера'),
+        content: const Text(
+          'Введите пароль диспетчера для доступа к административной панели.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Отмена'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Войти'),
+            onPressed: () async {
+              Navigator.pop(context);
+              // Временный вход без пароля для демо
+              await AuthService.instance.upgradeToDispatcher();
+              _loadUserType();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeManager = context.themeManager;
     final theme = themeManager.currentTheme;
 
-    return CupertinoTabScaffold(
-      tabBar: CupertinoTabBar(
-        backgroundColor: theme.secondarySystemBackground,
-        activeColor: theme.primary,
-        inactiveColor: theme.secondaryLabel,
-        currentIndex: _currentIndex,
-        onTap: _onTabChanged,
-        iconSize: 24.0, // Размер иконок
-        height: 55.0, // Компактная высота панели без текста
-        items: _userType == UserType.dispatcher
-            ? [
-                // Для диспетчеров: Главная, Админ панель, Заказы, Отслеживание, Профиль
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.home, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.settings, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.list_dash, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.location, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.person, size: 24),
-                  label: '',
-                ),
-              ]
-            : [
-                // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.car, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.list_dash, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.location, size: 24),
-                  label: '',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.person, size: 24),
-                  label: '',
-                ),
-              ],
-      ),
-      tabBuilder: (context, index) {
-        if (_userType == UserType.dispatcher) {
-          switch (index) {
-            case 0:
-              return const DispatcherHomeScreen();
-            case 1:
-              return AdminPanelScreen();
-            case 2:
-              return const OrdersScreen();
-            case 3:
-              return const TrackingScreen();
-            case 4:
-              return const ProfileScreen();
-            default:
-              return const DispatcherHomeScreen();
-          }
-        } else {
-          // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
-          switch (index) {
-            case 0:
-              return const BookingScreen(); // Бронирование
-            case 1:
-              return const OrdersScreen(); // Мои заказы
-            case 2:
-              return const TrackingScreen(); // Отслеживание
-            case 3:
-              return const ProfileScreen(); // Профиль
-            default:
-              return const BookingScreen();
-          }
-        }
-      },
+    return Stack(
+      children: [
+        CupertinoTabScaffold(
+          tabBar: CupertinoTabBar(
+            backgroundColor: theme.secondarySystemBackground,
+            activeColor: theme.primary,
+            inactiveColor: theme.secondaryLabel,
+            currentIndex: _currentIndex,
+            onTap: _onTabChanged,
+            iconSize: 24.0, // Размер иконок
+            height: 55.0, // Компактная высота панели без текста
+            items: _userType == UserType.dispatcher
+                ? [
+                    // Для диспетчеров: Главная, Админ панель, Заказы, Отслеживание, Профиль
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.home, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.settings, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.list_dash, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.location, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.person, size: 24),
+                      label: '',
+                    ),
+                  ]
+                : [
+                    // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.car, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.list_dash, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.location, size: 24),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.person, size: 24),
+                      label: '',
+                    ),
+                  ],
+          ),
+          tabBuilder: (context, index) {
+            if (_userType == UserType.dispatcher) {
+              switch (index) {
+                case 0:
+                  return const DispatcherHomeScreen();
+                case 1:
+                  return AdminPanelScreen();
+                case 2:
+                  return const OrdersScreen();
+                case 3:
+                  return const TrackingScreen();
+                case 4:
+                  return const ProfileScreen();
+                default:
+                  return const DispatcherHomeScreen();
+              }
+            } else {
+              // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
+              switch (index) {
+                case 0:
+                  return const BookingScreen(); // Бронирование
+                case 1:
+                  return const OrdersScreen(); // Мои заказы
+                case 2:
+                  return const TrackingScreen(); // Отслеживание
+                case 3:
+                  return const ProfileScreen(); // Профиль
+                default:
+                  return const BookingScreen();
+              }
+            }
+          },
+        ),
+        // НОВОЕ (ТЗ v3.0): Секретная зона для входа диспетчера (7 тапов в правом верхнем углу)
+        if (_userType != UserType.dispatcher)
+          Positioned(
+            top: 50,
+            right: 0,
+            child: GestureDetector(
+              onTap: _handleSecretTap,
+              child: Container(
+                width: 80,
+                height: 80,
+                color: CupertinoColors.systemBackground.withOpacity(0.0),
+                child: const SizedBox.shrink(),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

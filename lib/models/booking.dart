@@ -1,4 +1,6 @@
 import 'trip_type.dart';
+import 'baggage.dart';
+import 'pet_info.dart';
 
 enum BookingStatus {
   pending, // Ожидает подтверждения
@@ -76,6 +78,8 @@ class Booking {
   final String? assignedVehicleId;
   final String? notes;
   final List<TrackingPoint> trackingPoints; // Точки отслеживания
+  final List<BaggageItem> baggage; // Багаж пассажира
+  final List<PetInfo> pets; // Животные
 
   const Booking({
     required this.id,
@@ -94,6 +98,8 @@ class Booking {
     this.assignedVehicleId,
     this.notes,
     this.trackingPoints = const [],
+    this.baggage = const [],
+    this.pets = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -114,6 +120,8 @@ class Booking {
       'assignedVehicleId': assignedVehicleId,
       'notes': notes,
       'trackingPoints': trackingPoints.map((e) => e.toJson()).toList(),
+      'baggage': baggage.map((e) => e.toJson()).toList(),
+      'pets': pets.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -142,6 +150,12 @@ class Booking {
       notes: json['notes'] as String?,
       trackingPoints: (json['trackingPoints'] as List? ?? [])
           .map((e) => TrackingPoint.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      baggage: (json['baggage'] as List? ?? [])
+          .map((e) => BaggageItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      pets: (json['pets'] as List? ?? [])
+          .map((e) => PetInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }

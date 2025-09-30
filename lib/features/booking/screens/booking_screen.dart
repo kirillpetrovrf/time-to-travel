@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import '../../../models/user.dart';
+import '../../../models/route_stop.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../admin/screens/admin_panel_screen.dart';
+import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
 
@@ -71,7 +73,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
               // Заголовок
               Text(
-                'Выберите тип поездки',
+                'Выберите тип маршрута',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -83,76 +85,64 @@ class _BookingScreenState extends State<BookingScreen> {
               const SizedBox(height: 8),
 
               Text(
-                'Комфортные поездки по маршруту Донецк - Ростов-на-Дону',
+                'Комфортные поездки по маршруту Донецк ⇄ Ростов-на-Дону',
                 style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
                 textAlign: TextAlign.center,
               ),
 
               const SizedBox(height: 40),
 
-              // Групповая поездка
-              _BookingCard(
-                icon: CupertinoIcons.group,
-                title: 'Групповая поездка',
-                description: 'Поделитесь автомобилем с другими пассажирами',
-                price: '2000 ₽/место',
+              // Популярные маршруты
+              _RouteTypeCard(
+                icon: CupertinoIcons.star_fill,
+                title: 'Популярные маршруты',
+                description: 'Готовые маршруты с фиксированными остановками',
                 features: [
-                  'Фиксированное расписание',
-                  'Комфортабельные автомобили',
-                  'Опытные водители',
+                  'Донецк → Ростов-на-Дону',
+                  'Популярные промежуточные города',
+                  'Быстрое бронирование',
                 ],
                 theme: theme,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    CupertinoPageRoute(
-                      builder: (context) => const GroupBookingScreen(),
-                    ),
-                  );
-                },
+                onTap: () => _showRouteSelection('popular'),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Индивидуальный трансфер
-              _BookingCard(
-                icon: CupertinoIcons.car_detailed,
-                title: 'Индивидуальный трансфер',
-                description: 'Персональная поездка в удобное время',
-                price: '8000 ₽/авто',
+              // Свободный маршрут
+              _RouteTypeCard(
+                icon: CupertinoIcons.location,
+                title: 'Свободный маршрут',
+                description: 'Выберите любые точки отправления и назначения',
                 features: [
-                  'Выберите удобное время',
-                  'Персональный автомобиль',
-                  'Доставка до места',
+                  'Все доступные остановки',
+                  'Максимальная гибкость',
+                  'Индивидуальная настройка',
                 ],
                 theme: theme,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    CupertinoPageRoute(
-                      builder: (context) => const IndividualBookingScreen(),
-                    ),
-                  );
-                },
+                onTap: () => _showRouteSelection('free'),
               ),
 
-              const SizedBox(height: 40),
+              const Spacer(),
 
               // Информация
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: theme.primary.withOpacity(0.1),
+                  color: theme.secondarySystemBackground,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
                   children: [
                     Row(
                       children: [
-                        Icon(CupertinoIcons.info_circle, color: theme.primary),
+                        Icon(
+                          CupertinoIcons.info_circle_fill,
+                          color: CupertinoColors.systemBlue,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
-                          'Важная информация',
+                          'Информация о ценах',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -161,10 +151,9 @@ class _BookingScreenState extends State<BookingScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Text(
-                      'Групповые поездки отправляются в 6:00, 9:00, 13:00 и 16:00. '
-                      'Индивидуальный трансфер после 22:00 стоит 10000 ₽.',
+                      'Групповые поездки: 2000 ₽ за место\nИндивидуальные поездки: от 8000 ₽',
                       style: TextStyle(
                         fontSize: 14,
                         color: theme.secondaryLabel,
@@ -180,12 +169,410 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  void _showRouteSelection(String routeType) {
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => RouteSelectionScreen(
+          routeDirection: 'donetsk_to_rostov', // По умолчанию
+          onRouteSelected: (fromStop, toStop) {
+            _showTripTypeSelection(fromStop, toStop, routeType);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showTripTypeSelection(
+    RouteStop fromStop,
+    RouteStop toStop,
+    String routeType,
+  ) {
+    // Возвращаемся к экрану бронирования и показываем выбор типа поездки
+    Navigator.of(context).pop();
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => _TripTypeSelectionModal(
+        fromStop: fromStop,
+        toStop: toStop,
+        routeType: routeType,
+        onTripTypeSelected: (tripType) {
+          _navigateToBooking(fromStop, toStop, tripType);
+        },
+      ),
+    );
+  }
+
+  void _navigateToBooking(
+    RouteStop fromStop,
+    RouteStop toStop,
+    String tripType,
+  ) {
+    if (tripType == 'group') {
+      Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (context) =>
+              GroupBookingScreen(fromStop: fromStop, toStop: toStop),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (context) =>
+              IndividualBookingScreen(fromStop: fromStop, toStop: toStop),
+        ),
+      );
+    }
+  }
+
   Widget _buildDispatcherView(CustomTheme theme) {
-    return AdminPanelScreen();
+    return CupertinoPageScaffold(
+      backgroundColor: theme.systemBackground,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: theme.secondarySystemBackground,
+        middle: Text(
+          'Управление поездками',
+          style: TextStyle(color: theme.label),
+        ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            Navigator.of(context).push(
+              CupertinoPageRoute(
+                builder: (context) => const AdminPanelScreen(),
+              ),
+            );
+          },
+          child: Icon(CupertinoIcons.settings, color: theme.primary),
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 20),
+              Text(
+                'Панель диспетчера',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: theme.label,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Управление поездками и маршрутами',
+                style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              _DispatcherCard(
+                icon: CupertinoIcons.plus_circle_fill,
+                title: 'Создать поездку',
+                description:
+                    'Добавить новую групповую или индивидуальную поездку',
+                theme: theme,
+                onTap: () {
+                  // TODO: Реализовать создание поездки
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class _BookingCard extends StatelessWidget {
+class _RouteTypeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final List<String> features;
+  final CustomTheme theme;
+  final VoidCallback onTap;
+
+  const _RouteTypeCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.features,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.separator),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: theme.primary, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: theme.secondaryLabel,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  color: theme.tertiaryLabel,
+                  size: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...features
+                .map(
+                  (feature) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.checkmark_circle_fill,
+                          color: CupertinoColors.systemGreen,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.secondaryLabel,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DispatcherCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final CustomTheme theme;
+  final VoidCallback onTap;
+
+  const _DispatcherCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.separator),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: theme.primary, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: theme.tertiaryLabel,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TripTypeSelectionModal extends StatelessWidget {
+  final RouteStop fromStop;
+  final RouteStop toStop;
+  final String routeType;
+  final Function(String) onTripTypeSelected;
+
+  const _TripTypeSelectionModal({
+    required this.fromStop,
+    required this.toStop,
+    required this.routeType,
+    required this.onTripTypeSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.6,
+      decoration: BoxDecoration(
+        color: theme.systemBackground,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Заголовок
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: theme.separator)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'Выберите тип поездки',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: theme.label,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${fromStop.name} → ${toStop.name}',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+              ],
+            ),
+          ),
+
+          // Опции
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Групповая поездка
+                  _TripTypeOption(
+                    icon: CupertinoIcons.group,
+                    title: 'Групповая поездка',
+                    description: 'Поделитесь автомобилем с другими пассажирами',
+                    price: '2000 ₽',
+                    features: [
+                      'Фиксированное расписание',
+                      'Комфортабельные автомобили',
+                      'Опытные водители',
+                    ],
+                    theme: theme,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      onTripTypeSelected('group');
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Индивидуальная поездка
+                  _TripTypeOption(
+                    icon: CupertinoIcons.car,
+                    title: 'Индивидуальная поездка',
+                    description: 'Персональный автомобиль только для вас',
+                    price: 'от 8000 ₽',
+                    features: [
+                      'Гибкое расписание',
+                      'Личный водитель',
+                      'Возможность остановок по пути',
+                    ],
+                    theme: theme,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      onTripTypeSelected('individual');
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripTypeOption extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
@@ -194,7 +581,7 @@ class _BookingCard extends StatelessWidget {
   final CustomTheme theme;
   final VoidCallback onTap;
 
-  const _BookingCard({
+  const _TripTypeOption({
     required this.icon,
     required this.title,
     required this.description,
@@ -206,14 +593,15 @@ class _BookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: theme.secondarySystemBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.separator.withOpacity(0.3)),
+          border: Border.all(color: theme.separator),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,7 +643,7 @@ class _BookingCard extends StatelessWidget {
                 Text(
                   price,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: theme.primary,
                   ),
@@ -266,20 +654,22 @@ class _BookingCard extends StatelessWidget {
             ...features
                 .map(
                   (feature) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
                       children: [
                         Icon(
                           CupertinoIcons.checkmark_circle_fill,
-                          size: 16,
                           color: CupertinoColors.systemGreen,
+                          size: 16,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          feature,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.secondaryLabel,
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.secondaryLabel,
+                            ),
                           ),
                         ),
                       ],

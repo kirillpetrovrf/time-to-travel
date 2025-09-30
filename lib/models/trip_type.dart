@@ -9,9 +9,10 @@ enum Direction {
 }
 
 enum VehicleClass {
-  economy, // Эконом класс
-  premium, // Премиум класс
-  minivan, // Минивэн
+  sedan, // Седан (1-3 пассажира)
+  wagon, // Универсал (1-4 пассажира, больше багажа)
+  minivan, // Минивэн (1-6 пассажиров)
+  microbus, // Микроавтобус (1-8 пассажиров)
 }
 
 class TripPricing {

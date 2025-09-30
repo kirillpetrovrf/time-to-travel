@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/theme_manager.dart';
-import '../../theme_editor/screens/theme_editor_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -49,15 +48,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = themeManager.currentTheme;
 
     return CupertinoPageScaffold(
-      backgroundColor: theme.systemBackground,
+      backgroundColor: Colors.transparent,
       navigationBar: CupertinoNavigationBar(
         backgroundColor: theme.secondarySystemBackground,
         middle: Text('Профиль', style: TextStyle(color: theme.label)),
       ),
-      child: SafeArea(
-        child: _isLoading
-            ? const Center(child: CupertinoActivityIndicator())
-            : _buildProfileContent(theme),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFDC2626), // Красный
+              Color(0xFF000000), // Черный
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(child: CupertinoActivityIndicator())
+              : _buildProfileContent(theme),
+        ),
       ),
     );
   }
@@ -165,22 +176,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildSettingsItem(
             theme: theme,
-            icon: CupertinoIcons.paintbrush,
-            title: 'Настройки темы',
-            onTap: () {
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => const ThemeEditorScreen(),
-                ),
-              );
-            },
-          ),
-
-          Divider(height: 1, color: theme.separator.withOpacity(0.2)),
-
-          _buildSettingsItem(
-            theme: theme,
             icon: CupertinoIcons.bell,
             title: 'Уведомления',
             onTap: () {
@@ -280,7 +275,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Time to Travel'),
         content: const Text(
-          'Приложение для бронирования поездок по маршруту Донецк - Ростов-на-Дону\n\nВерсия: 1.0.0',
+          'Приложение для пассажирских перевозок\n\nВерсия: 1.0.0',
         ),
         actions: [
           CupertinoDialogAction(

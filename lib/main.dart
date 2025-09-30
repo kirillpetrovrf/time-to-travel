@@ -8,7 +8,7 @@ import 'config/map_config.dart';
 import 'services/auth_service.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
-import 'features/theme_editor/screens/theme_editor_screen.dart';
+import 'features/splash/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,7 +42,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
       title: 'Time to Travel',
       theme: AppTheme.getCurrentTheme(themeManager.currentTheme),
       debugShowCheckedModeBanner: false,
-      home: const AuthCheckWidget(),
+      home: const SplashScreen(), // Заменяем AuthCheckWidget на SplashScreen
       onGenerateRoute: (settings) {
         // Ensure all routes have access to the ThemeManager provider
         Widget child;
@@ -53,11 +53,8 @@ class _TimeToTravelAppContent extends StatelessWidget {
           case '/home':
             child = HomeScreen();
             break;
-          case '/theme-editor':
-            child = const ThemeEditorScreen();
-            break;
           default:
-            child = const AuthCheckWidget();
+            child = const SplashScreen(); // Заменяем на SplashScreen
         }
 
         return CupertinoPageRoute(

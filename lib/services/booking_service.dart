@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/booking.dart';
 
 class BookingService {
@@ -9,62 +11,205 @@ class BookingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'bookings';
 
-  /// Создание нового бронирования
-  Future<String> createBooking(Booking booking) async {
-    final docRef = await _firestore
-        .collection(_collection)
-        .add(booking.toJson());
-    return docRef.id;
+  // НОВОЕ: Ключи для оффлайн хранения
+  static const String _offlineBookingsKey = 'offline_bookings';
+  static const String _isOfflineModeKey = 'is_offline_mode';
+
+  // НОВОЕ: Проверка оффлайн режима
+  Future<bool> _isOfflineMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_isOfflineModeKey) ?? true;
   }
 
-  /// Получение бронирования по ID
-  Future<Booking?> getBookingById(String bookingId) async {
-    final doc = await _firestore.collection(_collection).doc(bookingId).get();
+  /// Создание нового бронирования (с поддержкой оффлайн режима)
+  Future<String> createBooking(Booking booking) async {
+    if (await _isOfflineMode()) {
+      return _createOfflineBooking(booking);
+    } else {
+      final docRef = await _firestore
+          .collection(_collection)
+          .add(booking.toJson());
+      return docRef.id;
+    }
+  }
 
-    if (doc.exists && doc.data() != null) {
-      final data = doc.data()!;
-      data['id'] = doc.id;
-      return Booking.fromJson(data);
+  /// НОВОЕ: Создание оффлайн бронирования
+  Future<String> _createOfflineBooking(Booking booking) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Генерируем уникальный ID
+    final bookingId = 'offline_${DateTime.now().millisecondsSinceEpoch}';
+
+    // Создаем бронирование с ID
+    final bookingWithId = Booking(
+      id: bookingId,
+      clientId: booking.clientId,
+      tripType: booking.tripType,
+      direction: booking.direction,
+      departureDate: booking.departureDate,
+      departureTime: booking.departureTime,
+      passengerCount: booking.passengerCount,
+      pickupPoint: booking.pickupPoint,
+      pickupAddress: booking.pickupAddress,
+      dropoffAddress: booking.dropoffAddress,
+      totalPrice: booking.totalPrice,
+      status: booking.status,
+      createdAt: booking.createdAt,
+      trackingPoints: booking.trackingPoints,
+      baggage: booking.baggage,
+      pets: booking.pets,
+    );
+
+    // Получаем существующие бронирования
+    final existingBookingsJson = prefs.getString(_offlineBookingsKey);
+    List<Map<String, dynamic>> bookingsList = [];
+
+    if (existingBookingsJson != null) {
+      final decoded = jsonDecode(existingBookingsJson) as List<dynamic>;
+      bookingsList = decoded.cast<Map<String, dynamic>>();
+    }
+
+    // Добавляем новое бронирование
+    bookingsList.add(bookingWithId.toJson());
+
+    // Сохраняем обратно
+    await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));
+
+    print('📱 Создано оффлайн бронирование: $bookingId');
+    return bookingId;
+  }
+
+  /// Получение бронирования по ID (с поддержкой оффлайн режима)
+  Future<Booking?> getBookingById(String bookingId) async {
+    if (await _isOfflineMode()) {
+      return _getOfflineBookingById(bookingId);
+    } else {
+      final doc = await _firestore.collection(_collection).doc(bookingId).get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        data['id'] = doc.id;
+        return Booking.fromJson(data);
+      }
+      return null;
+    }
+  }
+
+  /// НОВОЕ: Получение оффлайн бронирования по ID
+  Future<Booking?> _getOfflineBookingById(String bookingId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookingsJson = prefs.getString(_offlineBookingsKey);
+
+    if (bookingsJson != null) {
+      final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
+
+      for (final bookingData in bookingsList) {
+        final booking = Booking.fromJson(bookingData as Map<String, dynamic>);
+        if (booking.id == bookingId) {
+          return booking;
+        }
+      }
     }
     return null;
   }
 
-  /// Получение всех бронирований клиента
+  /// Получение всех бронирований клиента (с поддержкой оффлайн режима)
   Future<List<Booking>> getClientBookings(String clientId) async {
-    final query = await _firestore
-        .collection(_collection)
-        .where('clientId', isEqualTo: clientId)
-        .orderBy('createdAt', descending: true)
-        .get();
+    if (await _isOfflineMode()) {
+      return _getOfflineClientBookings(clientId);
+    } else {
+      final query = await _firestore
+          .collection(_collection)
+          .where('clientId', isEqualTo: clientId)
+          .orderBy('createdAt', descending: true)
+          .get();
 
-    return query.docs.map((doc) {
-      final data = doc.data();
-      data['id'] = doc.id;
-      return Booking.fromJson(data);
-    }).toList();
+      return query.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return Booking.fromJson(data);
+      }).toList();
+    }
   }
 
-  /// Получение всех активных бронирований
-  Future<List<Booking>> getActiveBookings() async {
-    final query = await _firestore
-        .collection(_collection)
-        .where(
-          'status',
-          whereIn: [
-            BookingStatus.pending.toString(),
-            BookingStatus.confirmed.toString(),
-            BookingStatus.assigned.toString(),
-            BookingStatus.inProgress.toString(),
-          ],
-        )
-        .orderBy('departureDate')
-        .get();
+  /// НОВОЕ: Получение оффлайн бронирований клиента
+  Future<List<Booking>> _getOfflineClientBookings(String clientId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookingsJson = prefs.getString(_offlineBookingsKey);
 
-    return query.docs.map((doc) {
-      final data = doc.data();
-      data['id'] = doc.id;
-      return Booking.fromJson(data);
-    }).toList();
+    if (bookingsJson == null) return [];
+
+    final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
+    final clientBookings = <Booking>[];
+
+    for (final bookingData in bookingsList) {
+      final booking = Booking.fromJson(bookingData as Map<String, dynamic>);
+      if (booking.clientId == clientId) {
+        clientBookings.add(booking);
+      }
+    }
+
+    // Сортируем по дате создания (самые новые сначала)
+    clientBookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return clientBookings;
+  }
+
+  /// Получение всех активных бронирований (с поддержкой оффлайн режима)
+  Future<List<Booking>> getActiveBookings() async {
+    if (await _isOfflineMode()) {
+      return _getOfflineActiveBookings();
+    } else {
+      final query = await _firestore
+          .collection(_collection)
+          .where(
+            'status',
+            whereIn: [
+              BookingStatus.pending.toString(),
+              BookingStatus.confirmed.toString(),
+              BookingStatus.assigned.toString(),
+              BookingStatus.inProgress.toString(),
+            ],
+          )
+          .orderBy('departureDate')
+          .get();
+
+      return query.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return Booking.fromJson(data);
+      }).toList();
+    }
+  }
+
+  /// НОВОЕ: Получение оффлайн активных бронирований
+  Future<List<Booking>> _getOfflineActiveBookings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookingsJson = prefs.getString(_offlineBookingsKey);
+
+    if (bookingsJson == null) return [];
+
+    final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
+    final activeBookings = <Booking>[];
+
+    for (final bookingData in bookingsList) {
+      final booking = Booking.fromJson(bookingData as Map<String, dynamic>);
+
+      // Фильтруем активные статусы
+      if ([
+        BookingStatus.pending,
+        BookingStatus.confirmed,
+        BookingStatus.assigned,
+        BookingStatus.inProgress,
+      ].contains(booking.status)) {
+        activeBookings.add(booking);
+      }
+    }
+
+    // Сортируем по дате отправления
+    activeBookings.sort((a, b) => a.departureDate.compareTo(b.departureDate));
+
+    return activeBookings;
   }
 
   /// Получение бронирований по дате
@@ -121,12 +266,47 @@ class BookingService {
     await _firestore.collection(_collection).doc(booking.id).update(data);
   }
 
-  /// Отмена бронирования
-  Future<void> cancelBooking(String bookingId, String reason) async {
-    await _firestore.collection(_collection).doc(bookingId).update({
-      'status': BookingStatus.cancelled.toString(),
-      'notes': reason,
-    });
+  /// Отмена бронирования (с поддержкой оффлайн режима)
+  Future<void> cancelBooking(String bookingId, [String? reason]) async {
+    if (await _isOfflineMode()) {
+      await _cancelOfflineBooking(bookingId, reason);
+    } else {
+      final updateData = {'status': BookingStatus.cancelled.toString()};
+      if (reason != null) {
+        updateData['notes'] = reason;
+      }
+      await _firestore
+          .collection(_collection)
+          .doc(bookingId)
+          .update(updateData);
+    }
+  }
+
+  /// НОВОЕ: Отмена оффлайн бронирования
+  Future<void> _cancelOfflineBooking(String bookingId, [String? reason]) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookingsJson = prefs.getString(_offlineBookingsKey);
+
+    if (bookingsJson != null) {
+      final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
+
+      // Находим и обновляем статус бронирования
+      for (int i = 0; i < bookingsList.length; i++) {
+        final bookingData = bookingsList[i] as Map<String, dynamic>;
+        if (bookingData['id'] == bookingId) {
+          bookingData['status'] = BookingStatus.cancelled.toString();
+          bookingData['updatedAt'] = DateTime.now().toIso8601String();
+          if (reason != null) {
+            bookingData['notes'] = reason;
+          }
+          break;
+        }
+      }
+
+      // Сохраняем обновленный список
+      await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));
+      print('📱 Бронирование $bookingId отменено в оффлайн режиме');
+    }
   }
 
   /// Получение статистики по бронированиям
