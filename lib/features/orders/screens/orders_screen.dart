@@ -57,22 +57,53 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text(
-          _userType == UserType.dispatcher ? 'Все заказы' : 'Мои заказы',
-          style: TextStyle(color: theme.label),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _loadData,
-          child: Icon(CupertinoIcons.refresh, color: theme.primary),
-        ),
-      ),
-      child: SafeArea(
-        child: _isLoading
-            ? const Center(child: CupertinoActivityIndicator())
-            : _buildBookingsList(theme),
+      child: Column(
+        children: [
+          // Кастомный navigationBar с серым фоном
+          Container(
+            color: theme.secondarySystemBackground, // Серый цвет как TabBar
+            child: SafeArea(
+              bottom: false,
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          _userType == UserType.dispatcher
+                              ? 'Все заказы'
+                              : 'Мои заказы',
+                          style: TextStyle(
+                            color: theme.label,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _loadData,
+                      child: Icon(
+                        CupertinoIcons.refresh,
+                        color: theme.primary,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Контент
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CupertinoActivityIndicator())
+                : _buildBookingsList(theme),
+          ),
+        ],
       ),
     );
   }
@@ -221,12 +252,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  void _openBookingDetail(Booking booking) {
-    Navigator.of(context).push(
+  void _openBookingDetail(Booking booking) async {
+    final result = await Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (context) => BookingDetailScreen(booking: booking),
       ),
     );
+
+    // Если заказ был отменен, перезагружаем список
+    if (result == true && mounted) {
+      await _loadData();
+    }
   }
 
   String _getDirectionText(Direction direction) {

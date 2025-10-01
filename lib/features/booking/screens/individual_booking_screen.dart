@@ -642,32 +642,48 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(CupertinoIcons.bag, color: theme.primary),
-            title: Text(
-              _selectedBaggage.isEmpty
-                  ? 'Выберите багаж'
-                  : '${_selectedBaggage.length} ${_getBaggageCountText(_selectedBaggage.length)}',
-              style: TextStyle(color: theme.label),
-            ),
-            subtitle: _selectedBaggage.isNotEmpty
-                ? Text(
-                    '+${_calculateBaggagePrice().toInt()} ₽',
-                    style: TextStyle(color: theme.primary),
-                  )
-                : Text(
-                    'Размеры S, M, L, Custom',
-                    style: TextStyle(color: theme.secondaryLabel),
-                  ),
-            trailing: Icon(
-              CupertinoIcons.chevron_right,
-              color: theme.secondaryLabel,
-            ),
-            onTap: () => _openBaggageSelection(),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _openBaggageSelection,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.bag, color: theme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedBaggage.isEmpty
+                          ? 'Выберите багаж'
+                          : '${_selectedBaggage.length} ${_getBaggageCountText(_selectedBaggage.length)}',
+                      style: TextStyle(color: theme.label, fontSize: 16),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedBaggage.isNotEmpty
+                          ? '+${_calculateBaggagePrice().toInt()} ₽'
+                          : 'Размеры S, M, L, Custom',
+                      style: TextStyle(
+                        color: _selectedBaggage.isNotEmpty
+                            ? theme.primary
+                            : theme.secondaryLabel,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                CupertinoIcons.chevron_right,
+                color: theme.secondaryLabel,
+                size: 20,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -679,32 +695,48 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(CupertinoIcons.paw, color: theme.primary),
-            title: Text(
-              _selectedPets.isEmpty
-                  ? 'Добавить животных'
-                  : '${_selectedPets.length} ${_getPetCountText(_selectedPets.length)}',
-              style: TextStyle(color: theme.label),
-            ),
-            subtitle: _selectedPets.isNotEmpty
-                ? Text(
-                    '+${_calculatePetPrice().toInt()} ₽',
-                    style: TextStyle(color: theme.primary),
-                  )
-                : Text(
-                    'S, M, L размеры',
-                    style: TextStyle(color: theme.secondaryLabel),
-                  ),
-            trailing: Icon(
-              CupertinoIcons.chevron_right,
-              color: theme.secondaryLabel,
-            ),
-            onTap: () => _openPetSelection(),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _openPetSelection,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.paw, color: theme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedPets.isEmpty
+                          ? 'Добавить животных'
+                          : '${_selectedPets.length} ${_getPetCountText(_selectedPets.length)}',
+                      style: TextStyle(color: theme.label, fontSize: 16),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedPets.isNotEmpty
+                          ? '+${_calculatePetPrice().toInt()} ₽'
+                          : 'S, M, L размеры',
+                      style: TextStyle(
+                        color: _selectedPets.isNotEmpty
+                            ? theme.primary
+                            : theme.secondaryLabel,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                CupertinoIcons.chevron_right,
+                color: theme.secondaryLabel,
+                size: 20,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -985,32 +1017,48 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(CupertinoIcons.car, color: theme.primary),
-            title: Text(
-              _selectedVehicleClass == null
-                  ? 'Выберите тип транспорта'
-                  : _getVehicleClassName(_selectedVehicleClass!),
-              style: TextStyle(color: theme.label),
-            ),
-            subtitle: _selectedVehicleClass != null
-                ? Text(
-                    '+${_getVehiclePrice(_selectedVehicleClass!).toInt()} ₽',
-                    style: TextStyle(color: theme.primary),
-                  )
-                : Text(
-                    'Седан, Универсал, Минивэн, Микроавтобус',
-                    style: TextStyle(color: theme.secondaryLabel),
-                  ),
-            trailing: Icon(
-              CupertinoIcons.chevron_right,
-              color: theme.secondaryLabel,
-            ),
-            onTap: () => _openVehicleSelection(),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _openVehicleSelection,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.car, color: theme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedVehicleClass == null
+                          ? 'Выберите тип транспорта'
+                          : _getVehicleClassName(_selectedVehicleClass!),
+                      style: TextStyle(color: theme.label, fontSize: 16),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedVehicleClass != null
+                          ? '+${_getVehiclePrice(_selectedVehicleClass!).toInt()} ₽'
+                          : 'Седан, Универсал, Минивэн, Микроавтобус',
+                      style: TextStyle(
+                        color: _selectedVehicleClass != null
+                            ? theme.primary
+                            : theme.secondaryLabel,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                CupertinoIcons.chevron_right,
+                color: theme.secondaryLabel,
+                size: 20,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

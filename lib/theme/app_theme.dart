@@ -369,7 +369,8 @@ class AppTheme {
       brightness: theme.isDark ? Brightness.dark : Brightness.light,
       primaryColor: theme.primary,
       scaffoldBackgroundColor: theme.systemBackground,
-      barBackgroundColor: theme.secondarySystemBackground,
+      barBackgroundColor:
+          theme.secondarySystemBackground, // Серая шапка для всех navigationBar
       textTheme: CupertinoTextThemeData(
         primaryColor: theme.label,
         textStyle: TextStyle(

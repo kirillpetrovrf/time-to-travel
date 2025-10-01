@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../models/booking.dart';
 import '../../../models/trip_type.dart';
 import '../../../services/booking_service.dart';
@@ -15,6 +16,14 @@ class BookingDetailScreen extends StatefulWidget {
 }
 
 class _BookingDetailScreenState extends State<BookingDetailScreen> {
+  late Booking _currentBooking;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentBooking = widget.booking;
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeManager = context.themeManager;
@@ -25,7 +34,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       navigationBar: CupertinoNavigationBar(
         backgroundColor: theme.secondarySystemBackground,
         middle: Text(
-          'Заказ #${widget.booking.id.substring(0, 8)}',
+          'Заказ #${_currentBooking.id.substring(0, 8)}',
           style: TextStyle(color: theme.label),
         ),
         leading: CupertinoButton(
@@ -46,11 +55,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               const SizedBox(height: 16),
               _buildPassengerInfoCard(theme),
               const SizedBox(height: 16),
-              if (widget.booking.baggage.isNotEmpty) ...[
+              if (_currentBooking.baggage.isNotEmpty) ...[
                 _buildBaggageCard(theme),
                 const SizedBox(height: 16),
               ],
-              if (widget.booking.pets.isNotEmpty) ...[
+              if (_currentBooking.pets.isNotEmpty) ...[
                 _buildPetsCard(theme),
                 const SizedBox(height: 16),
               ],
@@ -102,7 +111,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Создан: ${_formatDate(widget.booking.createdAt)}',
+            'Создан: ${_formatDate(_currentBooking.createdAt)}',
             style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
           ),
         ],
@@ -149,7 +158,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _buildRouteInfo(theme) {
-    final directionText = widget.booking.direction == Direction.donetskToRostov
+    final directionText = _currentBooking.direction == Direction.donetskToRostov
         ? 'Донецк → Ростов-на-Дону'
         : 'Ростов-на-Дону → Донецк';
 
@@ -167,10 +176,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   color: theme.label,
                 ),
               ),
-              if (widget.booking.pickupPoint != null) ...[
+              if (_currentBooking.pickupPoint != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  'Место посадки: ${widget.booking.pickupPoint}',
+                  'Место посадки: ${_currentBooking.pickupPoint}',
                   style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
                 ),
               ],
@@ -182,14 +191,14 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _buildTripTypeInfo(theme) {
-    final tripTypeText = widget.booking.tripType == TripType.individual
+    final tripTypeText = _currentBooking.tripType == TripType.individual
         ? 'Индивидуальная поездка'
         : 'Групповая поездка';
 
     return Row(
       children: [
         Icon(
-          widget.booking.tripType == TripType.individual
+          _currentBooking.tripType == TripType.individual
               ? CupertinoIcons.car
               : CupertinoIcons.group,
           color: theme.primary,
@@ -207,7 +216,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         Icon(CupertinoIcons.time, color: theme.primary, size: 16),
         const SizedBox(width: 8),
         Text(
-          '${_formatDate(widget.booking.departureDate)} в ${widget.booking.departureTime}',
+          '${_formatDate(_currentBooking.departureDate)} в ${_currentBooking.departureTime}',
           style: TextStyle(fontSize: 16, color: theme.label),
         ),
       ],
@@ -241,7 +250,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Количество: ${widget.booking.passengerCount} ${_getPassengerText(widget.booking.passengerCount)}',
+            'Количество: ${_currentBooking.passengerCount} ${_getPassengerText(_currentBooking.passengerCount)}',
             style: TextStyle(fontSize: 16, color: theme.label),
           ),
         ],
@@ -275,7 +284,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          ...widget.booking.baggage.map((item) {
+          ..._currentBooking.baggage.map((item) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -330,7 +339,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          ...widget.booking.pets.map((pet) {
+          ..._currentBooking.pets.map((pet) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -397,7 +406,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 ),
               ),
               Text(
-                '${widget.booking.totalPrice} ₽',
+                '${_currentBooking.totalPrice} ₽',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -426,7 +435,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             child: CupertinoButton(
               color: CupertinoColors.systemRed,
               onPressed: _showCancelDialog,
-              child: const Text('Отменить заказ'),
+              child: const Text(
+                'Отменить заказ',
+                style: TextStyle(color: CupertinoColors.white),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -436,9 +448,23 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         SizedBox(
           width: double.infinity,
           child: CupertinoButton(
-            color: theme.primary,
-            onPressed: _contactSupport,
-            child: const Text('Связаться с поддержкой'),
+            color: CupertinoColors.systemBlue,
+            onPressed: _showContactOptions,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(
+                  CupertinoIcons.phone_fill,
+                  color: CupertinoColors.white,
+                  size: 20,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Связаться с поддержкой',
+                  style: TextStyle(color: CupertinoColors.white),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -446,7 +472,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Color _getStatusColor(theme) {
-    switch (widget.booking.status) {
+    switch (_currentBooking.status) {
       case BookingStatus.pending:
         return CupertinoColors.systemOrange;
       case BookingStatus.confirmed:
@@ -463,7 +489,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   String _getStatusText() {
-    switch (widget.booking.status) {
+    switch (_currentBooking.status) {
       case BookingStatus.pending:
         return 'Ожидает подтверждения';
       case BookingStatus.confirmed:
@@ -480,8 +506,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   bool _canCancelBooking() {
-    return widget.booking.status == BookingStatus.pending ||
-        widget.booking.status == BookingStatus.confirmed;
+    return _currentBooking.status == BookingStatus.pending ||
+        _currentBooking.status == BookingStatus.confirmed;
   }
 
   String _getPassengerText(int count) {
@@ -559,7 +585,29 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     if (shouldCancel == true) {
       try {
         // Отменяем бронирование через сервис
-        await BookingService().cancelBooking(widget.booking.id);
+        await BookingService().cancelBooking(_currentBooking.id);
+
+        // Обновляем локальное состояние
+        setState(() {
+          _currentBooking = Booking(
+            id: _currentBooking.id,
+            clientId: _currentBooking.clientId,
+            tripType: _currentBooking.tripType,
+            direction: _currentBooking.direction,
+            departureDate: _currentBooking.departureDate,
+            departureTime: _currentBooking.departureTime,
+            passengerCount: _currentBooking.passengerCount,
+            pickupPoint: _currentBooking.pickupPoint,
+            pickupAddress: _currentBooking.pickupAddress,
+            dropoffAddress: _currentBooking.dropoffAddress,
+            totalPrice: _currentBooking.totalPrice,
+            status: BookingStatus.cancelled, // Обновляем статус
+            createdAt: _currentBooking.createdAt,
+            trackingPoints: _currentBooking.trackingPoints,
+            baggage: _currentBooking.baggage,
+            pets: _currentBooking.pets,
+          );
+        });
 
         if (mounted) {
           // Показываем успешное уведомление
@@ -573,7 +621,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   child: const Text('OK'),
                   onPressed: () {
                     Navigator.pop(context);
-                    Navigator.pop(context); // Возвращаемся к списку заказов
+                    // Возвращаемся к списку заказов с результатом
+                    Navigator.pop(context, true);
                   },
                 ),
               ],
@@ -601,15 +650,131 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     }
   }
 
-  void _contactSupport() {
+  void _showContactOptions() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => CupertinoActionSheet(
+        title: const Text('Связаться с поддержкой'),
+        message: const Text('Выберите способ связи'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _makePhoneCall();
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(
+                  CupertinoIcons.phone_fill,
+                  color: CupertinoColors.activeBlue,
+                ),
+                SizedBox(width: 8),
+                Text('Позвонить +7 949 499 9329'),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _openTelegram();
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(
+                  CupertinoIcons.chat_bubble_text_fill,
+                  color: CupertinoColors.activeBlue,
+                ),
+                SizedBox(width: 8),
+                Text('Написать в Telegram'),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Отмена'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _makePhoneCall() async {
+    final Uri phoneUrl = Uri.parse('tel:+79494999329');
+
+    try {
+      final bool canLaunch = await canLaunchUrl(phoneUrl);
+      if (canLaunch) {
+        final bool launched = await launchUrl(
+          phoneUrl,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched && mounted) {
+          _showPhoneErrorDialog();
+        }
+      } else {
+        if (mounted) {
+          _showPhoneErrorDialog();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showPhoneErrorDialog();
+      }
+    }
+  }
+
+  void _showPhoneErrorDialog() {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Поддержка'),
-        content: const Text(
-          'Для связи с поддержкой звоните:\n+7 (900) 000-00-00\n\n'
-          'Или напишите в Telegram:\n@time_to_travel_support',
-        ),
+        title: const Text('Телефон'),
+        content: const Text('Позвоните нам:\n+7 949 499 9329'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openTelegram() async {
+    final Uri telegramUrl = Uri.parse('https://t.me/Time_to_travel_dnr');
+
+    try {
+      final bool canLaunch = await canLaunchUrl(telegramUrl);
+      if (canLaunch) {
+        final bool launched = await launchUrl(
+          telegramUrl,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched && mounted) {
+          _showTelegramErrorDialog();
+        }
+      } else {
+        if (mounted) {
+          _showTelegramErrorDialog();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTelegramErrorDialog();
+      }
+    }
+  }
+
+  void _showTelegramErrorDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Telegram'),
+        content: const Text('Напишите нам в Telegram:\n@Time_to_travel_dnr'),
         actions: [
           CupertinoDialogAction(
             child: const Text('OK'),

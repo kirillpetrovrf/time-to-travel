@@ -49,5 +49,14 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Разрешение на открытие внешних URL -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>telprompt</string>
+		<string>http</string>
+		<string>https</string>
+		<string>tg</string>
+	</array>
 </dict>
 </plist>

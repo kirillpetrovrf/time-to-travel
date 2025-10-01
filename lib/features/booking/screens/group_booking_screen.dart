@@ -668,34 +668,47 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: Column(
-          children: [
-            ListTile(
-              leading: Icon(CupertinoIcons.bag, color: theme.primary),
-              title: Text(
-                _selectedBaggage.isEmpty
-                    ? 'Выберите багаж'
-                    : '${_selectedBaggage.length} ${_getBaggageCountText(_selectedBaggage.length)}',
-                style: TextStyle(color: theme.label),
-              ),
-              subtitle: _selectedBaggage.isNotEmpty
-                  ? Text(
-                      '+${_calculateBaggagePrice()} ₽',
-                      style: TextStyle(color: theme.primary),
-                    )
-                  : Text(
-                      'Размеры S, M, L, Custom',
-                      style: TextStyle(color: theme.secondaryLabel),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _openBaggageSelection,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.bag, color: theme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedBaggage.isEmpty
+                          ? 'Выберите багаж'
+                          : '${_selectedBaggage.length} ${_getBaggageCountText(_selectedBaggage.length)}',
+                      style: TextStyle(color: theme.label, fontSize: 16),
                     ),
-              trailing: Icon(
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedBaggage.isNotEmpty
+                          ? '+${_calculateBaggagePrice()} ₽'
+                          : 'Размеры S, M, L, Custom',
+                      style: TextStyle(
+                        color: _selectedBaggage.isNotEmpty
+                            ? theme.primary
+                            : theme.secondaryLabel,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
                 CupertinoIcons.chevron_right,
                 color: theme.secondaryLabel,
+                size: 20,
               ),
-              onTap: () => _openBaggageSelection(),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -708,34 +721,47 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: Column(
-          children: [
-            ListTile(
-              leading: Icon(CupertinoIcons.paw, color: theme.primary),
-              title: Text(
-                _selectedPets.isEmpty
-                    ? 'Добавить животных'
-                    : '${_selectedPets.length} ${_getPetCountText(_selectedPets.length)}',
-                style: TextStyle(color: theme.label),
-              ),
-              subtitle: _selectedPets.isNotEmpty
-                  ? Text(
-                      '+${_calculatePetPrice()} ₽',
-                      style: TextStyle(color: theme.primary),
-                    )
-                  : Text(
-                      'S, M, L размеры',
-                      style: TextStyle(color: theme.secondaryLabel),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _openPetSelection,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.paw, color: theme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedPets.isEmpty
+                          ? 'Добавить животных'
+                          : '${_selectedPets.length} ${_getPetCountText(_selectedPets.length)}',
+                      style: TextStyle(color: theme.label, fontSize: 16),
                     ),
-              trailing: Icon(
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedPets.isNotEmpty
+                          ? '+${_calculatePetPrice()} ₽'
+                          : 'S, M, L размеры',
+                      style: TextStyle(
+                        color: _selectedPets.isNotEmpty
+                            ? theme.primary
+                            : theme.secondaryLabel,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
                 CupertinoIcons.chevron_right,
                 color: theme.secondaryLabel,
+                size: 20,
               ),
-              onTap: () => _openPetSelection(),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

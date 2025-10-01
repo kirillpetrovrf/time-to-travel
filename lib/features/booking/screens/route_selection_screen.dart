@@ -3,6 +3,7 @@ import '../../../models/route_stop.dart';
 import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/custom_navigation_bar.dart';
 
 class RouteSelectionScreen extends StatefulWidget {
   final String routeDirection;
@@ -22,8 +23,6 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
   final RouteService _routeService = RouteService.instance;
   RouteStop? _fromStop;
   RouteStop? _toStop;
-  bool _showFromPicker = false;
-  bool _showToPicker = false;
 
   List<RouteStop> get _allStops =>
       _routeService.getRouteStops(widget.routeDirection);
@@ -37,240 +36,252 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text('Выбор маршрута', style: TextStyle(color: theme.label)),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Icon(CupertinoIcons.back, color: theme.systemRed),
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Заголовок маршрута
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Text(
-                    _routeService.getRouteName(widget.routeDirection),
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: theme.label,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Выберите точки отправления и назначения',
-                    style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+      child: Column(
+        children: [
+          // Кастомный navigationBar с серым фоном
+          CustomNavigationBar(
+            title: 'Выбор маршрута',
+            leading: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: () => Navigator.of(context).pop(),
+              child: Icon(CupertinoIcons.back, color: theme.systemRed),
             ),
-
-            // Быстрый выбор популярных маршрутов
-            if (_popularStops.length >= 2) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Популярные маршруты',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: theme.label,
+          ),
+          // Контент
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Заголовок маршрута
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        _routeService.getRouteName(widget.routeDirection),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: theme.label,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Выберите точки отправления и назначения',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: theme.secondaryLabel,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                height: 120,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _getPopularRoutes().length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final route = _getPopularRoutes()[index];
-                    return _PopularRouteCard(
-                      fromStop: route['from']!,
-                      toStop: route['to']!,
-                      theme: theme,
-                      onTap: () {
-                        setState(() {
-                          _fromStop = route['from']!;
-                          _toStop = route['to']!;
-                        });
-                      },
-                      isSelected:
-                          _fromStop?.id == route['from']!.id &&
-                          _toStop?.id == route['to']!.id,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
 
-            // Выбор отправления и назначения
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Или выберите точки вручную',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: theme.label,
+                // Быстрый выбор популярных маршрутов
+                if (_popularStops.length >= 2) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Популярные маршруты',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: theme.label,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 120,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _getPopularRoutes().length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final route = _getPopularRoutes()[index];
+                        return _PopularRouteCard(
+                          fromStop: route['from']!,
+                          toStop: route['to']!,
+                          theme: theme,
+                          onTap: () {
+                            setState(() {
+                              _fromStop = route['from']!;
+                              _toStop = route['to']!;
+                            });
+                          },
+                          isSelected:
+                              _fromStop?.id == route['from']!.id &&
+                              _toStop?.id == route['to']!.id,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
 
-                  // Откуда
-                  _buildStopSelector(
-                    title: 'Откуда',
-                    selectedStop: _fromStop,
-                    onTap: () => _showStopPicker(true),
-                    theme: theme,
+                // Выбор отправления и назначения
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Или выберите точки вручную',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Откуда
+                      _buildStopSelector(
+                        title: 'Откуда',
+                        selectedStop: _fromStop,
+                        onTap: () => _showStopPicker(true),
+                        theme: theme,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Кнопка смены направления
+                      Center(
+                        child: CupertinoButton(
+                          padding: const EdgeInsets.all(8),
+                          onPressed: _swapStops,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: theme.secondarySystemBackground,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              CupertinoIcons.arrow_up_arrow_down,
+                              color: theme.systemRed,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Куда
+                      _buildStopSelector(
+                        title: 'Куда',
+                        selectedStop: _toStop,
+                        onTap: () => _showStopPicker(false),
+                        theme: theme,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Информация о маршруте и кнопка продолжения
+                if (_fromStop != null && _toStop != null) ...[
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.secondarySystemBackground,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Расстояние:',
+                              style: TextStyle(color: theme.secondaryLabel),
+                            ),
+                            Text(
+                              '${_routeService.getEstimatedDistance(_fromStop!, _toStop!).toInt()} км',
+                              style: TextStyle(
+                                color: theme.label,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Время в пути:',
+                              style: TextStyle(color: theme.secondaryLabel),
+                            ),
+                            Text(
+                              _formatDuration(
+                                _routeService.getEstimatedTravelTime(
+                                  _fromStop!,
+                                  _toStop!,
+                                ),
+                              ),
+                              style: TextStyle(
+                                color: theme.label,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Стоимость:',
+                              style: TextStyle(color: theme.secondaryLabel),
+                            ),
+                            Text(
+                              '${_routeService.getPriceBetweenStops(_fromStop!, _toStop!)} ₽',
+                              style: TextStyle(
+                                color: theme.systemRed,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
 
-                  const SizedBox(height: 12),
-
-                  // Кнопка смены направления
-                  Center(
+                  // Кнопка продолжения
+                  Container(
+                    margin: const EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      bottom: 16,
+                    ),
                     child: CupertinoButton(
-                      padding: const EdgeInsets.all(8),
-                      onPressed: _swapStops,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: theme.secondarySystemBackground,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          CupertinoIcons.arrow_up_arrow_down,
-                          color: theme.systemRed,
-                          size: 20,
+                      color: theme.systemRed,
+                      onPressed: () {
+                        widget.onRouteSelected(_fromStop!, _toStop!);
+                      },
+                      child: const Text(
+                        'Продолжить',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: CupertinoColors.white,
                         ),
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 12),
-
-                  // Куда
-                  _buildStopSelector(
-                    title: 'Куда',
-                    selectedStop: _toStop,
-                    onTap: () => _showStopPicker(false),
-                    theme: theme,
-                  ),
                 ],
-              ),
+              ],
             ),
-
-            const Spacer(),
-
-            // Информация о маршруте и кнопка продолжения
-            if (_fromStop != null && _toStop != null) ...[
-              Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.secondarySystemBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Расстояние:',
-                          style: TextStyle(color: theme.secondaryLabel),
-                        ),
-                        Text(
-                          '${_routeService.getEstimatedDistance(_fromStop!, _toStop!).toInt()} км',
-                          style: TextStyle(
-                            color: theme.label,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Время в пути:',
-                          style: TextStyle(color: theme.secondaryLabel),
-                        ),
-                        Text(
-                          _formatDuration(
-                            _routeService.getEstimatedTravelTime(
-                              _fromStop!,
-                              _toStop!,
-                            ),
-                          ),
-                          style: TextStyle(
-                            color: theme.label,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Стоимость:',
-                          style: TextStyle(color: theme.secondaryLabel),
-                        ),
-                        Text(
-                          '${_routeService.getPriceBetweenStops(_fromStop!, _toStop!)} ₽',
-                          style: TextStyle(
-                            color: theme.systemRed,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Кнопка продолжения
-              Container(
-                margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                child: CupertinoButton(
-                  color: theme.systemRed,
-                  onPressed: () {
-                    widget.onRouteSelected(_fromStop!, _toStop!);
-                  },
-                  child: const Text(
-                    'Продолжить',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: CupertinoColors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

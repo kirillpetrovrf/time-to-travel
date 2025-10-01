@@ -3,6 +3,7 @@ import '../../../models/pet_info.dart';
 import '../../../services/pet_agreement_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
+import 'breed_selection_screen.dart';
 
 /// Экран выбора животных (ПОЛНОСТЬЮ ПЕРЕДЕЛАН под ТЗ v3.0)
 /// ИЗМЕНЕНИЯ: Убран размер XS, добавлена система согласий, тексты от диспетчера
@@ -22,7 +23,8 @@ class PetSelectionScreen extends StatefulWidget {
 
 class _PetSelectionScreenState extends State<PetSelectionScreen> {
   bool _hasPet = false;
-  PetSize _selectedSize = PetSize.s;
+  PetSize?
+  _selectedSize; // Изменено на nullable - размер не выбран по умолчанию
   final TextEditingController _breedController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   bool _agreementAccepted = false;
@@ -81,19 +83,236 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
   void _onSizeSelected(PetSize size) {
     setState(() {
       _selectedSize = size;
-      // Сбрасываем согласие при смене размера
+      // Сбрасываем согласие и породу при смене размера
       _agreementAccepted = false;
     });
+
+    // Показываем предупреждение и сразу предлагаем выбрать породу
+    if (size == PetSize.m || size == PetSize.l) {
+      _showBreedSelectionWarning(size, isIndividual: true);
+    } else {
+      _showBreedSelectionWarning(size, isIndividual: false);
+    }
   }
 
-  void _showIndividualTripWarning() {
+  void _showBreedSelectionWarning(PetSize size, {required bool isIndividual}) {
+    if (isIndividual) {
+      // Для M и L размеров показываем диалог с согласием
+      _showAgreementDialog(size);
+    } else {
+      // Для S размера просто предлагаем выбрать породу
+      showCupertinoDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Выбор породы'),
+          content: const Text('Пожалуйста, укажите породу вашего питомца.'),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              child: const Text('Выбрать породу'),
+              onPressed: () {
+                Navigator.pop(context);
+                _openBreedSelection();
+              },
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              child: const Text('Отмена'),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _selectedSize = null;
+                });
+              },
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _showAgreementDialog(PetSize size) {
+    bool tempAgreement = false;
+
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final agreementText = _agreementTexts[size] ?? 'Загрузка...';
+
+          return CupertinoAlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.exclamationmark_triangle,
+                  color: CupertinoColors.systemOrange,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Обязательное согласие')),
+              ],
+            ),
+            content: Column(
+              children: [
+                const SizedBox(height: 12),
+                Text(
+                  'Для ${_getSizeTitle(size).toLowerCase()} доступна только индивидуальная поездка (+2000₽).',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Text(agreementText, style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 16),
+                // Чекбокс согласия
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    setDialogState(() {
+                      tempAgreement = !tempAgreement;
+                    });
+                  },
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: tempAgreement
+                              ? CupertinoColors.activeBlue
+                              : CupertinoColors.systemGrey4,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: tempAgreement
+                            ? const Icon(
+                                CupertinoIcons.check_mark,
+                                color: CupertinoColors.white,
+                                size: 16,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Я принимаю условия перевозки животного',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              CupertinoDialogAction(
+                isDestructiveAction: true,
+                child: const Text('Отмена'),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  setState(() {
+                    _selectedSize = null;
+                    _agreementAccepted = false;
+                  });
+                },
+              ),
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                child: const Text('Выбрать породу'),
+                onPressed: tempAgreement
+                    ? () {
+                        Navigator.pop(dialogContext);
+                        setState(() {
+                          _agreementAccepted = true;
+                        });
+                        _openBreedSelection();
+                      }
+                    : null,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  bool _canSavePet() {
+    if (!_hasPet) return true;
+
+    // Проверяем, что размер выбран
+    if (_selectedSize == null) return false;
+
+    // Для маленьких животных порода не обязательна
+    if (_selectedSize == PetSize.s) {
+      return true;
+    }
+
+    // Для средних и крупных животных требуется порода и согласие
+    if (_selectedSize == PetSize.m || _selectedSize == PetSize.l) {
+      return _breedController.text.trim().isNotEmpty && _agreementAccepted;
+    }
+
+    return false;
+  }
+
+  void _savePet() {
+    if (!_hasPet) {
+      widget.onPetSelected(null);
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // Проверяем, что размер выбран
+    if (_selectedSize == null) {
+      _showSizeRequiredDialog();
+      return;
+    }
+
+    // Для средних и крупных животных проверяем наличие породы
+    if ((_selectedSize == PetSize.m || _selectedSize == PetSize.l) &&
+        _breedController.text.trim().isEmpty) {
+      _showBreedRequiredDialog();
+      return;
+    }
+
+    final petInfo = PetInfo(
+      size: _selectedSize!,
+      breed: _breedController.text.trim(),
+      customDescription: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
+      agreementAccepted: _agreementAccepted,
+      weight: '', // TODO: Add weight input field
+    );
+    widget.onPetSelected(petInfo);
+    Navigator.of(context).pop();
+  }
+
+  void _showSizeRequiredDialog() {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Требуется индивидуальная поездка'),
+        title: const Text('Выберите размер'),
+        content: const Text('Пожалуйста, выберите размер животного.'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Понятно'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBreedRequiredDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Укажите породу'),
         content: const Text(
-          'Для средних и крупных животных доступна только индивидуальная поездка. '
-          'Это обеспечит комфорт и безопасность вашего питомца.',
+          'Для средних и крупных животных необходимо указать породу.',
         ),
         actions: [
           CupertinoDialogAction(
@@ -105,34 +324,17 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
     );
   }
 
-  bool _canSavePet() {
-    if (!_hasPet) return true;
-    if (_breedController.text.trim().isEmpty) return false;
+  Future<void> _openBreedSelection() async {
+    final selectedBreed = await Navigator.push<String>(
+      context,
+      CupertinoPageRoute(builder: (context) => const BreedSelectionScreen()),
+    );
 
-    // Проверяем согласие для средних и крупных животных
-    if (_selectedSize == PetSize.m || _selectedSize == PetSize.l) {
-      return _agreementAccepted;
+    if (selectedBreed != null) {
+      setState(() {
+        _breedController.text = selectedBreed;
+      });
     }
-
-    return true;
-  }
-
-  void _savePet() {
-    if (!_hasPet) {
-      widget.onPetSelected(null);
-    } else {
-      final petInfo = PetInfo(
-        size: _selectedSize,
-        breed: _breedController.text.trim(),
-        customDescription: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
-        agreementAccepted: _agreementAccepted,
-        weight: '', // TODO: Add weight input field
-      );
-      widget.onPetSelected(petInfo);
-    }
-    Navigator.of(context).pop();
   }
 
   @override
@@ -208,6 +410,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                           _hasPet = value;
                           if (!value) {
                             // Сбрасываем все поля при отключении
+                            _selectedSize = null;
                             _breedController.clear();
                             _descriptionController.clear();
                             _agreementAccepted = false;
@@ -256,15 +459,44 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                   ),
                   child: Column(
                     children: [
-                      CupertinoTextField(
-                        controller: _breedController,
-                        placeholder: 'Укажите породу',
-                        style: TextStyle(color: theme.label),
-                        decoration: BoxDecoration(
-                          color: theme.tertiarySystemBackground,
-                          borderRadius: BorderRadius.circular(8),
+                      // Кнопка выбора породы
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: _openBreedSelection,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.tertiarySystemBackground,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _breedController.text.isEmpty
+                                      ? 'Выберите породу'
+                                      : _breedController.text,
+                                  style: TextStyle(
+                                    color: _breedController.text.isEmpty
+                                        ? theme.secondaryLabel
+                                        : theme.label,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                CupertinoIcons.chevron_right,
+                                color: theme.secondaryLabel,
+                                size: 20,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
+
                       const SizedBox(height: 12),
                       CupertinoTextField(
                         controller: _descriptionController,
@@ -280,13 +512,6 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                     ],
                   ),
                 ),
-
-                // Согласие для средних и крупных животных
-                if (_selectedSize == PetSize.m ||
-                    _selectedSize == PetSize.l) ...[
-                  const SizedBox(height: 24),
-                  _buildAgreementSection(theme),
-                ],
               ],
             ],
           ),
@@ -304,12 +529,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       child: CupertinoButton(
         padding: EdgeInsets.zero,
-        onPressed: () {
-          _onSizeSelected(size);
-          if (requiresIndividual) {
-            _showIndividualTripWarning();
-          }
-        },
+        onPressed: () => _onSizeSelected(size),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -413,95 +633,6 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildAgreementSection(CustomTheme theme) {
-    final agreementText = _agreementTexts[_selectedSize] ?? '';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.secondarySystemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: CupertinoColors.systemOrange.withOpacity(0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                CupertinoIcons.exclamationmark_triangle,
-                color: CupertinoColors.systemOrange,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Обязательное согласие',
-                style: TextStyle(
-                  color: theme.label,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          Text(
-            agreementText,
-            style: TextStyle(color: theme.label, fontSize: 14, height: 1.4),
-          ),
-
-          const SizedBox(height: 16),
-
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () {
-              setState(() {
-                _agreementAccepted = !_agreementAccepted;
-              });
-            },
-            child: Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: _agreementAccepted
-                        ? CupertinoColors.activeBlue
-                        : theme.quaternaryLabel,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: _agreementAccepted
-                      ? const Icon(
-                          CupertinoIcons.check_mark,
-                          color: CupertinoColors.white,
-                          size: 16,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Я принимаю условия перевозки животного',
-                    style: TextStyle(
-                      color: theme.label,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

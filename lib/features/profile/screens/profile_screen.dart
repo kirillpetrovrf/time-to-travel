@@ -48,27 +48,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = themeManager.currentTheme;
 
     return CupertinoPageScaffold(
-      backgroundColor: Colors.transparent,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text('Профиль', style: TextStyle(color: theme.label)),
-      ),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFDC2626), // Красный
-              Color(0xFF000000), // Черный
-            ],
+      backgroundColor: theme.systemBackground,
+      child: Column(
+        children: [
+          // Кастомный navigationBar с красным фоном
+          Container(
+            color: theme.primary, // Красный фирменный цвет
+            child: SafeArea(
+              bottom: false,
+              child: Container(
+                height: 44,
+                child: const Center(
+                  child: Text(
+                    'Профиль',
+                    style: TextStyle(
+                      color: CupertinoColors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: _isLoading
-              ? const Center(child: CupertinoActivityIndicator())
-              : _buildProfileContent(theme),
-        ),
+          // Контент
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CupertinoActivityIndicator())
+                : _buildProfileContent(theme),
+          ),
+        ],
       ),
     );
   }

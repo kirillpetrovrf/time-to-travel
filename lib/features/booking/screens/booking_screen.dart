@@ -4,6 +4,7 @@ import '../../../models/route_stop.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/custom_navigation_bar.dart';
 import '../../admin/screens/admin_panel_screen.dart';
 import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
@@ -56,115 +57,117 @@ class _BookingScreenState extends State<BookingScreen> {
   Widget _buildClientView(CustomTheme theme) {
     return CupertinoPageScaffold(
       backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text(
-          'Забронировать поездку',
-          style: TextStyle(color: theme.label),
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
+      child: Column(
+        children: [
+          // Кастомный navigationBar с серым фоном
+          const CustomNavigationBar(title: 'Забронировать поездку'),
+          // Контент
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 20),
 
-              // Заголовок
-              Text(
-                'Выберите тип маршрута',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: theme.label,
-                ),
-                textAlign: TextAlign.center,
-              ),
+                  // Заголовок
+                  Text(
+                    'Выберите тип маршрута',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: theme.label,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
 
-              const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-              Text(
-                'Комфортные поездки по маршруту Донецк ⇄ Ростов-на-Дону',
-                style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
-                textAlign: TextAlign.center,
-              ),
+                  Text(
+                    'Комфортные поездки по маршруту Донецк ⇄ Ростов-на-Дону',
+                    style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                    textAlign: TextAlign.center,
+                  ),
 
-              const SizedBox(height: 40),
+                  const SizedBox(height: 40),
 
-              // Популярные маршруты
-              _RouteTypeCard(
-                icon: CupertinoIcons.star_fill,
-                title: 'Популярные маршруты',
-                description: 'Готовые маршруты с фиксированными остановками',
-                features: [
-                  'Донецк → Ростов-на-Дону',
-                  'Популярные промежуточные города',
-                  'Быстрое бронирование',
-                ],
-                theme: theme,
-                onTap: () => _showRouteSelection('popular'),
-              ),
+                  // Популярные маршруты
+                  _RouteTypeCard(
+                    icon: CupertinoIcons.star_fill,
+                    title: 'Популярные маршруты',
+                    description:
+                        'Готовые маршруты с фиксированными остановками',
+                    features: [
+                      'Донецк → Ростов-на-Дону',
+                      'Популярные промежуточные города',
+                      'Быстрое бронирование',
+                    ],
+                    theme: theme,
+                    onTap: () => _showRouteSelection('popular'),
+                  ),
 
-              const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-              // Свободный маршрут
-              _RouteTypeCard(
-                icon: CupertinoIcons.location,
-                title: 'Свободный маршрут',
-                description: 'Выберите любые точки отправления и назначения',
-                features: [
-                  'Все доступные остановки',
-                  'Максимальная гибкость',
-                  'Индивидуальная настройка',
-                ],
-                theme: theme,
-                onTap: () => _showRouteSelection('free'),
-              ),
+                  // Свободный маршрут
+                  _RouteTypeCard(
+                    icon: CupertinoIcons.location,
+                    title: 'Свободный маршрут',
+                    description:
+                        'Выберите любые точки отправления и назначения',
+                    features: [
+                      'Все доступные остановки',
+                      'Максимальная гибкость',
+                      'Индивидуальная настройка',
+                    ],
+                    theme: theme,
+                    onTap: () => _showRouteSelection('free'),
+                  ),
 
-              const Spacer(),
+                  const Spacer(),
 
-              // Информация
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.secondarySystemBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Row(
+                  // Информация
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.secondarySystemBackground,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
                       children: [
-                        Icon(
-                          CupertinoIcons.info_circle_fill,
-                          color: CupertinoColors.systemBlue,
-                          size: 20,
+                        Row(
+                          children: [
+                            Icon(
+                              CupertinoIcons.info_circle_fill,
+                              color: CupertinoColors.systemBlue,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Информация о ценах',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.label,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(height: 8),
                         Text(
-                          'Информация о ценах',
+                          'Групповые поездки: 2000 ₽ за место\nИндивидуальные поездки: от 8000 ₽',
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: theme.label,
+                            fontSize: 14,
+                            color: theme.secondaryLabel,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Групповые поездки: 2000 ₽ за место\nИндивидуальные поездки: от 8000 ₽',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: theme.secondaryLabel,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -228,60 +231,62 @@ class _BookingScreenState extends State<BookingScreen> {
   Widget _buildDispatcherView(CustomTheme theme) {
     return CupertinoPageScaffold(
       backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text(
-          'Управление поездками',
-          style: TextStyle(color: theme.label),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () {
-            Navigator.of(context).push(
-              CupertinoPageRoute(
-                builder: (context) => const AdminPanelScreen(),
-              ),
-            );
-          },
-          child: Icon(CupertinoIcons.settings, color: theme.primary),
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              Text(
-                'Панель диспетчера',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: theme.label,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Управление поездками и маршрутами',
-                style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              _DispatcherCard(
-                icon: CupertinoIcons.plus_circle_fill,
-                title: 'Создать поездку',
-                description:
-                    'Добавить новую групповую или индивидуальную поездку',
-                theme: theme,
-                onTap: () {
-                  // TODO: Реализовать создание поездки
-                },
-              ),
-            ],
+      child: Column(
+        children: [
+          // Кастомный navigationBar с серым фоном
+          CustomNavigationBar(
+            title: 'Управление поездками',
+            trailing: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: () {
+                Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (context) => const AdminPanelScreen(),
+                  ),
+                );
+              },
+              child: Icon(CupertinoIcons.settings, color: theme.primary),
+            ),
           ),
-        ),
+          // Контент
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 20),
+                  Text(
+                    'Панель диспетчера',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: theme.label,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Управление поездками и маршрутами',
+                    style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 40),
+                  _DispatcherCard(
+                    icon: CupertinoIcons.plus_circle_fill,
+                    title: 'Создать поездку',
+                    description:
+                        'Добавить новую групповую или индивидуальную поездку',
+                    theme: theme,
+                    onTap: () {
+                      // TODO: Реализовать создание поездки
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
