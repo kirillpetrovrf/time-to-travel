@@ -95,3 +95,6 @@ lib/generated_plugin_registrant.dart
 # firebase_options.dart
 # google-services.json
 # GoogleService-Info.plist
+
+# Ignore auto-generated empty logo.svg file
+assets/images/logo.svg
