@@ -40,7 +40,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           child: Icon(CupertinoIcons.back, color: theme.primary),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop('switch_to_orders'),
         ),
       ),
       child: SafeArea(
@@ -158,9 +158,22 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _buildRouteInfo(theme) {
-    final directionText = _currentBooking.direction == Direction.donetskToRostov
-        ? 'Донецк → Ростов-на-Дону'
-        : 'Ростов-на-Дону → Донецк';
+    // Отладочный вывод
+    print(
+      '🔍 BookingDetail: fromStop = ${_currentBooking.fromStop?.name}, toStop = ${_currentBooking.toStop?.name}',
+    );
+
+    // Если есть конкретные остановки, показываем их
+    final String directionText;
+    if (_currentBooking.fromStop != null && _currentBooking.toStop != null) {
+      directionText =
+          '${_currentBooking.fromStop!.name} → ${_currentBooking.toStop!.name}';
+    } else {
+      // Иначе показываем общее направление
+      directionText = _currentBooking.direction == Direction.donetskToRostov
+          ? 'Донецк → Ростов-на-Дону'
+          : 'Ростов-на-Дону → Донецк';
+    }
 
     return Row(
       children: [

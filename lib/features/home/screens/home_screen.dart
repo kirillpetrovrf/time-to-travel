@@ -23,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   UserType? _userType;
+  int _ordersScreenKey = 0; // Счётчик для обновления экрана заказов
 
   // НОВОЕ (ТЗ v3.0): Секретный вход диспетчера (7 тапов)
   int _secretTapCount = 0;
@@ -46,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _restoreLastTab() async {
     final authService = AuthService.instance;
     final lastScreen = await authService.getLastScreen();
+    print('📖 _restoreLastTab: Загружена последняя вкладка: $lastScreen');
 
     if (lastScreen != null) {
       int tabIndex = 0;
@@ -87,10 +89,13 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       if (mounted) {
+        print('📖 _restoreLastTab: Устанавливаем индекс вкладки: $tabIndex');
         setState(() {
           _currentIndex = tabIndex;
         });
       }
+    } else {
+      print('📖 _restoreLastTab: Последняя вкладка не найдена');
     }
   }
 
@@ -98,6 +103,13 @@ class _HomeScreenState extends State<HomeScreen> {
     print(
       '📱 _onTabChanged вызван с индексом: $index, текущий: $_currentIndex',
     );
+    
+    // Если переключаемся на вкладку заказов, обновляем key
+    if ((_userType == UserType.dispatcher && index == 2) || 
+        (_userType == UserType.client && index == 1)) {
+      _ordersScreenKey++;
+    }
+    
     setState(() {
       _currentIndex = index;
     });
@@ -150,6 +162,17 @@ class _HomeScreenState extends State<HomeScreen> {
   void switchToTab(int index) {
     print('🔄 switchToTab вызван с индексом: $index');
     _onTabChanged(index);
+  }
+
+  // Метод для "тихого" переключения вкладки после асинхронной операции
+  void switchToTabSilently(int index) {
+    print('🔇 switchToTabSilently вызван с индексом: $index');
+    // Планируем переключение на следующий кадр
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _onTabChanged(index);
+      }
+    });
   }
 
   // Геттер для получения текущего индекса
@@ -272,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 1:
                   return AdminPanelScreen();
                 case 2:
-                  return const OrdersScreen();
+                  return OrdersScreen(key: ValueKey('orders_$_ordersScreenKey'));
                 case 3:
                   return const TrackingScreen();
                 case 4:
@@ -286,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 0:
                   return const BookingScreen(); // Бронирование
                 case 1:
-                  return const OrdersScreen(); // Мои заказы
+                  return OrdersScreen(key: ValueKey('orders_$_ordersScreenKey')); // Мои заказы
                 case 2:
                   return const TrackingScreen(); // Отслеживание
                 case 3:

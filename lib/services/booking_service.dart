@@ -52,12 +52,15 @@ class BookingService {
       pickupPoint: booking.pickupPoint,
       pickupAddress: booking.pickupAddress,
       dropoffAddress: booking.dropoffAddress,
+      fromStop: booking.fromStop,
+      toStop: booking.toStop,
       totalPrice: booking.totalPrice,
       status: booking.status,
       createdAt: booking.createdAt,
       trackingPoints: booking.trackingPoints,
       baggage: booking.baggage,
       pets: booking.pets,
+      passengers: booking.passengers,
     );
 
     // Получаем существующие бронирования

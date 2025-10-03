@@ -1,6 +1,8 @@
 import 'trip_type.dart';
 import 'baggage.dart';
 import 'pet_info.dart';
+import 'passenger_info.dart';
+import 'route_stop.dart';
 
 enum BookingStatus {
   pending, // Ожидает подтверждения
@@ -72,6 +74,8 @@ class Booking {
   final String? pickupAddress; // Для индивидуального трансфера
   final String? dropoffAddress; // Для индивидуального трансфера
   final String? pickupPoint; // Для групповых поездок
+  final RouteStop? fromStop; // Остановка отправления (для конкретного маршрута)
+  final RouteStop? toStop; // Остановка назначения (для конкретного маршрута)
   final int totalPrice;
   final BookingStatus status;
   final DateTime createdAt;
@@ -80,6 +84,7 @@ class Booking {
   final List<TrackingPoint> trackingPoints; // Точки отслеживания
   final List<BaggageItem> baggage; // Багаж пассажира
   final List<PetInfo> pets; // Животные
+  final List<PassengerInfo> passengers; // Информация о пассажирах
 
   const Booking({
     required this.id,
@@ -92,6 +97,8 @@ class Booking {
     this.pickupAddress,
     this.dropoffAddress,
     this.pickupPoint,
+    this.fromStop,
+    this.toStop,
     required this.totalPrice,
     required this.status,
     required this.createdAt,
@@ -100,6 +107,7 @@ class Booking {
     this.trackingPoints = const [],
     this.baggage = const [],
     this.pets = const [],
+    this.passengers = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -114,6 +122,8 @@ class Booking {
       'pickupAddress': pickupAddress,
       'dropoffAddress': dropoffAddress,
       'pickupPoint': pickupPoint,
+      'fromStop': fromStop?.toJson(),
+      'toStop': toStop?.toJson(),
       'totalPrice': totalPrice,
       'status': status.toString(),
       'createdAt': createdAt.toIso8601String(),
@@ -122,6 +132,7 @@ class Booking {
       'trackingPoints': trackingPoints.map((e) => e.toJson()).toList(),
       'baggage': baggage.map((e) => e.toJson()).toList(),
       'pets': pets.map((e) => e.toJson()).toList(),
+      'passengers': passengers.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -141,6 +152,12 @@ class Booking {
       pickupAddress: json['pickupAddress'] as String?,
       dropoffAddress: json['dropoffAddress'] as String?,
       pickupPoint: json['pickupPoint'] as String?,
+      fromStop: json['fromStop'] != null
+          ? RouteStop.fromJson(json['fromStop'] as Map<String, dynamic>)
+          : null,
+      toStop: json['toStop'] != null
+          ? RouteStop.fromJson(json['toStop'] as Map<String, dynamic>)
+          : null,
       totalPrice: json['totalPrice'] as int,
       status: BookingStatus.values.firstWhere(
         (e) => e.toString() == json['status'],
@@ -156,6 +173,9 @@ class Booking {
           .toList(),
       pets: (json['pets'] as List? ?? [])
           .map((e) => PetInfo.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      passengers: (json['passengers'] as List? ?? [])
+          .map((e) => PassengerInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }

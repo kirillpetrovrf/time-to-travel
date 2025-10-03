@@ -7,13 +7,18 @@ import '../../../models/user.dart';
 import '../../../models/trip_settings.dart';
 import '../../../models/baggage.dart';
 import '../../../models/pet_info.dart';
+import '../../../models/passenger_info.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../services/trip_settings_service.dart';
+import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../admin/screens/admin_panel_screen.dart';
+import '../../home/screens/home_screen.dart';
+import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
 import 'pet_selection_screen.dart';
+import 'add_passenger_screen.dart';
 
 class GroupBookingScreen extends StatefulWidget {
   final RouteStop? fromStop;
@@ -27,10 +32,11 @@ class GroupBookingScreen extends StatefulWidget {
 
 class _GroupBookingScreenState extends State<GroupBookingScreen> {
   Direction _selectedDirection = Direction.donetskToRostov;
-  DateTime _selectedDate = DateTime.now();
+  DateTime?
+  _selectedDate; // Изменено на nullable - пользователь должен выбрать дату
   String _selectedTime = '';
   String _selectedPickupPoint = '';
-  int _passengerCount = 1;
+  List<PassengerInfo> _passengers = [];
   bool _isLoading = true;
   UserType? _userType;
   TripSettings? _tripSettings;
@@ -55,16 +61,15 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       setState(() {
         _userType = userType;
         _tripSettings = settings;
-        _passengerCount = 1;
+        _passengers = [
+          PassengerInfo(
+            type: PassengerType.adult,
+          ), // Добавляем одного взрослого по умолчанию
+        ];
         _isLoading = false;
 
-        // Устанавливаем начальные значения из настроек
-        if (settings.departureTimes.isNotEmpty) {
-          _selectedTime = settings.departureTimes.first;
-        }
-        if (settings.donetskPickupPoints.isNotEmpty) {
-          _selectedPickupPoint = settings.donetskPickupPoints.first;
-        }
+        // НЕ устанавливаем начальные значения - пользователь должен выбрать сам
+        // _selectedTime и _selectedPickupPoint остаются пустыми строками
       });
     } catch (e) {
       setState(() {
@@ -143,11 +148,19 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Направление
-                    _buildSectionTitle('Направление', theme),
-                    _buildDirectionPicker(theme),
+                    // Маршрут (если выбраны конкретные города)
+                    if (widget.fromStop != null && widget.toStop != null) ...[
+                      _buildSectionTitle('Маршрут', theme),
+                      _buildRouteInfo(theme),
+                      const SizedBox(height: 24),
+                    ],
 
-                    const SizedBox(height: 24),
+                    // Направление (если не выбраны конкретные города)
+                    if (widget.fromStop == null || widget.toStop == null) ...[
+                      _buildSectionTitle('Направление', theme),
+                      _buildDirectionPicker(theme),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Дата
                     _buildSectionTitle('Дата поездки', theme),
@@ -237,6 +250,133 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
     );
   }
 
+  Widget _buildRouteInfo(theme) {
+    if (widget.fromStop == null || widget.toStop == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          // Откуда - кликабельный
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => _showRouteStopPicker(true, theme),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.systemRed.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      CupertinoIcons.location_solid,
+                      color: theme.systemRed,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Откуда',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.secondaryLabel,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.fromStop!.name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: theme.label,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    color: theme.secondaryLabel,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+
+          // Куда - кликабельный
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => _showRouteStopPicker(false, theme),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.systemRed.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      CupertinoIcons.location_solid,
+                      color: theme.systemRed,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Куда',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.secondaryLabel,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.toStop!.name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: theme.label,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    color: theme.secondaryLabel,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDirectionPicker(theme) {
     return Container(
       decoration: BoxDecoration(
@@ -304,7 +444,11 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       decoration: BoxDecoration(
         color: theme.secondarySystemBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.separator.withOpacity(0.2)),
+        border: Border.all(
+          color: _selectedDate != null
+              ? theme.systemRed
+              : theme.separator.withOpacity(0.2),
+        ),
       ),
       child: CupertinoButton(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -315,8 +459,15 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                _formatDate(_selectedDate),
-                style: TextStyle(color: theme.label, fontSize: 16),
+                _selectedDate == null
+                    ? 'Выберите дату поездки'
+                    : _formatDate(_selectedDate!),
+                style: TextStyle(
+                  color: _selectedDate == null
+                      ? theme.tertiaryLabel
+                      : theme.label,
+                  fontSize: 16,
+                ),
               ),
             ),
             Icon(CupertinoIcons.chevron_right, color: theme.secondaryLabel),
@@ -345,30 +496,40 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.secondarySystemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.separator.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: departureTimes.asMap().entries.map((entry) {
-          final index = entry.key;
-          final time = entry.value;
-          return Column(
-            children: [
-              if (index > 0)
-                Divider(height: 1, color: theme.separator.withOpacity(0.2)),
-              _buildRadioTile(
-                theme: theme,
-                title: time,
-                value: time,
-                groupValue: _selectedTime,
-                onChanged: (value) => setState(() => _selectedTime = value!),
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () => _showTimePickerModal(theme),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _selectedTime.isNotEmpty
+                ? theme.systemRed
+                : theme.separator.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.clock, color: theme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedTime.isEmpty
+                    ? 'Выберите время отправления'
+                    : _selectedTime,
+                style: TextStyle(
+                  color: _selectedTime.isEmpty
+                      ? theme.tertiaryLabel
+                      : theme.label,
+                  fontSize: 16,
+                ),
               ),
-            ],
-          );
-        }).toList(),
+            ),
+            Icon(CupertinoIcons.chevron_right, color: theme.secondaryLabel),
+          ],
+        ),
       ),
     );
   }
@@ -392,31 +553,210 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.secondarySystemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.separator.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: pickupPoints.asMap().entries.map((entry) {
-          final index = entry.key;
-          final point = entry.value;
-          return Column(
-            children: [
-              if (index > 0)
-                Divider(height: 1, color: theme.separator.withOpacity(0.2)),
-              _buildRadioTile(
-                theme: theme,
-                title: point,
-                value: point,
-                groupValue: _selectedPickupPoint,
-                onChanged: (value) =>
-                    setState(() => _selectedPickupPoint = value!),
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () => _showPickupPointModal(theme),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _selectedPickupPoint.isNotEmpty
+                ? theme.systemRed
+                : theme.separator.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.location, color: theme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedPickupPoint.isEmpty
+                    ? 'Выберите место посадки'
+                    : _selectedPickupPoint,
+                style: TextStyle(
+                  color: _selectedPickupPoint.isEmpty
+                      ? theme.tertiaryLabel
+                      : theme.label,
+                  fontSize: 16,
+                ),
               ),
-            ],
-          );
-        }).toList(),
+            ),
+            Icon(CupertinoIcons.chevron_right, color: theme.secondaryLabel),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTimePickerModal(theme) {
+    final departureTimes = _tripSettings?.departureTimes ?? [];
+
+    // Временная переменная для хранения выбранного значения
+    String tempSelectedTime = _selectedTime.isNotEmpty
+        ? _selectedTime
+        : departureTimes.first;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.4,
+        decoration: BoxDecoration(
+          color: theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Заголовок
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Время отправления',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      setState(() {
+                        _selectedTime = tempSelectedTime;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Выбрать',
+                      style: TextStyle(
+                        color: theme.systemRed,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Список времени
+            Expanded(
+              child: CupertinoPicker(
+                itemExtent: 44,
+                scrollController: FixedExtentScrollController(
+                  initialItem: _selectedTime.isNotEmpty
+                      ? departureTimes.indexOf(_selectedTime)
+                      : 0,
+                ),
+                onSelectedItemChanged: (index) {
+                  tempSelectedTime = departureTimes[index];
+                },
+                children: departureTimes.map((time) {
+                  return Center(
+                    child: Text(
+                      time,
+                      style: TextStyle(fontSize: 20, color: theme.label),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPickupPointModal(theme) {
+    final pickupPoints = _tripSettings?.donetskPickupPoints ?? [];
+
+    // Временная переменная для хранения выбранного значения
+    String tempSelectedPickupPoint = _selectedPickupPoint.isNotEmpty
+        ? _selectedPickupPoint
+        : pickupPoints.first;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.4,
+        decoration: BoxDecoration(
+          color: theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Заголовок
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Место посадки',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      setState(() {
+                        _selectedPickupPoint = tempSelectedPickupPoint;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Выбрать',
+                      style: TextStyle(
+                        color: theme.systemRed,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Список мест посадки
+            Expanded(
+              child: CupertinoPicker(
+                itemExtent: 44,
+                scrollController: FixedExtentScrollController(
+                  initialItem: _selectedPickupPoint.isNotEmpty
+                      ? pickupPoints.indexOf(_selectedPickupPoint)
+                      : 0,
+                ),
+                onSelectedItemChanged: (index) {
+                  tempSelectedPickupPoint = pickupPoints[index];
+                },
+                children: pickupPoints.map((point) {
+                  return Center(
+                    child: Text(
+                      point,
+                      style: TextStyle(fontSize: 20, color: theme.label),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -428,74 +768,177 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(CupertinoIcons.person_2, color: theme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Пассажиров: $_passengerCount',
-                style: TextStyle(color: theme.label, fontSize: 16),
-              ),
-            ),
+      child: Column(
+        children: [
+          // Список пассажиров
+          ..._passengers.asMap().entries.map((entry) {
+            final index = entry.key;
+            final passenger = entry.value;
+            return Column(
+              children: [
+                if (index > 0)
+                  Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => _editPassenger(index),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          passenger.type == PassengerType.adult
+                              ? CupertinoIcons.person
+                              : CupertinoIcons.smiley,
+                          color: theme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                passenger.displayName,
+                                style: TextStyle(
+                                  color: theme.label,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              if (passenger.seatInfo.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  passenger.seatInfo,
+                                  style: TextStyle(
+                                    color: theme.secondaryLabel,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _removePassenger(index),
+                          child: Icon(
+                            CupertinoIcons.trash,
+                            color: theme.systemRed,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+
+          // Кнопка добавить пассажира
+          if (_passengers.length < (_tripSettings?.maxPassengers ?? 8)) ...[
+            if (_passengers.isNotEmpty)
+              Divider(height: 1, color: theme.separator.withOpacity(0.2)),
             CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _passengerCount > 1
-                  ? () => setState(() => _passengerCount--)
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _passengerCount > 1 ? theme.primary : theme.separator,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  CupertinoIcons.minus,
-                  color: _passengerCount > 1
-                      ? CupertinoColors.white
-                      : theme.secondaryLabel,
-                  size: 16,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _passengerCount < (_tripSettings?.maxPassengers ?? 8)
-                  ? () => setState(() => _passengerCount++)
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _passengerCount < (_tripSettings?.maxPassengers ?? 8)
-                      ? theme.primary
-                      : theme.separator,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  CupertinoIcons.plus,
-                  color: _passengerCount < (_tripSettings?.maxPassengers ?? 8)
-                      ? CupertinoColors.white
-                      : theme.secondaryLabel,
-                  size: 16,
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              onPressed: _addPassenger,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.add_circled, color: theme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Добавить пассажира',
+                    style: TextStyle(color: theme.primary, fontSize: 16),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
 
+  Future<void> _addPassenger() async {
+    final passenger = await Navigator.push<PassengerInfo>(
+      context,
+      CupertinoPageRoute(builder: (context) => const AddPassengerScreen()),
+    );
+
+    if (passenger != null) {
+      setState(() {
+        _passengers.add(passenger);
+      });
+    }
+  }
+
+  Future<void> _editPassenger(int index) async {
+    final passenger = await Navigator.push<PassengerInfo>(
+      context,
+      CupertinoPageRoute(
+        builder: (context) =>
+            AddPassengerScreen(initialPassenger: _passengers[index]),
+      ),
+    );
+
+    if (passenger != null) {
+      setState(() {
+        _passengers[index] = passenger;
+      });
+    }
+  }
+
+  void _removePassenger(int index) {
+    // Не позволяем удалить последнего пассажира
+    if (_passengers.length <= 1) {
+      _showError('Должен быть хотя бы один пассажир');
+      return;
+    }
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Удалить пассажира?'),
+        content: Text(
+          'Вы уверены, что хотите удалить ${_passengers[index].displayName}?',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Отмена'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Удалить'),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _passengers.removeAt(index);
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _calculateChildSeatPrice() {
+    // Автокресло водителя предоставляется бесплатно
+    return 0.0;
+  }
+
   Widget _buildPricingSummary(theme) {
     final groupPrice = _tripSettings?.pricing['groupTripPrice'] ?? 2000;
-    final basePrice = groupPrice * _passengerCount;
+    final passengerCount = _passengers.length;
+    final basePrice = groupPrice * passengerCount;
     final baggagePrice = _calculateBaggagePrice();
     final petPrice = _calculatePetPrice();
+    final childSeatPrice = _calculateChildSeatPrice();
     final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
-    final totalPrice = basePrice + baggagePrice + petPrice - vkDiscount;
+    final totalPrice =
+        basePrice + baggagePrice + petPrice + childSeatPrice - vkDiscount;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -518,7 +961,7 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$_passengerCount × $groupPrice ₽',
+                '$passengerCount × $groupPrice ₽',
                 style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
               ),
               Text(
@@ -558,6 +1001,24 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
                 ),
                 Text(
                   '+${petPrice.toInt()} ₽',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+              ],
+            ),
+          ],
+
+          // Детские кресла (если есть)
+          if (childSeatPrice > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Детские кресла',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+                Text(
+                  '+${childSeatPrice.toInt()} ₽',
                   style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
                 ),
               ],
@@ -619,25 +1080,60 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   void _showDatePicker() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Временная переменная для хранения выбранной даты
+    DateTime tempSelectedDate = _selectedDate ?? today;
+
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
     showCupertinoModalPopup(
       context: context,
       builder: (context) => Container(
-        height: 300,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
+        height: 350,
+        decoration: BoxDecoration(
+          color: theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
         child: Column(
           children: [
+            // Заголовок
             Container(
-              height: 44,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  CupertinoButton(
-                    child: const Text('Отмена'),
-                    onPressed: () => Navigator.pop(context),
+                  Text(
+                    'Дата поездки',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
                   ),
                   CupertinoButton(
-                    child: const Text('Готово'),
-                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      setState(() {
+                        _selectedDate = tempSelectedDate;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Выбрать',
+                      style: TextStyle(
+                        color: theme.systemRed,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -645,13 +1141,11 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
             Expanded(
               child: CupertinoDatePicker(
                 mode: CupertinoDatePickerMode.date,
-                initialDateTime: _selectedDate.isBefore(DateTime.now())
-                    ? DateTime.now()
-                    : _selectedDate,
-                minimumDate: DateTime.now(),
-                maximumDate: DateTime.now().add(const Duration(days: 30)),
+                initialDateTime: tempSelectedDate,
+                minimumDate: today,
+                maximumDate: today.add(const Duration(days: 30)),
                 onDateTimeChanged: (date) {
-                  setState(() => _selectedDate = date);
+                  tempSelectedDate = date;
                 },
               ),
             ),
@@ -792,12 +1286,14 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
 
   double _getTotalPrice() {
     final groupPrice = _tripSettings?.pricing['groupTripPrice'] ?? 2000;
-    final basePrice = groupPrice * _passengerCount;
+    final passengerCount = _passengers.length;
+    final basePrice = groupPrice * passengerCount;
     final baggagePrice = _calculateBaggagePrice();
     final petPrice = _calculatePetPrice();
+    final childSeatPrice = _calculateChildSeatPrice();
     final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
 
-    return basePrice + baggagePrice + petPrice - vkDiscount;
+    return basePrice + baggagePrice + petPrice + childSeatPrice - vkDiscount;
   }
 
   Future<void> _openBaggageSelection() async {
@@ -894,6 +1390,23 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   Future<void> _bookTrip() async {
+    // Валидация перед бронированием
+    if (_selectedDate == null) {
+      _showError('Пожалуйста, выберите дату поездки');
+      return;
+    }
+
+    if (_selectedTime.isEmpty) {
+      _showError('Пожалуйста, выберите время отправления');
+      return;
+    }
+
+    if (_selectedDirection == Direction.donetskToRostov &&
+        _selectedPickupPoint.isEmpty) {
+      _showError('Пожалуйста, выберите место посадки');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -908,24 +1421,37 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
         clientId: user.id,
         tripType: TripType.group,
         direction: _selectedDirection,
-        departureDate: _selectedDate,
+        departureDate: _selectedDate!,
         departureTime: _selectedTime,
-        passengerCount: _passengerCount,
+        passengerCount: _passengers.length,
         pickupPoint: _selectedDirection == Direction.donetskToRostov
             ? _selectedPickupPoint
             : null,
+        fromStop: widget.fromStop,
+        toStop: widget.toStop,
         totalPrice: _getTotalPrice().toInt(),
         status: BookingStatus.pending,
         createdAt: DateTime.now(),
         trackingPoints: const [],
         baggage: _selectedBaggage,
         pets: _selectedPets,
+        passengers: _passengers,
+      );
+
+      // Отладочный вывод
+      print(
+        '🚀 Создаем бронирование: fromStop = ${widget.fromStop?.name}, toStop = ${widget.toStop?.name}',
       );
 
       final bookingId = await BookingService().createBooking(booking);
 
-      if (mounted) {
-        _showSuccessDialog(bookingId);
+      // Получаем созданное бронирование с ID
+      final createdBooking = await BookingService().getBookingById(bookingId);
+
+      if (mounted && createdBooking != null) {
+        _showSuccessDialog(createdBooking);
+      } else if (mounted) {
+        _showError('Не удалось получить данные созданного бронирования');
       }
     } catch (e) {
       _showError('Ошибка при создании бронирования: $e');
@@ -958,21 +1484,204 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
     );
   }
 
-  void _showSuccessDialog(String bookingId) {
+  void _showSuccessDialog(Booking booking) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Успешно!'),
         content: Text(
-          'Ваше бронирование создано.\nНомер заказа: ${bookingId.substring(0, 8)}',
+          'Ваше бронирование создано.\nНомер заказа: ${booking.id.substring(0, 8)}',
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () {
+            child: const Text('Посмотреть заказ'),
+            onPressed: () async {
               Navigator.pop(context); // Закрываем диалог
-              Navigator.pop(context); // Возвращаемся на предыдущий экран
+
+              // ВАЖНО: Сохраняем вкладку "Бронирование" перед возвратом
+              print('💾 Сохраняем /booking перед возвратом на главный экран');
+              await AuthService.instance.saveLastScreen('/booking');
+              print('✅ Вкладка /booking сохранена');
+
+              // Возвращаемся на главный экран (он останется на вкладке "Бронирование")
+              Navigator.popUntil(context, (route) => route.isFirst);
+
+              // Небольшая задержка для корректной навигации
+              await Future.delayed(const Duration(milliseconds: 150));
+
+              // Открываем экран деталей заказа
+              if (context.mounted) {
+                print('🚀 Открываем экран деталей заказа');
+                final result = await Navigator.push<String>(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => BookingDetailScreen(booking: booking),
+                  ),
+                );
+
+                // После возврата из экрана деталей переключаемся на вкладку "Мои заказы"
+                if (context.mounted && result == 'switch_to_orders') {
+                  print('🔄 Переключаемся на вкладку "Мои заказы"');
+                  HomeScreen.homeScreenKey.currentState?.switchToTab(1);
+                  await AuthService.instance.saveLastScreen('/orders');
+                  print('✅ Вкладка /orders сохранена');
+                }
+              }
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRouteStopPicker(bool isFromStop, theme) {
+    final routeService = RouteService.instance;
+    // Определяем направление на основе текущих остановок
+    final direction = widget.fromStop!.order < widget.toStop!.order
+        ? 'donetsk_to_rostov'
+        : 'rostov_to_donetsk';
+
+    final availableStops = routeService.getRouteStops(direction);
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => _StopPickerModal(
+        title: isFromStop ? 'Откуда' : 'Куда',
+        availableStops: availableStops,
+        currentStop: isFromStop ? widget.fromStop : widget.toStop,
+        onStopSelected: (RouteStop stop) {
+          setState(() {
+            if (isFromStop) {
+              // Обновляем fromStop через создание нового widget не получится,
+              // поэтому используем локальную переменную
+              // Но так как widget.fromStop - final, нам нужно передать это обратно
+              Navigator.of(context).pop();
+              // Переходим на новый экран с обновленными параметрами
+              Navigator.of(context).pushReplacement(
+                CupertinoPageRoute(
+                  builder: (context) =>
+                      GroupBookingScreen(fromStop: stop, toStop: widget.toStop),
+                ),
+              );
+            } else {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushReplacement(
+                CupertinoPageRoute(
+                  builder: (context) => GroupBookingScreen(
+                    fromStop: widget.fromStop,
+                    toStop: stop,
+                  ),
+                ),
+              );
+            }
+          });
+        },
+        theme: theme,
+      ),
+    );
+  }
+}
+
+// Модальное окно для выбора города
+class _StopPickerModal extends StatefulWidget {
+  final String title;
+  final List<RouteStop> availableStops;
+  final RouteStop? currentStop;
+  final Function(RouteStop) onStopSelected;
+  final dynamic theme;
+
+  const _StopPickerModal({
+    required this.title,
+    required this.availableStops,
+    required this.currentStop,
+    required this.onStopSelected,
+    required this.theme,
+  });
+
+  @override
+  State<_StopPickerModal> createState() => _StopPickerModalState();
+}
+
+class _StopPickerModalState extends State<_StopPickerModal> {
+  late RouteStop _currentlySelectedStop;
+
+  @override
+  void initState() {
+    super.initState();
+    // Инициализируем выбранный элемент текущим или первым доступным городом
+    _currentlySelectedStop = widget.currentStop ?? widget.availableStops.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.4,
+      decoration: BoxDecoration(
+        color: widget.theme.systemBackground,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Заголовок
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: widget.theme.separator)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: widget.theme.label,
+                  ),
+                ),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    widget.onStopSelected(_currentlySelectedStop);
+                  },
+                  child: Text(
+                    'Выбрать',
+                    style: TextStyle(
+                      color: widget.theme.systemRed,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Список остановок
+          Expanded(
+            child: CupertinoPicker(
+              itemExtent: 44,
+              scrollController: FixedExtentScrollController(
+                initialItem: widget.availableStops.indexOf(
+                  _currentlySelectedStop,
+                ),
+              ),
+              onSelectedItemChanged: (index) {
+                setState(() {
+                  _currentlySelectedStop = widget.availableStops[index];
+                });
+              },
+              children: widget.availableStops.map((stop) {
+                return Center(
+                  child: Text(
+                    stop.name,
+                    style: TextStyle(fontSize: 18, color: widget.theme.label),
+                  ),
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),

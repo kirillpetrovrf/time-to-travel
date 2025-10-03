@@ -93,34 +93,31 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    height: 120,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _getPopularRoutes().length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final route = _getPopularRoutes()[index];
-                        return _PopularRouteCard(
-                          fromStop: route['from']!,
-                          toStop: route['to']!,
-                          theme: theme,
-                          onTap: () {
-                            setState(() {
-                              _fromStop = route['from']!;
-                              _toStop = route['to']!;
-                            });
-                          },
-                          isSelected:
-                              _fromStop?.id == route['from']!.id &&
-                              _toStop?.id == route['to']!.id,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: _getPopularRoutes().map((route) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _PopularRouteCard(
+                            fromStop: route['from']!,
+                            toStop: route['to']!,
+                            theme: theme,
+                            onTap: () {
+                              setState(() {
+                                _fromStop = route['from']!;
+                                _toStop = route['to']!;
+                              });
+                            },
+                            isSelected:
+                                _fromStop?.id == route['from']!.id &&
+                                _toStop?.id == route['to']!.id,
+                          ),
                         );
-                      },
+                      }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
                 ],
 
                 // Выбор отправления и назначения
@@ -368,15 +365,21 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
   }
 
   List<Map<String, RouteStop>> _getPopularRoutes() {
-    final routes = <Map<String, RouteStop>>[];
+    // Находим Донецк и Ростов-на-Дону в популярных остановках
+    final donetsk = _popularStops.firstWhere(
+      (stop) => stop.id == 'donetsk',
+      orElse: () => _popularStops.first,
+    );
+    final rostov = _popularStops.firstWhere(
+      (stop) => stop.id == 'rostov',
+      orElse: () => _popularStops.last,
+    );
 
-    for (int i = 0; i < _popularStops.length; i++) {
-      for (int j = i + 1; j < _popularStops.length; j++) {
-        routes.add({'from': _popularStops[i], 'to': _popularStops[j]});
-      }
-    }
-
-    return routes.take(3).toList(); // Максимум 3 популярных маршрута
+    // Возвращаем только два маршрута: Донецк → Ростов и Ростов → Донецк
+    return [
+      {'from': donetsk, 'to': rostov},
+      {'from': rostov, 'to': donetsk},
+    ];
   }
 
   String _formatDuration(Duration duration) {
@@ -412,8 +415,8 @@ class _PopularRouteCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       onPressed: onTap,
       child: Container(
-        width: 200,
-        padding: const EdgeInsets.all(12),
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
               ? theme.systemRed.withOpacity(0.1)
@@ -424,32 +427,14 @@ class _PopularRouteCard extends StatelessWidget {
             width: isSelected ? 2 : 1,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
-            Text(
-              fromStop.name,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: theme.label,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(
-                  CupertinoIcons.arrow_right,
-                  size: 16,
-                  color: theme.systemRed,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    toStop.name,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fromStop.name,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -458,10 +443,33 @@ class _PopularRouteCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.arrow_right,
+                        size: 16,
+                        color: theme.systemRed,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          toStop.name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: theme.label,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 12),
             Text(
               '2000 ₽',
               style: TextStyle(
@@ -477,7 +485,7 @@ class _PopularRouteCard extends StatelessWidget {
   }
 }
 
-class _StopPickerModal extends StatelessWidget {
+class _StopPickerModal extends StatefulWidget {
   final List<RouteStop> stops;
   final RouteStop? selectedStop;
   final RouteStop? excludeStop;
@@ -491,12 +499,31 @@ class _StopPickerModal extends StatelessWidget {
   });
 
   @override
+  State<_StopPickerModal> createState() => _StopPickerModalState();
+}
+
+class _StopPickerModalState extends State<_StopPickerModal> {
+  late RouteStop _currentlySelectedStop;
+
+  @override
+  void initState() {
+    super.initState();
+    // Инициализируем выбранный элемент первым доступным городом
+    final availableStops = widget.stops
+        .where((stop) =>
+            widget.excludeStop == null || stop.id != widget.excludeStop!.id)
+        .toList();
+    _currentlySelectedStop = availableStops.first;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final themeManager = context.themeManager;
     final theme = themeManager.currentTheme;
 
-    final availableStops = stops
-        .where((stop) => excludeStop == null || stop.id != excludeStop!.id)
+    final availableStops = widget.stops
+        .where((stop) =>
+            widget.excludeStop == null || stop.id != widget.excludeStop!.id)
         .toList();
 
     return Container(
@@ -529,9 +556,13 @@ class _StopPickerModal extends StatelessWidget {
                 ),
                 CupertinoButton(
                   padding: EdgeInsets.zero,
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    // Выбираем текущий элемент и закрываем модалку
+                    widget.onStopSelected(_currentlySelectedStop);
+                    Navigator.of(context).pop();
+                  },
                   child: Text(
-                    'Готово',
+                    'Выбрать',
                     style: TextStyle(
                       color: theme.systemRed,
                       fontWeight: FontWeight.w600,
@@ -547,7 +578,9 @@ class _StopPickerModal extends StatelessWidget {
             child: CupertinoPicker(
               itemExtent: 44,
               onSelectedItemChanged: (index) {
-                onStopSelected(availableStops[index]);
+                setState(() {
+                  _currentlySelectedStop = availableStops[index];
+                });
               },
               children: availableStops.map((stop) {
                 return Center(

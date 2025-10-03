@@ -8,6 +8,8 @@ import '../../../models/pet_info.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
+import '../../home/screens/home_screen.dart';
+import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
 import 'pet_selection_screen.dart';
 import 'vehicle_selection_screen.dart';
@@ -963,8 +965,13 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
       final bookingId = await BookingService().createBooking(booking);
 
-      if (mounted) {
-        _showSuccessDialog(bookingId);
+      // Получаем созданное бронирование с ID
+      final createdBooking = await BookingService().getBookingById(bookingId);
+
+      if (mounted && createdBooking != null) {
+        _showSuccessDialog(createdBooking);
+      } else if (mounted) {
+        _showError('Не удалось получить данные созданного бронирования');
       }
     } catch (e) {
       _showError('Ошибка при создании бронирования: $e');
@@ -989,20 +996,49 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     );
   }
 
-  void _showSuccessDialog(String bookingId) {
+  void _showSuccessDialog(Booking booking) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Успешно!'),
         content: Text(
-          'Ваше бронирование создано.\nНомер заказа: ${bookingId.substring(0, 8)}',
+          'Ваше бронирование создано.\nНомер заказа: ${booking.id.substring(0, 8)}',
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () {
+            child: const Text('Посмотреть заказ'),
+            onPressed: () async {
               Navigator.pop(context); // Закрываем диалог
-              Navigator.pop(context); // Возвращаемся на предыдущий экран
+
+              // ВАЖНО: Сохраняем вкладку "Бронирование" перед возвратом
+              print('💾 Сохраняем /booking перед возвратом на главный экран');
+              await AuthService.instance.saveLastScreen('/booking');
+              print('✅ Вкладка /booking сохранена');
+
+              // Возвращаемся на главный экран (он останется на вкладке "Бронирование")
+              Navigator.popUntil(context, (route) => route.isFirst);
+
+              // Небольшая задержка для корректной навигации
+              await Future.delayed(const Duration(milliseconds: 150));
+
+              // Открываем экран деталей заказа
+              if (context.mounted) {
+                print('🚀 Открываем экран деталей заказа');
+                final result = await Navigator.push<String>(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => BookingDetailScreen(booking: booking),
+                  ),
+                );
+
+                // После возврата из экрана деталей переключаемся на вкладку "Мои заказы"
+                if (context.mounted && result == 'switch_to_orders') {
+                  print('🔄 Переключаемся на вкладку "Мои заказы"');
+                  HomeScreen.homeScreenKey.currentState?.switchToTab(1);
+                  await AuthService.instance.saveLastScreen('/orders');
+                  print('✅ Вкладка /orders сохранена');
+                }
+              }
             },
           ),
         ],

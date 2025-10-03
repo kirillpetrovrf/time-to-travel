@@ -200,7 +200,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               const SizedBox(height: 12),
 
               Text(
-                _getDirectionText(booking.direction),
+                _getDirectionText(booking),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -265,8 +265,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  String _getDirectionText(Direction direction) {
-    switch (direction) {
+  String _getDirectionText(Booking booking) {
+    // Если есть конкретные остановки, показываем их
+    if (booking.fromStop != null && booking.toStop != null) {
+      return '${booking.fromStop!.name} → ${booking.toStop!.name}';
+    }
+
+    // Иначе показываем общее направление
+    switch (booking.direction) {
       case Direction.donetskToRostov:
         return 'Донецк → Ростов-на-Дону';
       case Direction.rostovToDonetsk:
