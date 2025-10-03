@@ -535,9 +535,11 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   Widget _buildPickupPointPicker(theme) {
-    final pickupPoints = _tripSettings?.donetskPickupPoints ?? [];
+    // Получаем места посадки для выбранного города отправления
+    final fromStopId = widget.fromStop?.id ?? '';
+    final pickupPoints = PickupPoints.getPickupPointsForCity(fromStopId);
 
-    if (pickupPoints.isEmpty) {
+    if (pickupPoints.isEmpty || widget.fromStop == null) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -546,7 +548,7 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
           border: Border.all(color: theme.separator.withOpacity(0.2)),
         ),
         child: Text(
-          'Места посадки не настроены',
+          'Сначала выберите город отправления',
           style: TextStyle(color: theme.secondaryLabel),
           textAlign: TextAlign.center,
         ),
@@ -574,7 +576,7 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
             Expanded(
               child: Text(
                 _selectedPickupPoint.isEmpty
-                    ? 'Выберите место посадки'
+                    ? 'Место посадки'
                     : _selectedPickupPoint,
                 style: TextStyle(
                   color: _selectedPickupPoint.isEmpty
@@ -677,7 +679,14 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   void _showPickupPointModal(theme) {
-    final pickupPoints = _tripSettings?.donetskPickupPoints ?? [];
+    // Получаем места посадки для выбранного города отправления
+    final fromStopId = widget.fromStop?.id ?? '';
+    final pickupPoints = PickupPoints.getPickupPointsForCity(fromStopId);
+
+    if (pickupPoints.isEmpty) {
+      _showError('Места посадки не настроены для выбранного города');
+      return;
+    }
 
     // Временная переменная для хранения выбранного значения
     String tempSelectedPickupPoint = _selectedPickupPoint.isNotEmpty
@@ -706,12 +715,27 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Место посадки',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: theme.label,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Место посадки',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: theme.label,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.fromStop?.name ?? '',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.secondaryLabel,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   CupertinoButton(
@@ -738,7 +762,9 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
               child: CupertinoPicker(
                 itemExtent: 44,
                 scrollController: FixedExtentScrollController(
-                  initialItem: _selectedPickupPoint.isNotEmpty
+                  initialItem:
+                      _selectedPickupPoint.isNotEmpty &&
+                          pickupPoints.contains(_selectedPickupPoint)
                       ? pickupPoints.indexOf(_selectedPickupPoint)
                       : 0,
                 ),

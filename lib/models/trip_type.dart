@@ -28,29 +28,13 @@ class TripPricing {
     '16:00',
   ];
 
-  static const List<String> donetskPickupPoints = [
-    'Южный автовокзал',
-    'Крытый рынок',
-    'Мотель',
-  ];
+  static const List<String> donetskPickupPoints = ['Центральный автовокзал'];
 
-  static const List<String> rostovPickupPoints = [
-    'Центральный автовокзал',
-    'ТЦ Горизонт',
-    'Площадь Ленина',
-  ];
+  static const List<String> rostovPickupPoints = ['Главный автовокзал'];
 
-  static const List<String> donetskDropoffPoints = [
-    'Центральный автовокзал Донецка',
-    'Площадь Ленина Донецк',
-    'ТЦ Донбасс Арена',
-  ];
+  static const List<String> donetskDropoffPoints = ['Центральный автовокзал'];
 
-  static const List<String> rostovDropoffPoints = [
-    'Центральный автовокзал Ростов',
-    'Аэропорт Платов',
-    'ЖД вокзал Ростов-Главный',
-  ];
+  static const List<String> rostovDropoffPoints = ['Главный автовокзал'];
 
   /// Проверяет, является ли время выезда ночным (после 22:00)
   static bool isNightTime(String departureTime) {

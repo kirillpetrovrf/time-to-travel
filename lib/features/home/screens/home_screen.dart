@@ -103,13 +103,13 @@ class _HomeScreenState extends State<HomeScreen> {
     print(
       '📱 _onTabChanged вызван с индексом: $index, текущий: $_currentIndex',
     );
-    
+
     // Если переключаемся на вкладку заказов, обновляем key
-    if ((_userType == UserType.dispatcher && index == 2) || 
+    if ((_userType == UserType.dispatcher && index == 2) ||
         (_userType == UserType.client && index == 1)) {
       _ordersScreenKey++;
     }
-    
+
     setState(() {
       _currentIndex = index;
     });
@@ -295,7 +295,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 1:
                   return AdminPanelScreen();
                 case 2:
-                  return OrdersScreen(key: ValueKey('orders_$_ordersScreenKey'));
+                  return OrdersScreen(
+                    key: ValueKey('orders_$_ordersScreenKey'),
+                  );
                 case 3:
                   return const TrackingScreen();
                 case 4:
@@ -309,7 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 0:
                   return const BookingScreen(); // Бронирование
                 case 1:
-                  return OrdersScreen(key: ValueKey('orders_$_ordersScreenKey')); // Мои заказы
+                  return OrdersScreen(
+                    key: ValueKey('orders_$_ordersScreenKey'),
+                  ); // Мои заказы
                 case 2:
                   return const TrackingScreen(); // Отслеживание
                 case 3:
@@ -574,7 +578,7 @@ class _MainTabState extends State<MainTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Донецк',
+                      'Донецк (Центральный автовокзал)',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -583,15 +587,15 @@ class _MainTabState extends State<MainTab> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Места посадки: Южный автовокзал, Крытый рынок, Мотель',
+                      'Промежуточные остановки: Макеевка, Харцызск, Иловайск, Кутейниково, Амвросиевка, КПП УСПЕНКА, Матвеев-Курган, Покровское, Таганрог',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: theme.secondaryLabel,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Ростов-на-Дону',
+                      'Ростов-на-Дону (Главный автовокзал)',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

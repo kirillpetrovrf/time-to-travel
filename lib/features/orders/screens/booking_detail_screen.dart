@@ -633,9 +633,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 CupertinoDialogAction(
                   child: const Text('OK'),
                   onPressed: () {
-                    Navigator.pop(context);
-                    // Возвращаемся к списку заказов с результатом
-                    Navigator.pop(context, true);
+                    Navigator.pop(context); // Закрываем диалог
+                    Navigator.pop(
+                      context,
+                      'cancelled',
+                    ); // Возвращаемся к списку заказов
                   },
                 ),
               ],

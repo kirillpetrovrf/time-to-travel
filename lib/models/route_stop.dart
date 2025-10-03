@@ -206,3 +206,74 @@ class RouteData {
     return 2000;
   }
 }
+
+/// Места посадки для каждого города на маршруте
+class PickupPoints {
+  /// Места посадки в Донецке
+  static const List<String> donetsk = ['Центральный автовокзал'];
+
+  /// Места посадки в Макеевке
+  static const List<String> makeevka = ['пл. Ленина'];
+
+  /// Места посадки в Харцызске
+  static const List<String> khartsyzsk = ['Автостанция'];
+
+  /// Места посадки в Иловайске
+  static const List<String> ilovaysk = ['Центральная площадь'];
+
+  /// Места посадки в Кутейниково
+  static const List<String> kuteynikovo = ['Остановка у магазина'];
+
+  /// Места посадки в Амвросиевке
+  static const List<String> amvrosievka = ['Автостанция'];
+
+  /// Места посадки на КПП УСПЕНКА
+  static const List<String> kppUspenka = ['Граница ДНР-РФ'];
+
+  /// Места посадки в Матвеев-Кургане
+  static const List<String> matveevKurgan = ['Центральная площадь'];
+
+  /// Места посадки в Покровском
+  static const List<String> pokrovskoe = ['Автобусная остановка'];
+
+  /// Места посадки в Таганроге
+  static const List<String> taganrog = ['Автовокзал'];
+
+  /// Места посадки в Ростове-на-Дону
+  static const List<String> rostov = ['Главный автовокзал'];
+
+  /// Получение мест посадки по ID города
+  static List<String> getPickupPointsForCity(String cityId) {
+    switch (cityId) {
+      case 'donetsk':
+        return donetsk;
+      case 'makeevka':
+        return makeevka;
+      case 'khartsyzsk':
+        return khartsyzsk;
+      case 'ilovaysk':
+        return ilovaysk;
+      case 'kuteynikovo':
+        return kuteynikovo;
+      case 'amvrosievka':
+        return amvrosievka;
+      case 'kpp_uspenka':
+        return kppUspenka;
+      case 'matveev_kurgan':
+        return matveevKurgan;
+      case 'pokrovskoe':
+        return pokrovskoe;
+      case 'taganrog':
+        return taganrog;
+      case 'rostov':
+        return rostov;
+      default:
+        return [];
+    }
+  }
+
+  /// Получение полного названия остановки (город + место посадки)
+  static String getFullStopName(String cityName, String pickupPoint) {
+    return '$cityName ($pickupPoint)';
+  }
+}

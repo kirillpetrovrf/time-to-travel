@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../../../models/trip_type.dart';
 
 class PickupPointsWidget extends StatefulWidget {
   final dynamic theme;
@@ -12,12 +11,20 @@ class PickupPointsWidget extends StatefulWidget {
 }
 
 class _PickupPointsWidgetState extends State<PickupPointsWidget> {
-  List<String> _donetskPoints = List.from(TripPricing.donetskPickupPoints);
-  List<String> _rostovPoints = [
-    'Центральный автовокзал',
-    'ТЦ Горизонт',
-    'Площадь Ленина',
-  ];
+  // Все 11 городов с местами посадки
+  final Map<String, List<String>> _cityPoints = {
+    'Донецк': ['Центральный автовокзал'],
+    'Макеевка': ['пл. Ленина'],
+    'Харцызск': ['Автостанция'],
+    'Иловайск': ['Центральная площадь'],
+    'Кутейниково': ['Остановка у магазина'],
+    'Амвросиевка': ['Автостанция'],
+    'КПП УСПЕНКА': ['Граница ДНР-РФ'],
+    'Матвеев-Курган': ['Центральная площадь'],
+    'Покровское': ['Автобусная остановка'],
+    'Таганрог': ['Автовокзал'],
+    'Ростов-на-Дону': ['Главный автовокзал'],
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -26,23 +33,42 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildPointsSection(
-            'Остановки в Донецке',
-            _donetskPoints,
-            CupertinoIcons.location_solid,
-            true,
+          Text(
+            'Места посадки на маршруте',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: widget.theme.label,
+            ),
           ),
-
+          const SizedBox(height: 8),
+          Text(
+            'Все остановки на маршруте Донецк → Ростов-на-Дону',
+            style: TextStyle(fontSize: 14, color: widget.theme.secondaryLabel),
+          ),
           const SizedBox(height: 24),
 
-          _buildPointsSection(
-            'Остановки в Ростове-на-Дону',
-            _rostovPoints,
-            CupertinoIcons.location,
-            false,
-          ),
+          // Все 11 городов
+          ..._cityPoints.entries.map((entry) {
+            final cityName = entry.key;
+            final points = entry.value;
+            final index = _cityPoints.keys.toList().indexOf(cityName);
 
-          const SizedBox(height: 24),
+            return Column(
+              children: [
+                _buildPointsSection(
+                  cityName,
+                  points,
+                  CupertinoIcons.location_solid,
+                  cityName,
+                  index + 1,
+                ),
+                const SizedBox(height: 16),
+              ],
+            );
+          }).toList(),
+
+          const SizedBox(height: 8),
 
           _buildMapIntegrationSection(),
         ],
@@ -51,23 +77,41 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
   }
 
   Widget _buildPointsSection(
-    String title,
+    String cityName,
     List<String> points,
     IconData icon,
-    bool isDonetsk,
+    String cityId,
+    int orderNumber,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, color: widget.theme.primary, size: 24),
-            const SizedBox(width: 8),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: widget.theme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  '$orderNumber',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: widget.theme.primary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
-                title,
+                cityName,
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: widget.theme.label,
                 ),
@@ -75,7 +119,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
             ),
             CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: () => _showAddPointDialog(isDonetsk),
+              onPressed: () => _showAddPointDialog(cityId),
               child: Icon(
                 CupertinoIcons.plus_circle_fill,
                 color: widget.theme.primary,
@@ -85,7 +129,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
           ],
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
         Container(
           decoration: BoxDecoration(
@@ -105,7 +149,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
                       height: 1,
                       color: widget.theme.separator.withOpacity(0.2),
                     ),
-                  _buildPointItem(point, index, isDonetsk),
+                  _buildPointItem(point, index, cityId),
                 ],
               );
             }).toList(),
@@ -115,7 +159,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
     );
   }
 
-  Widget _buildPointItem(String point, int index, bool isDonetsk) {
+  Widget _buildPointItem(String point, int index, String cityId) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -128,13 +172,10 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: widget.theme.primary,
-                ),
+              child: Icon(
+                CupertinoIcons.location_solid,
+                size: 16,
+                color: widget.theme.primary,
               ),
             ),
           ),
@@ -167,7 +208,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
 
           CupertinoButton(
             padding: EdgeInsets.zero,
-            onPressed: () => _showPointOptions(point, index, isDonetsk),
+            onPressed: () => _showPointOptions(point, index, cityId),
             child: Icon(
               CupertinoIcons.ellipsis,
               color: widget.theme.secondaryLabel,
@@ -241,16 +282,14 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
     );
   }
 
-  void _showAddPointDialog(bool isDonetsk) {
+  void _showAddPointDialog(String cityId) {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController addressController = TextEditingController();
 
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: Text(
-          isDonetsk ? 'Новая остановка в Донецке' : 'Новая остановка в Ростове',
-        ),
+        title: Text('Новая остановка в городе $cityId'),
         content: Column(
           children: [
             const SizedBox(height: 16),
@@ -275,11 +314,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
             onPressed: () {
               if (nameController.text.isNotEmpty) {
                 setState(() {
-                  if (isDonetsk) {
-                    _donetskPoints.add(nameController.text);
-                  } else {
-                    _rostovPoints.add(nameController.text);
-                  }
+                  _cityPoints[cityId]?.add(nameController.text);
                 });
               }
               Navigator.pop(context);
@@ -290,7 +325,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
     );
   }
 
-  void _showPointOptions(String point, int index, bool isDonetsk) {
+  void _showPointOptions(String point, int index, String cityId) {
     showCupertinoModalPopup(
       context: context,
       builder: (context) => CupertinoActionSheet(
@@ -300,7 +335,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
-              _editPoint(point, index, isDonetsk);
+              _editPoint(point, index, cityId);
             },
             child: const Text('Редактировать'),
           ),
@@ -314,7 +349,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
-              _togglePointStatus(point, index, isDonetsk);
+              _togglePointStatus(point, index, cityId);
             },
             child: const Text('Деактивировать'),
           ),
@@ -322,7 +357,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
             isDestructiveAction: true,
             onPressed: () {
               Navigator.pop(context);
-              _deletePoint(point, index, isDonetsk);
+              _deletePoint(point, index, cityId);
             },
             child: const Text('Удалить'),
           ),
@@ -335,7 +370,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
     );
   }
 
-  void _editPoint(String point, int index, bool isDonetsk) {
+  void _editPoint(String point, int index, String cityId) {
     final TextEditingController controller = TextEditingController(text: point);
 
     showCupertinoDialog(
@@ -361,11 +396,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
             onPressed: () {
               if (controller.text.isNotEmpty) {
                 setState(() {
-                  if (isDonetsk) {
-                    _donetskPoints[index] = controller.text;
-                  } else {
-                    _rostovPoints[index] = controller.text;
-                  }
+                  _cityPoints[cityId]?[index] = controller.text;
                 });
               }
               Navigator.pop(context);
@@ -376,7 +407,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
     );
   }
 
-  void _deletePoint(String point, int index, bool isDonetsk) {
+  void _deletePoint(String point, int index, String cityId) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -392,11 +423,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
             child: const Text('Удалить'),
             onPressed: () {
               setState(() {
-                if (isDonetsk) {
-                  _donetskPoints.removeAt(index);
-                } else {
-                  _rostovPoints.removeAt(index);
-                }
+                _cityPoints[cityId]?.removeAt(index);
               });
               Navigator.pop(context);
             },
@@ -424,7 +451,7 @@ class _PickupPointsWidgetState extends State<PickupPointsWidget> {
     );
   }
 
-  void _togglePointStatus(String point, int index, bool isDonetsk) {
+  void _togglePointStatus(String point, int index, String cityId) {
     // Логика активации/деактивации остановки
     showCupertinoDialog(
       context: context,
