@@ -49,11 +49,12 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
           ),
           // Контент
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Заголовок маршрута
-                Container(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Заголовок маршрута
+                  Container(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
@@ -179,7 +180,7 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                   ),
                 ),
 
-                const Spacer(),
+                const SizedBox(height: 24),
 
                 // Информация о маршруте и кнопка продолжения
                 if (_fromStop != null && _toStop != null) ...[
@@ -257,7 +258,7 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                     margin: const EdgeInsets.only(
                       left: 16,
                       right: 16,
-                      bottom: 16,
+                      bottom: 32, // Увеличен отступ снизу для лучшего отображения
                     ),
                     child: CupertinoButton(
                       color: theme.systemRed,
@@ -275,13 +276,15 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                     ),
                   ),
                 ],
+                // Конец списка children для Column внутри SingleChildScrollView
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+            ), // Конец Column внутри SingleChildScrollView
+          ), // Конец SingleChildScrollView
+        ), // Конец Expanded
+      ], // Конец children внешнего Column
+    ), // Конец внешнего Column
+  ); // Конец CupertinoPageScaffold
+}
 
   Widget _buildStopSelector({
     required String title,
