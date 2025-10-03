@@ -63,7 +63,7 @@ class _BookingScreenState extends State<BookingScreen> {
           const CustomNavigationBar(title: 'Забронировать поездку'),
           // Контент
           Expanded(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -123,7 +123,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     onTap: () => _showRouteSelection('free'),
                   ),
 
-                  const Spacer(),
+                  const SizedBox(height: 24),
 
                   // Информация
                   Container(
@@ -163,6 +163,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),

@@ -36,7 +36,7 @@ class _VKVerificationScreenState extends State<VKVerificationScreen> {
         ),
       ),
       child: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -109,7 +109,7 @@ class _VKVerificationScreenState extends State<VKVerificationScreen> {
                 theme: theme,
               ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               // Сообщение об ошибке
               if (_errorMessage != null) ...[
@@ -231,6 +231,8 @@ class _VKVerificationScreenState extends State<VKVerificationScreen> {
                     ),
                   ),
                 ),
+
+              const SizedBox(height: 32),
             ],
           ),
         ),
