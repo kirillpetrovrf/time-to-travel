@@ -99,6 +99,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Кнопка выхода
           _buildLogoutButton(theme),
+
+          // Отступ снизу для системных кнопок навигации
+          const SizedBox(height: 60),
         ],
       ),
     );

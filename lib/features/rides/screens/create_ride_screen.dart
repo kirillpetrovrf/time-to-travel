@@ -242,6 +242,9 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
                   ),
                 ),
               ),
+              
+              // Отступ снизу для системных кнопок навигации
+              const SizedBox(height: 60),
             ],
           ),
         ),

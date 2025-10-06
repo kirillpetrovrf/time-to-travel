@@ -259,7 +259,7 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                         left: 16,
                         right: 16,
                         bottom:
-                            32, // Увеличен отступ снизу для лучшего отображения
+                            60, // Отступ снизу для системных кнопок навигации
                       ),
                       child: CupertinoButton(
                         color: theme.systemRed,

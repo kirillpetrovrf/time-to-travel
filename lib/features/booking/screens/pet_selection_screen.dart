@@ -513,6 +513,9 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                   ),
                 ),
               ],
+
+              // Отступ снизу для системных кнопок навигации
+              const SizedBox(height: 60),
             ],
           ),
         ),

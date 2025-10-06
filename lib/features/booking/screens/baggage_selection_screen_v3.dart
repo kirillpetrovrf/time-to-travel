@@ -92,15 +92,58 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
     }
   }
 
+  int _getTotalBaggageCount() {
+    return _quantities.values.fold(0, (sum, quantity) => sum + quantity);
+  }
+
+  // Определяет, является ли данный размер первым выбранным багажом
+  bool _isFirstBaggageSize(BaggageSize size) {
+    // Проходим по размерам в том же порядке, что и отображаем
+    for (final currentSize in [
+      BaggageSize.s,
+      BaggageSize.m,
+      BaggageSize.l,
+      BaggageSize.custom,
+    ]) {
+      final quantity = _quantities[currentSize] ?? 0;
+      if (quantity > 0) {
+        // Первый найденный размер с quantity > 0 - это и есть первый багаж
+        return currentSize == size;
+      }
+    }
+    return false;
+  }
+
   double _calculateTotalCost() {
+    // НОВАЯ ЛОГИКА: только первое место из всего багажа бесплатно
+    int totalBaggageCount = 0;
     double total = 0.0;
+
+    // Сначала считаем общее количество багажа
+    for (final size in BaggageSize.values) {
+      totalBaggageCount += _quantities[size] ?? 0;
+    }
+
+    if (totalBaggageCount == 0) return 0.0;
+    if (totalBaggageCount == 1) return 0.0; // Первый багаж бесплатно
+
+    // Считаем стоимость всех багажей (без учета первого бесплатного)
+    int processedCount = 0;
     for (final size in BaggageSize.values) {
       final quantity = _quantities[size] ?? 0;
       final pricePerExtra = _prices[size] ?? 0.0;
-      if (quantity > 1) {
-        total += (quantity - 1) * pricePerExtra; // Первое место бесплатно
+
+      for (int i = 0; i < quantity; i++) {
+        processedCount++;
+
+        // Первый багаж бесплатно
+        if (processedCount == 1) continue;
+
+        // Все последующие по полной цене
+        total += pricePerExtra;
       }
     }
+
     return total;
   }
 
@@ -131,6 +174,9 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
   }
 
   void _showCustomBaggageDialog() {
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -138,6 +184,34 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 8),
+            // Информационное сообщение о цене
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemYellow.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    CupertinoIcons.info_circle_fill,
+                    color: CupertinoColors.systemOrange,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Цена уточняется диспетчером после оформления заказа',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.secondaryLabel,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             CupertinoTextField(
               controller: _customDescriptionController,
@@ -245,6 +319,54 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
 
               const SizedBox(height: 24),
 
+              // Информационное сообщение о дополнительной оплате (показывается когда выбрано больше 1 багажа)
+              if (_getTotalBaggageCount() > 1) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemYellow.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: CupertinoColors.systemYellow.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.info_circle_fill,
+                        color: CupertinoColors.systemYellow,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Дополнительная оплата',
+                              style: TextStyle(
+                                color: theme.label,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Один багаж бесплатно, любой последующий платно',
+                              style: TextStyle(
+                                color: theme.secondaryLabel,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
               // Карточки размеров багажа
               ..._buildBaggageCards(theme),
 
@@ -278,6 +400,9 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
   Widget _buildBaggageCard(BaggageSize size, CustomTheme theme) {
     final quantity = _quantities[size] ?? 0;
     final pricePerExtra = _prices[size] ?? 0.0;
+
+    // Определяем, является ли этот размер первым в общем списке выбранного багажа
+    bool isFirstBaggage = _isFirstBaggageSize(size);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -360,7 +485,31 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                           fontSize: 14,
                         ),
                       )
-                    else if (quantity == 1)
+                    // Для индивидуального (custom) багажа - особая логика
+                    else if (size == BaggageSize.custom)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Цена уточняется диспетчером',
+                            style: TextStyle(
+                              color: CupertinoColors.systemOrange,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'После оформления заказа с Вами свяжется диспетчер',
+                            style: TextStyle(
+                              color: theme.secondaryLabel,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (isFirstBaggage && quantity == 1)
+                      // Если это первый размер и выбран ровно 1 багаж - показываем бесплатно
                       Text(
                         'БЕСПЛАТНО',
                         style: TextStyle(
@@ -369,7 +518,8 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       )
-                    else
+                    else if (isFirstBaggage && quantity > 1)
+                      // Если это первый размер, но багажей больше 1
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -384,6 +534,29 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                           if (pricePerExtra > 0)
                             Text(
                               'Доп. багаж: ${((quantity - 1) * pricePerExtra).toStringAsFixed(0)}₽',
+                              style: TextStyle(
+                                color: theme.secondaryLabel,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      )
+                    else
+                      // Это не первый размер - все багажи платные
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${pricePerExtra.toStringAsFixed(0)}₽',
+                            style: TextStyle(
+                              color: theme.label,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (quantity > 1)
+                            Text(
+                              'Всего: ${(quantity * pricePerExtra).toStringAsFixed(0)}₽',
                               style: TextStyle(
                                 color: theme.secondaryLabel,
                                 fontSize: 12,

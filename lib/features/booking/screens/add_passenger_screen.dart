@@ -466,7 +466,8 @@ class _AddPassengerScreenState extends State<AddPassengerScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              // Отступ снизу для системных кнопок навигации
+              const SizedBox(height: 60),
             ],
           ),
         ),

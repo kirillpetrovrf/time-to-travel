@@ -91,6 +91,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
             // Последние поездки
             _buildRecentTrips(theme),
+
+            // Отступ снизу для системных кнопок навигации
+            const SizedBox(height: 60),
           ],
         ),
       ),

@@ -120,6 +120,9 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
                     // Стоимость
                     _buildPricingSummary(theme),
+
+                    // Отступ снизу для системных кнопок навигации
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),
@@ -660,7 +663,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     Text(
                       _selectedBaggage.isEmpty
                           ? 'Выберите багаж'
-                          : '${_selectedBaggage.length} ${_getBaggageCountText(_selectedBaggage.length)}',
+                          : '${_getTotalBaggageCount()} ${_getBaggageCountText(_getTotalBaggageCount())}',
                       style: TextStyle(color: theme.label, fontSize: 16),
                     ),
                     const SizedBox(height: 2),
@@ -749,6 +752,10 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     return 'предметов багажа';
   }
 
+  int _getTotalBaggageCount() {
+    return _selectedBaggage.fold(0, (sum, item) => sum + item.quantity);
+  }
+
   String _getPetCountText(int count) {
     if (count == 1) return 'животное';
     if (count < 5) return 'животных';
@@ -756,10 +763,29 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   double _calculateBaggagePrice() {
-    return _selectedBaggage.fold(0.0, (sum, item) {
-      // ОБНОВЛЕНО под ТЗ v3.0: используем новый метод расчета стоимости
-      return sum + item.calculateCost();
-    });
+    // НОВАЯ ЛОГИКА: первый багаж ЛЮБОГО размера бесплатно
+    int totalBaggageCount = _getTotalBaggageCount();
+
+    if (totalBaggageCount == 0) return 0.0;
+    if (totalBaggageCount == 1) return 0.0; // Первый багаж бесплатно
+
+    // Считаем стоимость всех багажей (без учета бесплатного первого)
+    double totalCost = 0.0;
+    int processedCount = 0;
+
+    for (var item in _selectedBaggage) {
+      for (int i = 0; i < item.quantity; i++) {
+        processedCount++;
+
+        // Первый багаж бесплатно
+        if (processedCount == 1) continue;
+
+        // Все последующие по полной цене
+        totalCost += item.pricePerExtraItem;
+      }
+    }
+
+    return totalCost;
   }
 
   double _calculatePetPrice() {

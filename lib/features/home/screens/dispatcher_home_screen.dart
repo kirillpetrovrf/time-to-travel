@@ -98,6 +98,9 @@ class _DispatcherHomeScreenState extends State<DispatcherHomeScreen> {
 
             // Активные заказы
             _buildActiveOrders(theme),
+
+            // Отступ снизу для системных кнопок навигации
+            const SizedBox(height: 60),
           ],
         ),
       ),

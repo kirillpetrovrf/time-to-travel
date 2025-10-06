@@ -66,6 +66,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               _buildPriceCard(theme),
               const SizedBox(height: 24),
               _buildActionButtons(theme),
+
+              // Отступ снизу для системных кнопок навигации
+              const SizedBox(height: 60),
             ],
           ),
         ),
