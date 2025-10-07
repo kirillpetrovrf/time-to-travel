@@ -210,37 +210,48 @@ class RouteData {
 /// Места посадки для каждого города на маршруте
 class PickupPoints {
   /// Места посадки в Донецке
-  static const List<String> donetsk = ['Центральный автовокзал'];
+  static const List<String> donetsk = ['Южный', 'Крытый рынок', 'Мотель'];
 
   /// Места посадки в Макеевке
-  static const List<String> makeevka = ['пл. Ленина'];
+  static const List<String> makeevka = [
+    'МИСИ',
+    'Галактика',
+    'Папирус',
+    'Красный рынок',
+    'Зеленый',
+    'Кольцо 4/13',
+  ];
 
   /// Места посадки в Харцызске
-  static const List<String> khartsyzsk = ['Автостанция'];
+  static const List<String> khartsyzsk = ['Родничек'];
 
   /// Места посадки в Иловайске
-  static const List<String> ilovaysk = ['Центральная площадь'];
+  static const List<String> ilovaysk = ['памятник Медаль'];
 
   /// Места посадки в Кутейниково
-  static const List<String> kuteynikovo = ['Остановка у магазина'];
+  static const List<String> kuteynikovo = ['АЗС'];
 
   /// Места посадки в Амвросиевке
-  static const List<String> amvrosievka = ['Автостанция'];
+  static const List<String> amvrosievka = ['кафе Лолита', 'пост ДПС'];
 
   /// Места посадки на КПП УСПЕНКА
-  static const List<String> kppUspenka = ['Граница ДНР-РФ'];
+  static const List<String> kppUspenka = ['КПП Успенка'];
 
   /// Места посадки в Матвеев-Кургане
-  static const List<String> matveevKurgan = ['Центральная площадь'];
+  static const List<String> matveevKurgan = ['автостанция'];
 
   /// Места посадки в Покровском
-  static const List<String> pokrovskoe = ['Автобусная остановка'];
+  static const List<String> pokrovskoe = ['автостанция'];
 
   /// Места посадки в Таганроге
-  static const List<String> taganrog = ['Автовокзал'];
+  static const List<String> taganrog = ['ул. Маршала Жукова 1а'];
 
   /// Места посадки в Ростове-на-Дону
-  static const List<String> rostov = ['Главный автовокзал'];
+  static const List<String> rostov = [
+    'Таганрогское кольцо (АЗС)',
+    'ул. Малиновского + ул. Доватора',
+    'Главный ЖД вокзал',
+  ];
 
   /// Получение мест посадки по ID города
   static List<String> getPickupPointsForCity(String cityId) {
