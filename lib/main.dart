@@ -1,7 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+// TODO: Раскомментировать при подключении реального Firebase проекта
+// import 'package:firebase_core/firebase_core.dart';
+// import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'config/map_config.dart';
@@ -13,8 +14,9 @@ import 'features/splash/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // TODO: Раскомментировать при подключении реального Firebase проекта
   // Инициализация Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Инициализация карт (если есть API ключ)
   if (MapConfig.hasApiKey) {

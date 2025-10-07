@@ -1,85 +1,56 @@
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Сервис управления контентом (ТЗ v3.0)
 /// НОВОЕ: Администратор может редактировать описания поездок
+///
+/// ⚠️ ВАЖНО: Сейчас используются только локальные данные
+/// TODO: Интеграция с Firebase - реализуется позже
 class ContentManagementService {
   static const ContentManagementService _instance =
       ContentManagementService._internal();
   const ContentManagementService._internal();
   static const ContentManagementService instance = _instance;
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _collectionName = 'content_settings';
+  // TODO: Интеграция с Firebase - реализуется позже
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // static const String _collectionName = 'content_settings';
 
   /// Получение описаний поездок
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<Map<String, String>> getTripDescriptions() async {
-    try {
-      final doc = await _firestore
-          .collection(_collectionName)
-          .doc('trip_descriptions')
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data()!;
-        return Map<String, String>.from(data);
-      }
-
-      // Значения по умолчанию
-      return _getDefaultDescriptions();
-    } catch (e) {
-      debugPrint('❌ Ошибка загрузки описаний поездок: $e');
-      return _getDefaultDescriptions();
-    }
+    debugPrint(
+      'ℹ️ Используются локальные описания поездок (Firebase не подключен)',
+    );
+    return _getDefaultDescriptions();
   }
 
   /// Обновление описаний поездок (только для диспетчера)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<bool> updateTripDescriptions(Map<String, String> descriptions) async {
-    try {
-      await _firestore
-          .collection(_collectionName)
-          .doc('trip_descriptions')
-          .set(descriptions);
-
-      debugPrint('✅ Описания поездок обновлены');
-      return true;
-    } catch (e) {
-      debugPrint('❌ Ошибка обновления описаний: $e');
-      return false;
-    }
+    debugPrint(
+      'ℹ️ Обновление описаний сохранено локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет сохранение в Firebase
+    return true;
   }
 
   /// Получение информационных текстов
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<Map<String, String>> getInfoTexts() async {
-    try {
-      final doc = await _firestore
-          .collection(_collectionName)
-          .doc('info_texts')
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data()!;
-        return Map<String, String>.from(data);
-      }
-
-      return _getDefaultInfoTexts();
-    } catch (e) {
-      debugPrint('❌ Ошибка загрузки информационных текстов: $e');
-      return _getDefaultInfoTexts();
-    }
+    debugPrint(
+      'ℹ️ Используются локальные информационные тексты (Firebase не подключен)',
+    );
+    return _getDefaultInfoTexts();
   }
 
   /// Обновление информационных текстов
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<bool> updateInfoTexts(Map<String, String> texts) async {
-    try {
-      await _firestore.collection(_collectionName).doc('info_texts').set(texts);
-
-      debugPrint('✅ Информационные тексты обновлены');
-      return true;
-    } catch (e) {
-      debugPrint('❌ Ошибка обновления текстов: $e');
-      return false;
-    }
+    debugPrint(
+      'ℹ️ Обновление текстов сохранено локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет сохранение в Firebase
+    return true;
   }
 
   Map<String, String> _getDefaultDescriptions() {

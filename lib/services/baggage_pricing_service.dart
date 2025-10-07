@@ -1,51 +1,66 @@
+import 'package:flutter/foundation.dart';
 import '../models/baggage.dart';
 
 /// Сервис для управления ценами на дополнительный багаж (ТЗ v3.0)
-/// ВРЕМЕННО: Хардкодированные цены (до подключения Firebase)
-/// TODO: Заменить на Firebase когда будет готово
+///
+/// ⚠️ ВАЖНО: Сейчас используются только локальные данные
+/// TODO: Интеграция с Firebase - реализуется позже
 class BaggagePricingService {
-  // Хардкодированные цены на дополнительный багаж
-  static const double sPricePerExtra = 500.0;   // S: 500₽
-  static const double mPricePerExtra = 1000.0;  // M: 1000₽
-  static const double lPricePerExtra = 2000.0;  // L: 2000₽
-  static const double customPricePerExtra = 0.0; // Custom: цена определяется диспетчером
+  // TODO: Интеграция с Firebase - реализуется позже
+  // static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // static const String _collectionPath = 'settings';
+  // static const String _documentId = 'baggage_pricing';
+
+  // Дефолтные цены (локальные)
+  static const double defaultSPricePerExtra = 500.0; // S: 500₽
+  static const double defaultMPricePerExtra = 1000.0; // M: 1000₽
+  static const double defaultLPricePerExtra = 2000.0; // L: 2000₽
+  static const double defaultCustomPricePerExtra =
+      0.0; // Custom: цена определяется диспетчером
 
   // Текст для индивидуального багажа
-  static const String customBaggagePriceText = 
-    'Для уточнения цены нужно связаться с диспетчером. '
-    'После оформления заказа с Вами свяжется диспетчер и скажет точную стоимость индивидуального багажа.';
+  static const String customBaggagePriceText =
+      'Для уточнения цены нужно связаться с диспетчером. '
+      'После оформления заказа с Вами свяжется диспетчер и скажет точную стоимость индивидуального багажа.';
 
-  /// Получение цен на дополнительный багаж
+  /// Получение цен на дополнительный багаж (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   static Future<Map<BaggageSize, double>> getExtraBaggagePrices() async {
-    // Возвращаем хардкодированные цены
-    // Для custom багажа цена = 0, так как определяется диспетчером
-    return {
-      BaggageSize.s: sPricePerExtra,
-      BaggageSize.m: mPricePerExtra,
-      BaggageSize.l: lPricePerExtra,
-      BaggageSize.custom: customPricePerExtra, // 0.0 - цена определяется диспетчером
-    };
+    debugPrint('ℹ️ Используются локальные цены багажа (Firebase не подключен)');
+    return _getDefaultPrices();
   }
 
-  /// Обновление цен на дополнительный багаж (пока не реализовано)
+  /// Обновление цен на дополнительный багаж (для диспетчера)
+  /// TODO: Интеграция с Firebase - реализуется позже
   static Future<void> updateExtraBaggagePrices({
     required double sPricePerExtra,
     required double mPricePerExtra,
     required double lPricePerExtra,
     required double customPricePerExtra,
   }) async {
-    print('⚠️ Обновление цен пока недоступно (Firebase не подключен)');
-    // TODO: Реализовать когда подключится Firebase
+    debugPrint(
+      'ℹ️ Обновление цен багажа сохранено локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет сохранение в Firebase
   }
 
-  /// Стрим для отслеживания изменений цен (пока возвращает статичные данные)
+  /// Стрим для отслеживания изменений цен в реальном времени
+  /// TODO: Интеграция с Firebase - реализуется позже
   static Stream<Map<BaggageSize, double>> getExtraBaggagePricesStream() {
-    return Stream.value({
-      BaggageSize.s: sPricePerExtra,
-      BaggageSize.m: mPricePerExtra,
-      BaggageSize.l: lPricePerExtra,
-      BaggageSize.custom: customPricePerExtra,
-    });
+    debugPrint(
+      'ℹ️ Используется локальный стрим цен багажа (Firebase не подключен)',
+    );
+    return Stream.value(_getDefaultPrices());
+  }
+
+  /// Получение дефолтных цен
+  static Map<BaggageSize, double> _getDefaultPrices() {
+    return {
+      BaggageSize.s: defaultSPricePerExtra,
+      BaggageSize.m: defaultMPricePerExtra,
+      BaggageSize.l: defaultLPricePerExtra,
+      BaggageSize.custom: defaultCustomPricePerExtra,
+    };
   }
 
   /// Создание BaggageItem с актуальными ценами

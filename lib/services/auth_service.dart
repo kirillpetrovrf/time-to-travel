@@ -1,15 +1,19 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// TODO: Интеграция с Firebase - реализуется позже
+// import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../models/user.dart' as app_user;
 import 'user_service.dart';
 
+/// ⚠️ ВАЖНО: Сейчас используются только локальные данные
+/// TODO: Интеграция с Firebase - реализуется позже
 class AuthService {
   static const String _lastScreenKey = 'last_screen';
   static const String _formDataPrefix = 'form_data_';
   static const String _userTypeKey = 'user_type';
 
-  // НОВОЕ: Ключи для оффлайн авторизации
+  // Ключи для локальной авторизации
   static const String _offlineUserKey = 'offline_user';
   static const String _isOfflineModeKey = 'is_offline_mode';
 
@@ -22,17 +26,11 @@ class AuthService {
 
   AuthService._();
 
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  // TODO: Интеграция с Firebase - реализуется позже
+  // final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final UserService _userService = UserService();
 
-  // НОВОЕ: Проверка, работаем ли мы в оффлайн режиме
-  Future<bool> _isOfflineMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_isOfflineModeKey) ??
-        true; // По умолчанию - оффлайн режим
-  }
-
-  // НОВОЕ: Создание демо-пользователя для оффлайн режима
+  // Создание демо-пользователя для локального режима
   Future<void> _createOfflineUser() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -46,54 +44,44 @@ class AuthService {
 
     await prefs.setString(_offlineUserKey, jsonEncode(demoUser.toJson()));
     await prefs.setBool(_isOfflineModeKey, true);
+    debugPrint('ℹ️ Создан локальный демо-пользователь (Firebase не подключен)');
   }
 
   // Проверка авторизации
   Future<bool> isLoggedIn() async {
-    if (await _isOfflineMode()) {
-      final prefs = await SharedPreferences.getInstance();
-      // В оффлайн режиме всегда считаем пользователя авторизованным
-      // Создаем демо-пользователя если его нет
-      if (!prefs.containsKey(_offlineUserKey)) {
-        await _createOfflineUser();
-      }
-      return true;
-    } else {
-      final user = _firebaseAuth.currentUser;
-      return user != null;
+    final prefs = await SharedPreferences.getInstance();
+    // Всегда работаем в локальном режиме
+    // Создаем демо-пользователя если его нет
+    if (!prefs.containsKey(_offlineUserKey)) {
+      await _createOfflineUser();
     }
+    debugPrint('ℹ️ Пользователь авторизован локально (Firebase не подключен)');
+    return true;
   }
 
+  // TODO: Интеграция с Firebase - реализуется позже
   // Текущий пользователь Firebase
-  User? get currentFirebaseUser => _firebaseAuth.currentUser;
+  // User? get currentFirebaseUser => _firebaseAuth.currentUser;
 
-  // ОБНОВЛЕННОЕ: Получение текущего пользователя приложения (поддерживает оффлайн режим)
+  // Получение текущего пользователя приложения (работает локально)
   Future<app_user.User?> getCurrentUser() async {
-    if (await _isOfflineMode()) {
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString(_offlineUserKey);
+    final prefs = await SharedPreferences.getInstance();
+    final userJson = prefs.getString(_offlineUserKey);
 
-      if (userJson != null) {
-        try {
-          final userMap = jsonDecode(userJson) as Map<String, dynamic>;
-          return app_user.User.fromJson(userMap);
-        } catch (e) {
-          print('Ошибка парсинга оффлайн пользователя: $e');
-          // Создаем нового демо-пользователя если произошла ошибка
-          await _createOfflineUser();
-          return getCurrentUser();
-        }
-      } else {
-        // Создаем демо-пользователя если его нет
+    if (userJson != null) {
+      try {
+        final userMap = jsonDecode(userJson) as Map<String, dynamic>;
+        return app_user.User.fromJson(userMap);
+      } catch (e) {
+        debugPrint('⚠️ Ошибка парсинга локального пользователя: $e');
+        // Создаем нового демо-пользователя если произошла ошибка
         await _createOfflineUser();
         return getCurrentUser();
       }
     } else {
-      final firebaseUser = _firebaseAuth.currentUser;
-      if (firebaseUser != null) {
-        return await _userService.getUserById(firebaseUser.uid);
-      }
-      return null;
+      // Создаем демо-пользователя если его нет
+      await _createOfflineUser();
+      return getCurrentUser();
     }
   }
 
@@ -131,7 +119,7 @@ class AuthService {
     print('✅ AuthService: Переключение завершено');
   }
 
-  /// НОВОЕ (ТЗ v3.0): Повышение до диспетчера через секретный вход
+  /// Повышение до диспетчера через секретный вход (работает локально)
   Future<void> upgradeToDispatcher() async {
     try {
       // Устанавливаем тип диспетчера локально
@@ -141,38 +129,30 @@ class AuthService {
         app_user.UserType.dispatcher.toString(),
       );
 
-      if (await _isOfflineMode()) {
-        // В оффлайн режиме обновляем локального пользователя
-        final currentUser = await getCurrentUser();
-        if (currentUser != null) {
-          final updatedUser = currentUser.copyWith(
-            userType: app_user.UserType.dispatcher,
-          );
-          await prefs.setString(
-            _offlineUserKey,
-            jsonEncode(updatedUser.toJson()),
-          );
-        }
+      // Обновляем локального пользователя
+      final currentUser = await getCurrentUser();
+      if (currentUser != null) {
+        final updatedUser = currentUser.copyWith(
+          userType: app_user.UserType.dispatcher,
+        );
+        await prefs.setString(
+          _offlineUserKey,
+          jsonEncode(updatedUser.toJson()),
+        );
       }
 
-      print('🎯 Пользователь повышен до диспетчера');
+      debugPrint('🎯 Пользователь повышен до диспетчера (локально)');
     } catch (e) {
-      print('❌ Ошибка повышения до диспетчера: $e');
+      debugPrint('❌ Ошибка повышения до диспетчера: $e');
     }
   }
 
-  // Выход из системы
+  // Выход из системы (работает локально)
   Future<void> logout() async {
-    if (await _isOfflineMode()) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_offlineUserKey);
-      await prefs.remove(_userTypeKey);
-      return;
-    }
-
-    await _firebaseAuth.signOut();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // Очищаем все локальные данные
+    await prefs.remove(_offlineUserKey);
+    await prefs.remove(_userTypeKey);
+    debugPrint('ℹ️ Выход из системы (локальные данные очищены)');
   }
 
   // Сохранение последнего экрана

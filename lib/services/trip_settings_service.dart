@@ -1,46 +1,35 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/trip_settings.dart';
 
+/// ⚠️ ВАЖНО: Сейчас используются только локальные данные
+/// TODO: Интеграция с Firebase - реализуется позже
 class TripSettingsService {
   static final TripSettingsService _instance = TripSettingsService._internal();
   factory TripSettingsService() => _instance;
   TripSettingsService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _collection = 'trip_settings';
+  // TODO: Интеграция с Firebase - реализуется позже
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // final String _collection = 'trip_settings';
+
+  // Локальное хранилище настроек
+  TripSettings? _cachedSettings;
 
   // Получить текущие настройки
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<TripSettings> getCurrentSettings() async {
-    try {
-      final doc = await _firestore.collection(_collection).doc('current').get();
-
-      if (doc.exists) {
-        return TripSettings.fromFirestore(doc);
-      } else {
-        // Если настроек нет, создаем дефолтные
-        final defaultSettings = TripSettings.getDefault();
-        await _firestore
-            .collection(_collection)
-            .doc('current')
-            .set(defaultSettings.toFirestore());
-        return defaultSettings;
-      }
-    } catch (e) {
-      print('Ошибка получения настроек: $e');
-      return TripSettings.getDefault();
-    }
+    debugPrint(
+      'ℹ️ Используются локальные настройки поездок (Firebase не подключен)',
+    );
+    _cachedSettings ??= TripSettings.getDefault();
+    return _cachedSettings!;
   }
 
   // Сохранить настройки
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> saveSettings(TripSettings settings) async {
-    try {
-      await _firestore
-          .collection(_collection)
-          .doc('current')
-          .set(settings.copyWith(updatedAt: DateTime.now()).toFirestore());
-    } catch (e) {
-      throw Exception('Ошибка сохранения настроек: $e');
-    }
+    debugPrint('ℹ️ Настройки сохранены локально (Firebase не подключен)');
+    _cachedSettings = settings.copyWith(updatedAt: DateTime.now());
   }
 
   // Добавить время отправления
@@ -156,15 +145,11 @@ class TripSettingsService {
   }
 
   // Слушать изменения настроек в реальном времени
+  /// TODO: Интеграция с Firebase - реализуется позже
   Stream<TripSettings> watchSettings() {
-    return _firestore.collection(_collection).doc('current').snapshots().map((
-      doc,
-    ) {
-      if (doc.exists) {
-        return TripSettings.fromFirestore(doc);
-      } else {
-        return TripSettings.getDefault();
-      }
-    });
+    debugPrint(
+      'ℹ️ Используется локальный стрим настроек (Firebase не подключен)',
+    );
+    return Stream.value(_cachedSettings ?? TripSettings.getDefault());
   }
 }

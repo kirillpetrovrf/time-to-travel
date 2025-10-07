@@ -1,39 +1,30 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/booking.dart';
 
+/// ⚠️ ВАЖНО: Сейчас используется только SQLite/SharedPreferences
+/// TODO: Интеграция с Firebase - реализуется позже
 class BookingService {
   static final BookingService _instance = BookingService._internal();
   factory BookingService() => _instance;
   BookingService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _collection = 'bookings';
+  // TODO: Интеграция с Firebase - реализуется позже
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // final String _collection = 'bookings';
 
-  // НОВОЕ: Ключи для оффлайн хранения
+  // Ключи для локального хранения
   static const String _offlineBookingsKey = 'offline_bookings';
-  static const String _isOfflineModeKey = 'is_offline_mode';
 
-  // НОВОЕ: Проверка оффлайн режима
-  Future<bool> _isOfflineMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_isOfflineModeKey) ?? true;
-  }
-
-  /// Создание нового бронирования (с поддержкой оффлайн режима)
+  /// Создание нового бронирования (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<String> createBooking(Booking booking) async {
-    if (await _isOfflineMode()) {
-      return _createOfflineBooking(booking);
-    } else {
-      final docRef = await _firestore
-          .collection(_collection)
-          .add(booking.toJson());
-      return docRef.id;
-    }
+    debugPrint('ℹ️ Создание бронирования локально (Firebase не подключен)');
+    return _createOfflineBooking(booking);
   }
 
-  /// НОВОЕ: Создание оффлайн бронирования
+  /// Создание локального бронирования
   Future<String> _createOfflineBooking(Booking booking) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -82,23 +73,14 @@ class BookingService {
     return bookingId;
   }
 
-  /// Получение бронирования по ID (с поддержкой оффлайн режима)
+  /// Получение бронирования по ID (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<Booking?> getBookingById(String bookingId) async {
-    if (await _isOfflineMode()) {
-      return _getOfflineBookingById(bookingId);
-    } else {
-      final doc = await _firestore.collection(_collection).doc(bookingId).get();
-
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        data['id'] = doc.id;
-        return Booking.fromJson(data);
-      }
-      return null;
-    }
+    debugPrint('ℹ️ Поиск бронирования по ID локально (Firebase не подключен)');
+    return _getOfflineBookingById(bookingId);
   }
 
-  /// НОВОЕ: Получение оффлайн бронирования по ID
+  /// Получение локального бронирования по ID
   Future<Booking?> _getOfflineBookingById(String bookingId) async {
     final prefs = await SharedPreferences.getInstance();
     final bookingsJson = prefs.getString(_offlineBookingsKey);
@@ -116,26 +98,16 @@ class BookingService {
     return null;
   }
 
-  /// Получение всех бронирований клиента (с поддержкой оффлайн режима)
+  /// Получение всех бронирований клиента (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<List<Booking>> getClientBookings(String clientId) async {
-    if (await _isOfflineMode()) {
-      return _getOfflineClientBookings(clientId);
-    } else {
-      final query = await _firestore
-          .collection(_collection)
-          .where('clientId', isEqualTo: clientId)
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      return query.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return Booking.fromJson(data);
-      }).toList();
-    }
+    debugPrint(
+      'ℹ️ Получение бронирований клиента локально (Firebase не подключен)',
+    );
+    return _getOfflineClientBookings(clientId);
   }
 
-  /// НОВОЕ: Получение оффлайн бронирований клиента
+  /// Получение локальных бронирований клиента
   Future<List<Booking>> _getOfflineClientBookings(String clientId) async {
     final prefs = await SharedPreferences.getInstance();
     final bookingsJson = prefs.getString(_offlineBookingsKey);
@@ -158,34 +130,16 @@ class BookingService {
     return clientBookings;
   }
 
-  /// Получение всех активных бронирований (с поддержкой оффлайн режима)
+  /// Получение всех активных бронирований (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<List<Booking>> getActiveBookings() async {
-    if (await _isOfflineMode()) {
-      return _getOfflineActiveBookings();
-    } else {
-      final query = await _firestore
-          .collection(_collection)
-          .where(
-            'status',
-            whereIn: [
-              BookingStatus.pending.toString(),
-              BookingStatus.confirmed.toString(),
-              BookingStatus.assigned.toString(),
-              BookingStatus.inProgress.toString(),
-            ],
-          )
-          .orderBy('departureDate')
-          .get();
-
-      return query.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return Booking.fromJson(data);
-      }).toList();
-    }
+    debugPrint(
+      'ℹ️ Получение активных бронирований локально (Firebase не подключен)',
+    );
+    return _getOfflineActiveBookings();
   }
 
-  /// НОВОЕ: Получение оффлайн активных бронирований
+  /// Получение локальных активных бронирований
   Future<List<Booking>> _getOfflineActiveBookings() async {
     final prefs = await SharedPreferences.getInstance();
     final bookingsJson = prefs.getString(_offlineBookingsKey);
@@ -215,74 +169,56 @@ class BookingService {
     return activeBookings;
   }
 
-  /// Получение бронирований по дате
+  /// Получение бронирований по дате (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<List<Booking>> getBookingsByDate(DateTime date) async {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
-    final query = await _firestore
-        .collection(_collection)
-        .where(
-          'departureDate',
-          isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
-        )
-        .where('departureDate', isLessThanOrEqualTo: endOfDay.toIso8601String())
-        .orderBy('departureDate')
-        .get();
-
-    return query.docs.map((doc) {
-      final data = doc.data();
-      data['id'] = doc.id;
-      return Booking.fromJson(data);
-    }).toList();
+    debugPrint(
+      'ℹ️ Получение бронирований по дате локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет запрос к Firebase
+    return [];
   }
 
-  /// Обновление статуса бронирования
+  /// Обновление статуса бронирования (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> updateBookingStatus(
     String bookingId,
     BookingStatus status,
   ) async {
-    await _firestore.collection(_collection).doc(bookingId).update({
-      'status': status.toString(),
-    });
+    debugPrint(
+      'ℹ️ Обновление статуса бронирования локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет обновление в Firebase
   }
 
-  /// Назначение транспорта на бронирование
+  /// Назначение транспорта на бронирование (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> assignVehicle(String bookingId, String vehicleId) async {
-    await _firestore.collection(_collection).doc(bookingId).update({
-      'assignedVehicleId': vehicleId,
-      'status': BookingStatus.assigned.toString(),
-    });
+    debugPrint('ℹ️ Назначение транспорта локально (Firebase не подключен)');
+    // В будущем здесь будет обновление в Firebase
   }
 
-  /// Добавление точки отслеживания
+  /// Добавление точки отслеживания (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> addTrackingPoint(String bookingId, TrackingPoint point) async {
-    await _firestore.collection(_collection).doc(bookingId).update({
-      'trackingPoints': FieldValue.arrayUnion([point.toJson()]),
-    });
+    debugPrint(
+      'ℹ️ Добавление точки отслеживания локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет обновление в Firebase
   }
 
-  /// Обновление бронирования
+  /// Обновление бронирования (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> updateBooking(Booking booking) async {
-    final data = booking.toJson();
-    data.remove('id'); // Удаляем ID из данных
-    await _firestore.collection(_collection).doc(booking.id).update(data);
+    debugPrint('ℹ️ Обновление бронирования локально (Firebase не подключен)');
+    // В будущем здесь будет обновление в Firebase
   }
 
-  /// Отмена бронирования (с поддержкой оффлайн режима)
+  /// Отмена бронирования (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> cancelBooking(String bookingId, [String? reason]) async {
-    if (await _isOfflineMode()) {
-      await _cancelOfflineBooking(bookingId, reason);
-    } else {
-      final updateData = {'status': BookingStatus.cancelled.toString()};
-      if (reason != null) {
-        updateData['notes'] = reason;
-      }
-      await _firestore
-          .collection(_collection)
-          .doc(bookingId)
-          .update(updateData);
-    }
+    debugPrint('ℹ️ Отмена бронирования локально (Firebase не подключен)');
+    await _cancelOfflineBooking(bookingId, reason);
   }
 
   /// НОВОЕ: Отмена оффлайн бронирования
@@ -312,21 +248,17 @@ class BookingService {
     }
   }
 
-  /// Получение статистики по бронированиям
+  /// Получение статистики по бронированиям (локально)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<Map<String, int>> getBookingStats() async {
-    final allBookings = await _firestore.collection(_collection).get();
-
+    debugPrint(
+      'ℹ️ Получение статистики бронирований локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет запрос к Firebase
     final stats = <String, int>{};
     for (final status in BookingStatus.values) {
       stats[status.toString()] = 0;
     }
-
-    for (final doc in allBookings.docs) {
-      final data = doc.data();
-      final status = data['status'] as String;
-      stats[status] = (stats[status] ?? 0) + 1;
-    }
-
     return stats;
   }
 }

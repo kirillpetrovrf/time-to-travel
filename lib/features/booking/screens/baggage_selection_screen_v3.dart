@@ -40,6 +40,11 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
   }
 
   void _initializeQuantities() {
+    print('🧳 [БАГАЖ] Инициализация количеств багажа');
+    print(
+      '🧳 [БАГАЖ] Начальный багаж: ${widget.initialBaggage.length} предметов',
+    );
+
     // Инициализируем количества из существующего багажа или нулями
     _quantities = {
       BaggageSize.s: 0,
@@ -51,16 +56,29 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
     // Заполняем из начальных данных
     for (final item in widget.initialBaggage) {
       _quantities[item.size] = item.quantity;
+      print(
+        '🧳 [БАГАЖ] Загружен ${item.size.name.toUpperCase()}: ${item.quantity} шт, цена: ${item.pricePerExtraItem}₽/шт',
+      );
       if (item.size == BaggageSize.custom) {
         _customDescriptionController.text = item.customDescription ?? '';
         _customDimensionsController.text = item.customDimensions ?? '';
       }
     }
+
+    print(
+      '🧳 [БАГАЖ] Итоговые количества: S=${_quantities[BaggageSize.s]}, M=${_quantities[BaggageSize.m]}, L=${_quantities[BaggageSize.l]}, Custom=${_quantities[BaggageSize.custom]}',
+    );
   }
 
   Future<void> _loadPrices() async {
+    print('💰 [БАГАЖ] Загрузка цен багажа...');
     try {
       final prices = await BaggagePricingService.getExtraBaggagePrices();
+      print('💰 [БАГАЖ] Цены загружены успешно:');
+      print('💰 [БАГАЖ]   S: ${prices[BaggageSize.s]}₽/шт');
+      print('💰 [БАГАЖ]   M: ${prices[BaggageSize.m]}₽/шт');
+      print('💰 [БАГАЖ]   L: ${prices[BaggageSize.l]}₽/шт');
+      print('💰 [БАГАЖ]   Custom: ${prices[BaggageSize.custom]}₽/шт');
       if (mounted) {
         setState(() {
           _prices = prices;
@@ -68,7 +86,7 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
         });
       }
     } catch (e) {
-      print('Ошибка загрузки цен: $e');
+      print('❌ [БАГАЖ] Ошибка загрузки цен: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -86,9 +104,22 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
 
   void _updateQuantity(BaggageSize size, int newQuantity) {
     if (newQuantity >= 0 && newQuantity <= 10) {
+      final oldQuantity = _quantities[size] ?? 0;
+      print(
+        '➕➖ [БАГАЖ] Изменение количества ${size.name.toUpperCase()}: $oldQuantity → $newQuantity',
+      );
       setState(() {
         _quantities[size] = newQuantity;
       });
+      print(
+        '📊 [БАГАЖ] Текущее состояние: S=${_quantities[BaggageSize.s]}, M=${_quantities[BaggageSize.m]}, L=${_quantities[BaggageSize.l]}, Custom=${_quantities[BaggageSize.custom]}',
+      );
+      print(
+        '📊 [БАГАЖ] Общее количество: ${_getTotalBaggageCount()} предметов',
+      );
+      print(
+        '💵 [БАГАЖ] Общая стоимость: ${_calculateTotalCost().toStringAsFixed(0)}₽',
+      );
     }
   }
 
@@ -96,53 +127,179 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
     return _quantities.values.fold(0, (sum, quantity) => sum + quantity);
   }
 
-  // Определяет, является ли данный размер первым выбранным багажом
-  bool _isFirstBaggageSize(BaggageSize size) {
-    // Проходим по размерам в том же порядке, что и отображаем
-    for (final currentSize in [
-      BaggageSize.s,
-      BaggageSize.m,
-      BaggageSize.l,
-      BaggageSize.custom,
-    ]) {
-      final quantity = _quantities[currentSize] ?? 0;
-      if (quantity > 0) {
-        // Первый найденный размер с quantity > 0 - это и есть первый багаж
-        return currentSize == size;
-      }
+  // Определяет количество бесплатных багажей для данного размера
+  int _getFreeBaggageCount(BaggageSize size) {
+    int totalCount = _getTotalBaggageCount();
+
+    // Если ничего не выбрано - нет бесплатных
+    if (totalCount == 0) {
+      return 0;
     }
-    return false;
+
+    final quantity = _quantities[size] ?? 0;
+    if (quantity == 0) return 0;
+
+    final sCount = _quantities[BaggageSize.s] ?? 0;
+    final mCount = _quantities[BaggageSize.m] ?? 0;
+    final lCount = _quantities[BaggageSize.l] ?? 0;
+    final customCount = _quantities[BaggageSize.custom] ?? 0;
+
+    bool hasMorL = (mCount > 0 || lCount > 0 || customCount > 0);
+
+    // НОВАЯ ЛОГИКА v6.0:
+    // - Только S: первые ДВА бесплатно
+    // - Смешанный багаж: ВСЕ S платно, ОДИН M/L бесплатно
+
+    if (size == BaggageSize.s) {
+      // Для S: если ТОЛЬКО S, то 2 бесплатно, иначе ВСЕ платно
+      if (!hasMorL) {
+        return sCount >= 2 ? 2 : sCount;
+      } else {
+        return 0; // При смешанном багаже все S платно
+      }
+    } else if (size == BaggageSize.m) {
+      // Для M: первый бесплатно (если есть M)
+      // M имеет приоритет над L
+      if (mCount > 0) {
+        return 1;
+      }
+      return 0;
+    } else if (size == BaggageSize.l) {
+      // Для L: первый бесплатно только если нет M
+      if (lCount > 0 && mCount == 0) {
+        return 1;
+      }
+      return 0;
+    } else if (size == BaggageSize.custom) {
+      // Custom всегда платно
+      return 0;
+    }
+
+    return 0;
   }
 
   double _calculateTotalCost() {
-    // НОВАЯ ЛОГИКА: только первое место из всего багажа бесплатно
-    int totalBaggageCount = 0;
+    print('💵 [БАГАЖ] ========== РАСЧЕТ СТОИМОСТИ ==========');
+    // ФИНАЛЬНАЯ ЛОГИКА v6.0:
+    // Если ТОЛЬКО S: первые 2 бесплатно, остальные по 500₽
+    // Если есть M/L: ВСЕ S платно + один M/L бесплатно
+
+    int totalBaggageCount = _getTotalBaggageCount();
+    print('💵 [БАГАЖ] Общее количество багажа: $totalBaggageCount предметов');
+
+    if (totalBaggageCount == 0) {
+      print('💵 [БАГАЖ] Багаж не выбран, стоимость: 0₽');
+      return 0.0;
+    }
+
+    final sCount = _quantities[BaggageSize.s] ?? 0;
+    final mCount = _quantities[BaggageSize.m] ?? 0;
+    final lCount = _quantities[BaggageSize.l] ?? 0;
+    final customCount = _quantities[BaggageSize.custom] ?? 0;
+
+    final sPrice = _prices[BaggageSize.s] ?? 500.0;
+    final mPrice = _prices[BaggageSize.m] ?? 1000.0;
+    final lPrice = _prices[BaggageSize.l] ?? 2000.0;
+    final customPrice = _prices[BaggageSize.custom] ?? 0.0;
+
+    bool hasMorL = (mCount > 0 || lCount > 0 || customCount > 0);
+
+    print(
+      '💵 [БАГАЖ] Состав: S=$sCount, M=$mCount, L=$lCount, Custom=$customCount',
+    );
+    print('💵 [БАГАЖ] Есть M/L/Custom: $hasMorL');
+
     double total = 0.0;
 
-    // Сначала считаем общее количество багажа
-    for (final size in BaggageSize.values) {
-      totalBaggageCount += _quantities[size] ?? 0;
+    // СЛУЧАЙ 1: Только S (особое правило)
+    if (!hasMorL && sCount > 0) {
+      print('💵 [БАГАЖ] --- Только S багажи ---');
+      if (sCount <= 2) {
+        print('💵 [БАГАЖ]   ✅ Все бесплатно (до 2-х S)');
+      } else {
+        total = (sCount - 2) * sPrice;
+        print(
+          '💵 [БАГАЖ]   ✅ 2 бесплатно + ${sCount - 2} платных = ${total.toStringAsFixed(0)}₽',
+        );
+      }
+      print(
+        '💵 [БАГАЖ] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
+      );
+      return total;
     }
 
-    if (totalBaggageCount == 0) return 0.0;
-    if (totalBaggageCount == 1) return 0.0; // Первый багаж бесплатно
+    // СЛУЧАЙ 2: Есть разные размеры
+    // ФИНАЛЬНАЯ ПРАВИЛЬНАЯ ЛОГИКА v7.0:
+    // - ВСЕ S платно (без скидки)
+    // - ОДИН M бесплатно
+    // - При наличии и M и L: L со скидкой 50% (1000₽ вместо 2000₽)
+    // - Если только L (без M): первый L бесплатно
+    print('💵 [БАГАЖ] --- Смешанный багаж (S + M/L/Custom) ---');
 
-    // Считаем стоимость всех багажей (без учета первого бесплатного)
-    int processedCount = 0;
-    for (final size in BaggageSize.values) {
-      final quantity = _quantities[size] ?? 0;
-      final pricePerExtra = _prices[size] ?? 0.0;
+    // Считаем платные S (все S платные при смешанном багаже)
+    if (sCount > 0) {
+      double cost = sCount * sPrice;
+      total += cost;
+      print(
+        '💵 [БАГАЖ] Платные S: $sCount × ${sPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
+    }
 
-      for (int i = 0; i < quantity; i++) {
-        processedCount++;
+    // Считаем платные M
+    if (mCount > 0) {
+      // Первый M бесплатно
+      int freeMCount = 1;
+      int paidM = mCount - freeMCount;
+      if (paidM > 0) {
+        double cost = paidM * mPrice;
+        total += cost;
+        print(
+          '💵 [БАГАЖ] Платные M: $paidM × ${mPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+        );
+      }
+      print('💵 [БАГАЖ] Бесплатный M: $freeMCount шт');
+    }
 
-        // Первый багаж бесплатно
-        if (processedCount == 1) continue;
-
-        // Все последующие по полной цене
-        total += pricePerExtra;
+    // Считаем платные L
+    if (lCount > 0) {
+      // СПЕЦИАЛЬНАЯ ЛОГИКА:
+      // - Если есть M: L со скидкой 50% (1000₽)
+      // - Если нет M: первый L бесплатно
+      if (mCount > 0) {
+        // Есть M - L со скидкой 50%
+        double discountedLPrice = lPrice / 2;
+        double cost = lCount * discountedLPrice;
+        total += cost;
+        print(
+          '💵 [БАГАЖ] Платные L (со скидкой 50%): $lCount × ${discountedLPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+        );
+      } else {
+        // Нет M - первый L бесплатно
+        int freeLCount = 1;
+        int paidL = lCount - freeLCount;
+        if (paidL > 0) {
+          double cost = paidL * lPrice;
+          total += cost;
+          print(
+            '💵 [БАГАЖ] Платные L: $paidL × ${lPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+          );
+        }
+        print('💵 [БАГАЖ] Бесплатный L: $freeLCount шт');
       }
     }
+
+    // Custom всегда платно
+    if (customCount > 0) {
+      double cost = customCount * customPrice;
+      total += cost;
+      print(
+        '💵 [БАГАЖ] Custom: $customCount × ${customPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
+    }
+
+    print(
+      '💵 [БАГАЖ] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
+    );
 
     return total;
   }
@@ -275,7 +432,22 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
             style: TextStyle(color: CupertinoColors.activeBlue),
           ),
           onPressed: () {
-            widget.onBaggageSelected(_buildBaggageList());
+            final baggageList = _buildBaggageList();
+            print('');
+            print('✅ [БАГАЖ] ========== ПОДТВЕРЖДЕНИЕ ВЫБОРА ==========');
+            print('✅ [БАГАЖ] Пользователь нажал "Готово"');
+            print('✅ [БАГАЖ] Выбрано предметов: ${_getTotalBaggageCount()}');
+            for (var item in baggageList) {
+              print(
+                '✅ [БАГАЖ]   • ${item.size.name.toUpperCase()}: ${item.quantity} шт, цена за доп: ${item.pricePerExtraItem.toStringAsFixed(0)}₽',
+              );
+            }
+            print(
+              '✅ [БАГАЖ] Итоговая стоимость: ${_calculateTotalCost().toStringAsFixed(0)}₽',
+            );
+            print('✅ [БАГАЖ] ==========================================');
+            print('');
+            widget.onBaggageSelected(baggageList);
             Navigator.of(context).pop();
           },
         ),
@@ -296,7 +468,7 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                 child: Column(
                   children: [
                     Text(
-                      '1 БАГАЖНОЕ МЕСТО БЕСПЛАТНО',
+                      'БЕСПЛАТНЫЙ БАГАЖ',
                       style: TextStyle(
                         color: CupertinoColors.activeGreen,
                         fontSize: 16,
@@ -306,7 +478,7 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Дополнительный багаж оплачивается отдельно',
+                      'Только S: 2 бесплатно. S + M/L: по 1 бесплатно',
                       style: TextStyle(
                         color: theme.secondaryLabel,
                         fontSize: 14,
@@ -319,7 +491,7 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
 
               const SizedBox(height: 24),
 
-              // Информационное сообщение о дополнительной оплате (показывается когда выбрано больше 1 багажа)
+              // Информационное сообщение о дополнительной оплате
               if (_getTotalBaggageCount() > 1) ...[
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -352,7 +524,7 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Один багаж бесплатно, любой последующий платно',
+                              'Только S: 2 бесплатно. S + M/L: по 1 бесплатно',
                               style: TextStyle(
                                 color: theme.secondaryLabel,
                                 fontSize: 14,
@@ -401,8 +573,9 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
     final quantity = _quantities[size] ?? 0;
     final pricePerExtra = _prices[size] ?? 0.0;
 
-    // Определяем, является ли этот размер первым в общем списке выбранного багажа
-    bool isFirstBaggage = _isFirstBaggageSize(size);
+    // Определяем количество бесплатных багажей для этого размера
+    int freeCount = _getFreeBaggageCount(size);
+    int paidCount = quantity - freeCount;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -508,23 +681,25 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                           ),
                         ],
                       )
-                    else if (isFirstBaggage && quantity == 1)
-                      // Если это первый размер и выбран ровно 1 багаж - показываем бесплатно
+                    // Все багажи бесплатные (S багажи в пределах 2-х)
+                    else if (freeCount > 0 && paidCount == 0)
                       Text(
-                        'БЕСПЛАТНО',
+                        freeCount == 1
+                            ? 'БЕСПЛАТНО'
+                            : 'БЕСПЛАТНО (${freeCount} шт)',
                         style: TextStyle(
                           color: CupertinoColors.activeGreen,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       )
-                    else if (isFirstBaggage && quantity > 1)
-                      // Если это первый размер, но багажей больше 1
+                    // Есть и бесплатные, и платные (например, 2 бесплатных S + 3 платных S)
+                    else if (freeCount > 0 && paidCount > 0)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'БЕСПЛАТНО + ${quantity - 1} доп.',
+                            'БЕСПЛАТНО (${freeCount}) + ${paidCount} доп.',
                             style: TextStyle(
                               color: theme.label,
                               fontSize: 14,
@@ -533,7 +708,7 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                           ),
                           if (pricePerExtra > 0)
                             Text(
-                              'Доп. багаж: ${((quantity - 1) * pricePerExtra).toStringAsFixed(0)}₽',
+                              'Доп. багаж: ${(paidCount * pricePerExtra).toStringAsFixed(0)}₽',
                               style: TextStyle(
                                 color: theme.secondaryLabel,
                                 fontSize: 12,
@@ -541,8 +716,8 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                             ),
                         ],
                       )
+                    // Все багажи платные (не S, или S больше 2-х)
                     else
-                      // Это не первый размер - все багажи платные
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

@@ -5,6 +5,7 @@ import 'routes_admin_screen.dart';
 import 'pricing_admin_screen.dart';
 import 'schedule_admin_screen.dart';
 import 'locations_admin_screen.dart';
+import 'baggage_pricing_admin_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -21,6 +22,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     1: 'Цены',
     2: 'Расписание',
     3: 'Места',
+    4: 'Багаж',
   };
 
   @override
@@ -121,6 +123,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         return const ScheduleAdminScreen();
       case 3:
         return const LocationsAdminScreen();
+      case 4:
+        return const BaggagePricingAdminScreen();
       default:
         return const RoutesAdminScreen();
     }

@@ -1307,29 +1307,84 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   double _calculateBaggagePrice() {
-    // НОВАЯ ЛОГИКА: первый багаж ЛЮБОГО размера бесплатно
-    int totalBaggageCount = _getTotalBaggageCount();
+    // ФИНАЛЬНАЯ ЛОГИКА v6.0:
+    // Если ТОЛЬКО S: первые 2 бесплатно, остальные по 500₽
+    // Если есть M/L: ВСЕ S платно + один M/L бесплатно
 
-    if (totalBaggageCount == 0) return 0.0;
-    if (totalBaggageCount == 1) return 0.0; // Первый багаж бесплатно
+    if (_selectedBaggage.isEmpty) return 0.0;
 
-    // Считаем стоимость всех багажей (без учета бесплатного первого)
-    double totalCost = 0.0;
-    int processedCount = 0;
+    // Подсчитываем количество каждого размера
+    int sCount = 0, mCount = 0, lCount = 0, customCount = 0;
+    double sPrice = 500.0, mPrice = 1000.0, lPrice = 2000.0, customPrice = 0.0;
 
     for (var item in _selectedBaggage) {
-      for (int i = 0; i < item.quantity; i++) {
-        processedCount++;
-
-        // Первый багаж бесплатно
-        if (processedCount == 1) continue;
-
-        // Все последующие по полной цене
-        totalCost += item.pricePerExtraItem;
+      switch (item.size) {
+        case BaggageSize.s:
+          sCount = item.quantity;
+          sPrice = item.pricePerExtraItem;
+          break;
+        case BaggageSize.m:
+          mCount = item.quantity;
+          mPrice = item.pricePerExtraItem;
+          break;
+        case BaggageSize.l:
+          lCount = item.quantity;
+          lPrice = item.pricePerExtraItem;
+          break;
+        case BaggageSize.custom:
+          customCount = item.quantity;
+          customPrice = item.pricePerExtraItem;
+          break;
       }
     }
 
-    return totalCost;
+    bool hasMorL = (mCount > 0 || lCount > 0 || customCount > 0);
+
+    // СЛУЧАЙ 1: Только S (особое правило)
+    if (!hasMorL && sCount > 0) {
+      if (sCount <= 2) return 0.0;
+      return (sCount - 2) * sPrice;
+    }
+
+    // СЛУЧАЙ 2: Есть разные размеры
+    // ФИНАЛЬНАЯ ПРАВИЛЬНАЯ ЛОГИКА v7.0:
+    // - ВСЕ S платно (без скидки)
+    // - ОДИН M бесплатно
+    // - При наличии и M и L: L со скидкой 50%
+    // - Если только L (без M): первый L бесплатно
+
+    double total = 0.0;
+
+    // Платные S (все S платные при смешанном багаже)
+    if (sCount > 0) {
+      total += sCount * sPrice;
+    }
+
+    // Платные M (первый бесплатно)
+    if (mCount > 0) {
+      int freeMCount = 1;
+      total += (mCount - freeMCount) * mPrice;
+    }
+
+    // Платные L с особой логикой
+    if (lCount > 0) {
+      if (mCount > 0) {
+        // Есть M - L со скидкой 50%
+        double discountedLPrice = lPrice / 2;
+        total += lCount * discountedLPrice;
+      } else {
+        // Нет M - первый L бесплатно
+        int freeLCount = 1;
+        total += (lCount - freeLCount) * lPrice;
+      }
+    }
+
+    // Custom всегда платно
+    if (customCount > 0) {
+      total += customCount * customPrice;
+    }
+
+    return total;
   }
 
   double _calculatePetPrice() {

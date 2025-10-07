@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Сервис для интеграции с VKontakte (ОБНОВЛЕН под ТЗ v3.0)
 /// ИЗМЕНЕНИЯ: Скидка изменена с постоянной на РАЗОВУЮ 300₽
+///
+/// ⚠️ ВАЖНО: Сейчас используются только локальные данные
+/// TODO: Интеграция с Firebase - реализуется позже
 class VKService {
   static const VKService _instance = VKService._internal();
 
@@ -82,23 +84,11 @@ class VKService {
   }
 
   /// Проверка доступности скидки VK (НОВОЕ под ТЗ v3.0)
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<bool> isDiscountAvailable(String vkUserId) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('vkDiscounts')
-          .doc(vkUserId)
-          .get();
-
-      // Если записи нет - скидка доступна (первый раз)
-      if (!doc.exists) return true;
-
-      // Если уже использована - недоступна
-      final data = doc.data()!;
-      return !(data['used'] ?? false);
-    } catch (e) {
-      debugPrint('❌ Ошибка проверки VK скидки: $e');
-      return false;
-    }
+    debugPrint('ℹ️ Проверка скидки VK локально (Firebase не подключен)');
+    // В будущем здесь будет проверка в Firebase
+    return true; // Пока всегда доступна
   }
 
   /// Получение информации о пользователе
@@ -138,39 +128,22 @@ class VKService {
   }
 
   /// НОВОЕ: Проверка, может ли пользователь использовать разовую скидку VK
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<bool> canUseOneTimeDiscount(String userId) async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (!userDoc.exists) return false;
-
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final isVKVerified = userData['isVKVerified'] ?? false;
-      final hasUsedVKDiscount = userData['hasUsedVKDiscount'] ?? false;
-
-      // Скидка доступна только если верифицирован И еще не использовал
-      return isVKVerified && !hasUsedVKDiscount;
-    } catch (e) {
-      debugPrint('❌ Ошибка проверки разовой скидки VK: $e');
-      return false;
-    }
+    debugPrint(
+      'ℹ️ Проверка разовой скидки VK локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет проверка в Firebase
+    return true; // Пока всегда доступна
   }
 
   /// НОВОЕ: Отметить разовую скидку VK как использованную
+  /// TODO: Интеграция с Firebase - реализуется позже
   Future<void> markOneTimeDiscountAsUsed(String userId) async {
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'hasUsedVKDiscount': true,
-      });
-
-      debugPrint('🔵 Разовая скидка VK отмечена как использованная');
-    } catch (e) {
-      debugPrint('❌ Ошибка отметки использования скидки VK: $e');
-      throw Exception('Не удалось отметить скидку как использованную');
-    }
+    debugPrint(
+      'ℹ️ Отметка использования скидки VK локально (Firebase не подключен)',
+    );
+    // В будущем здесь будет сохранение в Firebase
   }
 
   /// Получение размера разовой скидки за VK верификацию (ОБНОВЛЕНО)
