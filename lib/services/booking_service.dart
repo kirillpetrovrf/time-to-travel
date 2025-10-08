@@ -64,7 +64,10 @@ class BookingService {
     }
 
     // Добавляем новое бронирование
-    bookingsList.add(bookingWithId.toJson());
+    final bookingJson = bookingWithId.toJson();
+    print('💾 JSON бронирования: ${jsonEncode(bookingJson)}');
+    print('💾 Багаж в JSON: ${bookingJson['baggage']}');
+    bookingsList.add(bookingJson);
 
     // Сохраняем обратно
     await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));

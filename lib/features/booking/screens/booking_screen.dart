@@ -489,7 +489,7 @@ class _TripTypeSelectionModal extends StatelessWidget {
     final theme = themeManager.currentTheme;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
+      height: MediaQuery.of(context).size.height * 0.65,
       decoration: BoxDecoration(
         color: theme.systemBackground,
         borderRadius: const BorderRadius.only(
@@ -527,48 +527,51 @@ class _TripTypeSelectionModal extends StatelessWidget {
 
           // Опции
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Групповая поездка
-                  _TripTypeOption(
-                    icon: CupertinoIcons.group,
-                    title: 'Групповая поездка',
-                    description: 'Поделитесь автомобилем с другими пассажирами',
-                    price: '2000 ₽',
-                    features: [
-                      'Фиксированное расписание',
-                      'Комфортабельные автомобили',
-                      'Опытные водители',
-                    ],
-                    theme: theme,
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      onTripTypeSelected('group');
-                    },
-                  ),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Групповая поездка
+                    _TripTypeOption(
+                      icon: CupertinoIcons.group,
+                      title: 'Групповая поездка',
+                      description:
+                          'Поделитесь автомобилем с другими пассажирами',
+                      price: '2000 ₽',
+                      features: [
+                        'Фиксированное расписание',
+                        'Комфортабельные автомобили',
+                        'Опытные водители',
+                      ],
+                      theme: theme,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onTripTypeSelected('group');
+                      },
+                    ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Индивидуальная поездка
-                  _TripTypeOption(
-                    icon: CupertinoIcons.car,
-                    title: 'Индивидуальная поездка',
-                    description: 'Персональный автомобиль только для вас',
-                    price: 'от 8000 ₽',
-                    features: [
-                      'Гибкое расписание',
-                      'Личный водитель',
-                      'Возможность остановок по пути',
-                    ],
-                    theme: theme,
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      onTripTypeSelected('individual');
-                    },
-                  ),
-                ],
+                    // Индивидуальная поездка
+                    _TripTypeOption(
+                      icon: CupertinoIcons.car,
+                      title: 'Индивидуальная поездка',
+                      description: 'Персональный автомобиль только для вас',
+                      price: 'от 8000 ₽',
+                      features: [
+                        'Гибкое расписание',
+                        'Личный водитель',
+                        'Возможность остановок по пути',
+                      ],
+                      theme: theme,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onTripTypeSelected('individual');
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

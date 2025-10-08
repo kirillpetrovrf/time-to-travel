@@ -1015,7 +1015,16 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   Future<void> _bookTrip() async {
     if (_pickupController.text.trim().isEmpty ||
         _dropoffController.text.trim().isEmpty) {
-      _showError('Пожалуйста, укажите адреса отправления и назначения');
+      _showError(
+        'Пожалуйста, укажите адреса отправления и назначения',
+        onOkPressed: () {
+          // Прокручиваем к началу страницы где находятся поля адресов
+          // и фокусируемся на первом пустом поле
+          if (_pickupController.text.trim().isEmpty) {
+            // Можно добавить логику фокусировки, если нужно
+          }
+        },
+      );
       return;
     }
 
@@ -1061,7 +1070,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     }
   }
 
-  void _showError(String message) {
+  void _showError(String message, {VoidCallback? onOkPressed}) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -1070,7 +1079,13 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         actions: [
           CupertinoDialogAction(
             child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+              // Если передан callback, выполняем его после закрытия диалога
+              if (onOkPressed != null) {
+                onOkPressed();
+              }
+            },
           ),
         ],
       ),

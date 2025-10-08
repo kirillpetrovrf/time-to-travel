@@ -46,6 +46,8 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   List<BaggageItem> _selectedBaggage = [];
   List<PetInfo> _selectedPets = [];
   bool _hasVKDiscount = false;
+  bool _baggageSelectionVisited =
+      false; // Флаг: заходил ли пользователь в выбор багажа
 
   @override
   void initState() {
@@ -140,79 +142,69 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
         middle: Text('Групповая поездка', style: TextStyle(color: theme.label)),
       ),
       child: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Маршрут (если выбраны конкретные города)
-                    if (widget.fromStop != null && widget.toStop != null) ...[
-                      _buildSectionTitle('Маршрут', theme),
-                      _buildRouteInfo(theme),
-                      const SizedBox(height: 24),
-                    ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Маршрут (если выбраны конкретные города)
+              if (widget.fromStop != null && widget.toStop != null) ...[
+                _buildSectionTitle('Маршрут', theme),
+                _buildRouteInfo(theme),
+                const SizedBox(height: 24),
+              ],
 
-                    // Направление (если не выбраны конкретные города)
-                    if (widget.fromStop == null || widget.toStop == null) ...[
-                      _buildSectionTitle('Направление', theme),
-                      _buildDirectionPicker(theme),
-                      const SizedBox(height: 24),
-                    ],
+              // Направление (если не выбраны конкретные города)
+              if (widget.fromStop == null || widget.toStop == null) ...[
+                _buildSectionTitle('Направление', theme),
+                _buildDirectionPicker(theme),
+                const SizedBox(height: 24),
+              ],
 
-                    // Дата
-                    _buildSectionTitle('Дата поездки', theme),
-                    _buildDatePicker(theme),
+              // Дата
+              _buildSectionTitle('Дата поездки', theme),
+              _buildDatePicker(theme),
 
-                    const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-                    // Время
-                    _buildSectionTitle('Время отправления', theme),
-                    _buildTimePicker(theme),
+              // Время
+              _buildSectionTitle('Время отправления', theme),
+              _buildTimePicker(theme),
 
-                    const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-                    // Место посадки (только для Донецк → Ростов)
-                    if (_selectedDirection == Direction.donetskToRostov) ...[
-                      _buildSectionTitle('Место посадки', theme),
-                      _buildPickupPointPicker(theme),
-                      const SizedBox(height: 24),
-                    ],
+              // Место посадки (только для Донецк → Ростов)
+              if (_selectedDirection == Direction.donetskToRostov) ...[
+                _buildSectionTitle('Место посадки', theme),
+                _buildPickupPointPicker(theme),
+                const SizedBox(height: 24),
+              ],
 
-                    // Количество пассажиров
-                    _buildSectionTitle('Количество пассажиров', theme),
-                    _buildPassengerCountPicker(theme),
+              // Количество пассажиров
+              _buildSectionTitle('Количество пассажиров', theme),
+              _buildPassengerCountPicker(theme),
 
-                    const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-                    // Багаж
-                    _buildSectionTitle('Багаж', theme),
-                    _buildBaggageSection(theme),
+              // Багаж
+              _buildSectionTitle('Багаж', theme),
+              _buildBaggageSection(theme),
 
-                    const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-                    // Животные
-                    _buildSectionTitle('Животные', theme),
-                    _buildPetsSection(theme),
+              // Животные
+              _buildSectionTitle('Животные', theme),
+              _buildPetsSection(theme),
 
-                    const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-                    // Стоимость
-                    _buildPricingSummary(theme),
+              // Стоимость
+              _buildPricingSummary(theme),
 
-                    // Отступ снизу для системных кнопок навигации
-                    const SizedBox(height: 80),
-                  ],
-                ),
-              ),
-            ),
+              const SizedBox(height: 24),
 
-            // Кнопка бронирования или сохранения
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: CupertinoButton.filled(
+              // Кнопка бронирования или сохранения
+              CupertinoButton.filled(
                 onPressed: _isLoading
                     ? null
                     : (_userType == UserType.dispatcher
@@ -232,8 +224,11 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
                         ),
                       ),
               ),
-            ),
-          ],
+
+              // Отступ снизу для системных кнопок навигации
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     );
@@ -1404,18 +1399,83 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   Future<void> _openBaggageSelection() async {
+    print('🔍 _openBaggageSelection() вызван');
     await Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => BaggageSelectionScreen(
           initialBaggage: _selectedBaggage,
           onBaggageSelected: (List<BaggageItem> baggage) {
+            print('🔍 onBaggageSelected вызван');
+            print('🔍 Получен багаж: ${baggage.length} предметов');
             setState(() {
               _selectedBaggage = baggage;
+              final totalCount = _getTotalBaggageCount();
+              print('🔍 Общее количество багажа: $totalCount');
+
+              // Устанавливаем флаг ТОЛЬКО если пользователь выбрал хотя бы 1 предмет багажа
+              if (totalCount > 0) {
+                print('🔍 Устанавливаем _baggageSelectionVisited = true');
+                _baggageSelectionVisited = true;
+              } else {
+                print('🔍 Багаж не выбран, флаг остается false');
+              }
+              // Если багаж не выбран (0 предметов), флаг остается false
+              // и диалог покажется снова при попытке бронирования
             });
             // Navigator.pop будет вызван в самом BaggageSelectionScreen
           },
         ),
+      ),
+    );
+    print('🔍 Вернулись из BaggageSelectionScreen');
+    print('🔍 _baggageSelectionVisited = $_baggageSelectionVisited');
+  }
+
+  void _showBaggageConfirmationDialog() {
+    print('🔍 _showBaggageConfirmationDialog() вызван');
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Наличие багажа'),
+        content: const Text(
+          'Вы не выбрали наличие багажа.\n\nЕсть ли у вас багаж для перевозки?',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Нет багажа'),
+            onPressed: () {
+              print('🔍 Нажата кнопка "Нет багажа"');
+              Navigator.pop(context);
+              setState(() {
+                _baggageSelectionVisited =
+                    true; // Пользователь подтвердил отсутствие багажа
+                _selectedBaggage = []; // Очищаем багаж на всякий случай
+              });
+              // Продолжаем бронирование
+              _bookTrip();
+            },
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: Text(
+              'Да, есть багаж',
+              style: TextStyle(
+                color: theme.systemRed,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onPressed: () {
+              print('🔍 Нажата кнопка "Да, есть багаж"');
+              Navigator.pop(context);
+              // Открываем экран выбора багажа
+              _openBaggageSelection();
+            },
+          ),
+        ],
       ),
     );
   }
@@ -1497,22 +1557,50 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   Future<void> _bookTrip() async {
+    print('🔍 _bookTrip() вызван');
+    print('🔍 _baggageSelectionVisited = $_baggageSelectionVisited');
+    print('🔍 Количество багажа: ${_getTotalBaggageCount()}');
+
     // Валидация перед бронированием
     if (_selectedDate == null) {
-      _showError('Пожалуйста, выберите дату поездки');
+      _showError(
+        'Пожалуйста, выберите дату поездки',
+        onOkPressed: () =>
+            _showDatePicker(), // Автоматически открываем календарь
+      );
       return;
     }
 
     if (_selectedTime.isEmpty) {
-      _showError('Пожалуйста, выберите время отправления');
+      final theme = context.themeManager.currentTheme;
+      _showError(
+        'Пожалуйста, выберите время отправления',
+        onOkPressed: () => _showTimePickerModal(
+          theme,
+        ), // Автоматически открываем выбор времени
+      );
       return;
     }
 
     if (_selectedDirection == Direction.donetskToRostov &&
         _selectedPickupPoint.isEmpty) {
-      _showError('Пожалуйста, выберите место посадки');
+      final theme = context.themeManager.currentTheme;
+      _showError(
+        'Пожалуйста, выберите место посадки',
+        onOkPressed: () =>
+            _showPickupPointModal(theme), // Автоматически открываем выбор места
+      );
       return;
     }
+
+    // НОВАЯ ПРОВЕРКА: Пользователь должен подтвердить наличие/отсутствие багажа
+    if (!_baggageSelectionVisited) {
+      print('🔍 Показываем диалог подтверждения багажа');
+      _showBaggageConfirmationDialog();
+      return;
+    }
+
+    print('🔍 Продолжаем бронирование...');
 
     setState(() => _isLoading = true);
 
@@ -1549,6 +1637,8 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       print(
         '🚀 Создаем бронирование: fromStop = ${widget.fromStop?.name}, toStop = ${widget.toStop?.name}',
       );
+      print('🧳 Багаж: ${_selectedBaggage.length} предметов');
+      print('🧳 Список багажа: $_selectedBaggage');
 
       final bookingId = await BookingService().createBooking(booking);
 
@@ -1575,7 +1665,7 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
     );
   }
 
-  void _showError(String message) {
+  void _showError(String message, {VoidCallback? onOkPressed}) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -1584,7 +1674,13 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
         actions: [
           CupertinoDialogAction(
             child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+              // Если передан callback, выполняем его после закрытия диалога
+              if (onOkPressed != null) {
+                onOkPressed();
+              }
+            },
           ),
         ],
       ),

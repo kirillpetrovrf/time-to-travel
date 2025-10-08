@@ -55,10 +55,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               const SizedBox(height: 16),
               _buildPassengerInfoCard(theme),
               const SizedBox(height: 16),
-              if (_currentBooking.baggage.isNotEmpty) ...[
-                _buildBaggageCard(theme),
-                const SizedBox(height: 16),
-              ],
+              _buildBaggageCard(theme),
+              const SizedBox(height: 16),
               if (_currentBooking.pets.isNotEmpty) ...[
                 _buildPetsCard(theme),
                 const SizedBox(height: 16),
@@ -300,30 +298,39 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          ..._currentBooking.baggage.map((item) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    item.customDescription != null
-                        ? '${item.size.name.toUpperCase()} - ${item.customDescription}'
-                        : '${item.size.name.toUpperCase()} багаж (${item.quantity} шт.)',
-                    style: TextStyle(fontSize: 16, color: theme.label),
-                  ),
-                  Text(
-                    '+${item.calculateCost().toInt()} ₽',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: theme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+          if (_currentBooking.baggage.isEmpty)
+            Text(
+              'Нет багажа',
+              style: TextStyle(
+                fontSize: 16,
+                color: theme.secondaryLabel,
               ),
-            );
-          }).toList(),
+            )
+          else
+            ..._currentBooking.baggage.map((item) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      item.customDescription != null
+                          ? '${item.size.name.toUpperCase()} - ${item.customDescription}'
+                          : '${item.size.name.toUpperCase()} багаж (${item.quantity} шт.)',
+                      style: TextStyle(fontSize: 16, color: theme.label),
+                    ),
+                    Text(
+                      '+${item.calculateCost().toInt()} ₽',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: theme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
         ],
       ),
     );
