@@ -14,9 +14,23 @@ import 'features/splash/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // TODO: Раскомментировать при подключении реального Firebase проекта
-  // Инициализация Firebase
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // ✅ УСЛОВНАЯ ИНИЦИАЛИЗАЦИЯ Firebase (для совместимости с китайскими телефонами)
+  // Попытка инициализировать Firebase, если доступен Google Play Services
+  try {
+    // TODO: Раскомментировать при подключении реального Firebase проекта
+    // await Firebase.initializeApp(
+    //   options: DefaultFirebaseOptions.currentPlatform,
+    // );
+    // print('✅ Firebase успешно инициализирован');
+    print('ℹ️ Firebase отключен в коде (раскомментируйте для активации)');
+  } catch (e) {
+    // ⚠️ Firebase недоступен (китайские телефоны без Google Services)
+    // Приложение продолжит работать в OFFLINE режиме на SQLite
+    print('⚠️ Firebase недоступен, работаем в offline режиме: $e');
+    print(
+      'ℹ️ Приложение будет использовать только локальное хранилище (SQLite)',
+    );
+  }
 
   // Инициализация карт (если есть API ключ)
   if (MapConfig.hasApiKey) {
