@@ -384,7 +384,17 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
             CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: _passengerCount > 1
-                  ? () => setState(() => _passengerCount--)
+                  ? () {
+                      setState(() {
+                        _passengerCount--;
+                        print(
+                          '👥 [INDIVIDUAL] ➖ Количество пассажиров уменьшено: $_passengerCount',
+                        );
+                        print(
+                          '👥 [INDIVIDUAL] 🔄 Будет пересчитан багаж: ${_passengerCount * 2} бесплатных S',
+                        );
+                      });
+                    }
                   : null,
               child: Container(
                 padding: const EdgeInsets.all(8),
@@ -407,7 +417,17 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
             CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: _passengerCount < 8
-                  ? () => setState(() => _passengerCount++)
+                  ? () {
+                      setState(() {
+                        _passengerCount++;
+                        print(
+                          '👥 [INDIVIDUAL] ➕ Количество пассажиров увеличено: $_passengerCount',
+                        );
+                        print(
+                          '👥 [INDIVIDUAL] 🔄 Будет пересчитан багаж: ${_passengerCount * 2} бесплатных S',
+                        );
+                      });
+                    }
                   : null,
               child: Container(
                 padding: const EdgeInsets.all(8),
@@ -763,11 +783,19 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   double _calculateBaggagePrice() {
-    // ФИНАЛЬНАЯ ЛОГИКА v6.0:
-    // Если ТОЛЬКО S: первые 2 бесплатно, остальные по 500₽
+    print('💵 [INDIVIDUAL] ========== РАСЧЕТ СТОИМОСТИ БАГАЖА ==========');
+    print('💵 [INDIVIDUAL] Количество пассажиров: $_passengerCount');
+    print(
+      '💵 [INDIVIDUAL] Бесплатных S багажей: ${_passengerCount * 2} ($_passengerCount × 2)',
+    );
+    // ФИНАЛЬНАЯ ЛОГИКА v8.0 (с учетом пассажиров):
+    // Если ТОЛЬКО S: первые (passengerCount × 2) бесплатно, остальные по 500₽
     // Если есть M/L: ВСЕ S платно + один M/L бесплатно
 
-    if (_selectedBaggage.isEmpty) return 0.0;
+    if (_selectedBaggage.isEmpty) {
+      print('💵 [INDIVIDUAL] Багаж не выбран, стоимость: 0₽');
+      return 0.0;
+    }
 
     // Подсчитываем количество каждого размера
     int sCount = 0, mCount = 0, lCount = 0, customCount = 0;
@@ -796,10 +824,31 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
     bool hasMorL = (mCount > 0 || lCount > 0 || customCount > 0);
 
-    // СЛУЧАЙ 1: Только S (особое правило)
+    print(
+      '💵 [INDIVIDUAL] Состав: S=$sCount, M=$mCount, L=$lCount, Custom=$customCount',
+    );
+    print('💵 [INDIVIDUAL] Есть M/L/Custom: $hasMorL');
+
+    double total = 0.0;
+
+    // СЛУЧАЙ 1: Только S (особое правило с учетом пассажиров)
     if (!hasMorL && sCount > 0) {
-      if (sCount <= 2) return 0.0;
-      return (sCount - 2) * sPrice;
+      print('💵 [INDIVIDUAL] --- Только S багажи ---');
+      int freeSCount = _passengerCount * 2; // ← 2 на каждого пассажира
+      if (sCount <= freeSCount) {
+        print('💵 [INDIVIDUAL] ✅ Все бесплатно ($sCount из $freeSCount S)');
+        print('💵 [INDIVIDUAL] ========== ИТОГО: 0₽ ==========');
+        return 0.0;
+      }
+      int paidS = sCount - freeSCount;
+      total = paidS * sPrice;
+      print(
+        '💵 [INDIVIDUAL] ✅ $freeSCount бесплатно + $paidS платных = ${total.toStringAsFixed(0)}₽',
+      );
+      print(
+        '💵 [INDIVIDUAL] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
+      );
+      return total;
     }
 
     // СЛУЧАЙ 2: Есть разные размеры
@@ -809,17 +858,32 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     // - При наличии и M и L: L со скидкой 50%
     // - Если только L (без M): первый L бесплатно
 
-    double total = 0.0;
+    print('💵 [INDIVIDUAL] --- Смешанный багаж (S + M/L/Custom) ---');
+    // total уже объявлен выше
+
+    // Платные S (все S платные при смешанном багаже)
 
     // Платные S (все S платные при смешанном багаже)
     if (sCount > 0) {
-      total += sCount * sPrice;
+      double cost = sCount * sPrice;
+      total += cost;
+      print(
+        '💵 [INDIVIDUAL] Платные S: $sCount × ${sPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
     }
 
     // Платные M (первый бесплатно)
     if (mCount > 0) {
       int freeMCount = 1;
-      total += (mCount - freeMCount) * mPrice;
+      int paidM = mCount - freeMCount;
+      if (paidM > 0) {
+        double cost = paidM * mPrice;
+        total += cost;
+        print(
+          '💵 [INDIVIDUAL] Платные M: $paidM × ${mPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+        );
+      }
+      print('💵 [INDIVIDUAL] Бесплатный M: $freeMCount шт');
     }
 
     // Платные L с особой логикой
@@ -827,19 +891,38 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       if (mCount > 0) {
         // Есть M - L со скидкой 50%
         double discountedLPrice = lPrice / 2;
-        total += lCount * discountedLPrice;
+        double cost = lCount * discountedLPrice;
+        total += cost;
+        print(
+          '💵 [INDIVIDUAL] Платные L (со скидкой 50%): $lCount × ${discountedLPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+        );
       } else {
         // Нет M - первый L бесплатно
         int freeLCount = 1;
-        total += (lCount - freeLCount) * lPrice;
+        int paidL = lCount - freeLCount;
+        if (paidL > 0) {
+          double cost = paidL * lPrice;
+          total += cost;
+          print(
+            '💵 [INDIVIDUAL] Платные L: $paidL × ${lPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+          );
+        }
+        print('💵 [INDIVIDUAL] Бесплатный L: $freeLCount шт');
       }
     }
 
     // Custom всегда платно
     if (customCount > 0) {
-      total += customCount * customPrice;
+      double cost = customCount * customPrice;
+      total += cost;
+      print(
+        '💵 [INDIVIDUAL] Custom: $customCount × ${customPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
     }
 
+    print(
+      '💵 [INDIVIDUAL] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
+    );
     return total;
   }
 
@@ -848,12 +931,17 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   Future<void> _openBaggageSelection() async {
+    print('🔍 [INDIVIDUAL] _openBaggageSelection() вызван');
+    print('🔍 [INDIVIDUAL] Текущее количество пассажиров: $_passengerCount');
     await Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => BaggageSelectionScreen(
           initialBaggage: _selectedBaggage,
+          passengerCount: _passengerCount, // ← Передаем количество пассажиров
           onBaggageSelected: (List<BaggageItem> baggage) {
+            print('🔍 [INDIVIDUAL] onBaggageSelected вызван');
+            print('🔍 [INDIVIDUAL] Получен багаж: ${baggage.length} предметов');
             setState(() {
               _selectedBaggage = baggage;
             });

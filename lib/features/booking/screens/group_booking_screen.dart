@@ -886,6 +886,8 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   Future<void> _addPassenger() async {
+    print('👥 [PASSENGERS] Добавление нового пассажира...');
+    print('👥 [PASSENGERS] Текущее количество: ${_passengers.length}');
     final passenger = await Navigator.push<PassengerInfo>(
       context,
       CupertinoPageRoute(builder: (context) => const AddPassengerScreen()),
@@ -894,11 +896,20 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
     if (passenger != null) {
       setState(() {
         _passengers.add(passenger);
+        print(
+          '👥 [PASSENGERS] ✅ Пассажир добавлен! Новое количество: ${_passengers.length}',
+        );
+        print(
+          '👥 [PASSENGERS] 🔄 Будет пересчитан багаж: ${_passengers.length * 2} бесплатных S',
+        );
       });
+    } else {
+      print('👥 [PASSENGERS] ❌ Добавление отменено');
     }
   }
 
   Future<void> _editPassenger(int index) async {
+    print('👥 [PASSENGERS] Редактирование пассажира #${index + 1}...');
     final passenger = await Navigator.push<PassengerInfo>(
       context,
       CupertinoPageRoute(
@@ -910,13 +921,19 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
     if (passenger != null) {
       setState(() {
         _passengers[index] = passenger;
+        print('👥 [PASSENGERS] ✅ Пассажир #${index + 1} обновлен');
       });
+    } else {
+      print('👥 [PASSENGERS] ❌ Редактирование отменено');
     }
   }
 
   void _removePassenger(int index) {
+    print('👥 [PASSENGERS] Попытка удалить пассажира #${index + 1}...');
+    print('👥 [PASSENGERS] Текущее количество: ${_passengers.length}');
     // Не позволяем удалить последнего пассажира
     if (_passengers.length <= 1) {
+      print('👥 [PASSENGERS] ❌ Нельзя удалить последнего пассажира');
       _showError('Должен быть хотя бы один пассажир');
       return;
     }
@@ -940,6 +957,12 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
               Navigator.pop(context);
               setState(() {
                 _passengers.removeAt(index);
+                print(
+                  '👥 [PASSENGERS] ✅ Пассажир удален! Новое количество: ${_passengers.length}',
+                );
+                print(
+                  '👥 [PASSENGERS] 🔄 Будет пересчитан багаж: ${_passengers.length * 2} бесплатных S',
+                );
               });
             },
           ),
@@ -1302,11 +1325,19 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   double _calculateBaggagePrice() {
-    // ФИНАЛЬНАЯ ЛОГИКА v6.0:
-    // Если ТОЛЬКО S: первые 2 бесплатно, остальные по 500₽
+    print('💵 [GROUP] ========== РАСЧЕТ СТОИМОСТИ БАГАЖА ==========');
+    print('💵 [GROUP] Количество пассажиров: ${_passengers.length}');
+    print(
+      '💵 [GROUP] Бесплатных S багажей: ${_passengers.length * 2} (${_passengers.length} × 2)',
+    );
+    // ФИНАЛЬНАЯ ЛОГИКА v8.0 (с учетом пассажиров):
+    // Если ТОЛЬКО S: первые (passengerCount × 2) бесплатно, остальные по 500₽
     // Если есть M/L: ВСЕ S платно + один M/L бесплатно
 
-    if (_selectedBaggage.isEmpty) return 0.0;
+    if (_selectedBaggage.isEmpty) {
+      print('💵 [GROUP] Багаж не выбран, стоимость: 0₽');
+      return 0.0;
+    }
 
     // Подсчитываем количество каждого размера
     int sCount = 0, mCount = 0, lCount = 0, customCount = 0;
@@ -1333,52 +1364,106 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       }
     }
 
-    bool hasMorL = (mCount > 0 || lCount > 0 || customCount > 0);
+    print(
+      '💵 [GROUP] Состав: S=$sCount, M=$mCount, L=$lCount, Custom=$customCount',
+    );
 
-    // СЛУЧАЙ 1: Только S (особое правило)
-    if (!hasMorL && sCount > 0) {
-      if (sCount <= 2) return 0.0;
-      return (sCount - 2) * sPrice;
+    // НОВАЯ ЛОГИКА v12.0: Каждый пассажир выбирает ОДИН вариант: 2S ИЛИ 1M ИЛИ 1L
+    // Алгоритм распределения:
+    // 1. Распределяем L (по 1 на пассажира)
+    // 2. Распределяем M (по 1 на пассажира)
+    // 3. Распределяем S (по 2 на пассажира)
+    // 4. Остаток считаем платным
+
+    int availablePassengers = _passengers.length;
+    int remainingS = sCount;
+    int remainingM = mCount;
+    int remainingL = lCount;
+
+    print('💵 [GROUP] --- РАСПРЕДЕЛЕНИЕ БАГАЖА ПО ПАССАЖИРАМ ---');
+
+    // Шаг 1: Распределяем L (приоритет - самый дорогой)
+    int passengersWithL = 0;
+    if (remainingL > 0) {
+      passengersWithL = remainingL <= availablePassengers
+          ? remainingL
+          : availablePassengers;
+      availablePassengers -= passengersWithL;
+      remainingL -= passengersWithL;
+      print('💵 [GROUP] $passengersWithL пассажиров выбрали 1×L (бесплатно)');
     }
 
-    // СЛУЧАЙ 2: Есть разные размеры
-    // ФИНАЛЬНАЯ ПРАВИЛЬНАЯ ЛОГИКА v7.0:
-    // - ВСЕ S платно (без скидки)
-    // - ОДИН M бесплатно
-    // - При наличии и M и L: L со скидкой 50%
-    // - Если только L (без M): первый L бесплатно
+    // Шаг 2: Распределяем M
+    int passengersWithM = 0;
+    if (remainingM > 0 && availablePassengers > 0) {
+      passengersWithM = remainingM <= availablePassengers
+          ? remainingM
+          : availablePassengers;
+      availablePassengers -= passengersWithM;
+      remainingM -= passengersWithM;
+      print('💵 [GROUP] $passengersWithM пассажиров выбрали 1×M (бесплатно)');
+    }
 
+    // Шаг 3: Распределяем S - до (availablePassengers × 2) бесплатно
+    int freeS = 0;
+    if (remainingS > 0 && availablePassengers > 0) {
+      int maxFreeS = availablePassengers * 2; // Максимум бесплатных S
+      freeS = remainingS <= maxFreeS ? remainingS : maxFreeS;
+      remainingS -= freeS;
+
+      // Вычисляем сколько пассажиров использовали свои S слоты
+      int passengersUsed = (freeS / 2).ceil();
+      availablePassengers -= passengersUsed;
+
+      print(
+        '💵 [GROUP] Бесплатных S: $freeS шт (лимит: $maxFreeS), использовано $passengersUsed пассажиров',
+      );
+    }
+
+    print('💵 [GROUP] Неиспользованных пассажиров: $availablePassengers');
+    print(
+      '💵 [GROUP] Остаток платного багажа: S=$remainingS, M=$remainingM, L=$remainingL',
+    );
+
+    // Шаг 4: Считаем стоимость платного багажа
     double total = 0.0;
 
-    // Платные S (все S платные при смешанном багаже)
-    if (sCount > 0) {
-      total += sCount * sPrice;
+    if (remainingS > 0) {
+      double cost = remainingS * sPrice;
+      total += cost;
+      print(
+        '💵 [GROUP] Платные S: $remainingS × ${sPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
     }
 
-    // Платные M (первый бесплатно)
-    if (mCount > 0) {
-      int freeMCount = 1;
-      total += (mCount - freeMCount) * mPrice;
+    if (remainingM > 0) {
+      double cost = remainingM * mPrice;
+      total += cost;
+      print(
+        '💵 [GROUP] Платные M: $remainingM × ${mPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
     }
 
-    // Платные L с особой логикой
-    if (lCount > 0) {
-      if (mCount > 0) {
-        // Есть M - L со скидкой 50%
-        double discountedLPrice = lPrice / 2;
-        total += lCount * discountedLPrice;
-      } else {
-        // Нет M - первый L бесплатно
-        int freeLCount = 1;
-        total += (lCount - freeLCount) * lPrice;
-      }
+    if (remainingL > 0) {
+      double cost = remainingL * lPrice;
+      total += cost;
+      print(
+        '💵 [GROUP] Платные L: $remainingL × ${lPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
     }
 
     // Custom всегда платно
     if (customCount > 0) {
-      total += customCount * customPrice;
+      double cost = customCount * customPrice;
+      total += cost;
+      print(
+        '💵 [GROUP] Custom: $customCount × ${customPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
+      );
     }
 
+    print(
+      '💵 [GROUP] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
+    );
     return total;
   }
 
@@ -1400,11 +1485,14 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
 
   Future<void> _openBaggageSelection() async {
     print('🔍 _openBaggageSelection() вызван');
+    print('🔍 Текущее количество пассажиров: ${_passengers.length}');
     await Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => BaggageSelectionScreen(
           initialBaggage: _selectedBaggage,
+          passengerCount:
+              _passengers.length, // ← Передаем количество пассажиров
           onBaggageSelected: (List<BaggageItem> baggage) {
             print('🔍 onBaggageSelected вызван');
             print('🔍 Получен багаж: ${baggage.length} предметов');

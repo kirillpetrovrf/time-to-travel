@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../models/baggage.dart';
 import '../../../models/booking.dart';
 import '../../../models/trip_type.dart';
 import '../../../services/booking_service.dart';
@@ -272,6 +273,122 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
+// ========== РАСЧЕТ СТОИМОСТИ БАГАЖА С УЧЕТОМ ПАССАЖИРОВ ==========
+  
+  /// Расчет стоимости одного типа багажа с учетом пассажиров
+  /// ⚠️ ВНИМАНИЕ: Используется ТОЛЬКО для отображения, НЕ для расчета общей цены!
+  /// Реальная цена высчитывается методом _calculateTotalBaggageCost()
+  double _calculateBaggageCostForItem(BaggageItem item) {
+    // Получаем все багажи
+    final allBaggage = _currentBooking.baggage;
+    final passengerCount = _currentBooking.passengerCount;
+    
+    int totalS = allBaggage.where((b) => b.size == BaggageSize.s).fold(0, (sum, b) => sum + b.quantity);
+    int totalM = allBaggage.where((b) => b.size == BaggageSize.m).fold(0, (sum, b) => sum + b.quantity);
+    int totalL = allBaggage.where((b) => b.size == BaggageSize.l).fold(0, (sum, b) => sum + b.quantity);
+    
+    print('💵 [DETAIL] Расчет для ${item.size.name.toUpperCase()}: всего S=$totalS, M=$totalM, L=$totalL, пассажиров=$passengerCount');
+    
+    // ПРАВИЛЬНАЯ ЛОГИКА (как в group_booking_screen.dart):
+    // Шаг 1: Распределяем пассажиров на L (по 1 на пассажира)
+    int availablePassengers = passengerCount;
+    int remainingL = totalL;
+    
+    if (remainingL > 0) {
+      int passengersWithL = remainingL < availablePassengers ? remainingL : availablePassengers;
+      availablePassengers -= passengersWithL;
+      remainingL -= passengersWithL;
+      print('💵 [DETAIL] Шаг 1: L ($totalL шт) → $passengersWithL бесплатно, остаток L=$remainingL, пассажиров=$availablePassengers');
+    }
+    
+    // Шаг 2: Распределяем оставшихся пассажиров на M (по 1 на пассажира)
+    int remainingM = totalM;
+    
+    if (remainingM > 0 && availablePassengers > 0) {
+      int passengersWithM = remainingM < availablePassengers ? remainingM : availablePassengers;
+      availablePassengers -= passengersWithM;
+      remainingM -= passengersWithM;
+      print('💵 [DETAIL] Шаг 2: M ($totalM шт) → $passengersWithM бесплатно, остаток M=$remainingM, пассажиров=$availablePassengers');
+    }
+    
+    // Шаг 3: Распределяем S - ЛЮБОЕ количество до лимита бесплатно
+    int remainingS = totalS;
+    
+    if (remainingS > 0 && availablePassengers > 0) {
+      int maxFreeS = availablePassengers * 2;
+      int freeS = remainingS < maxFreeS ? remainingS : maxFreeS;
+      remainingS -= freeS;
+      print('💵 [DETAIL] Шаг 3: S ($totalS шт) → $freeS бесплатно (лимит $maxFreeS), остаток S=$remainingS');
+    }
+    
+    // Теперь считаем стоимость для КОНКРЕТНОГО item
+    if (item.size == BaggageSize.s) {
+      if (remainingS == 0) {
+        print('💵 [DETAIL] ✅ Все S багажи БЕСПЛАТНЫ (${item.quantity} шт)');
+        return 0.0;
+      }
+      // Есть платные S - считаем пропорционально
+      double costPerS = item.pricePerExtraItem;
+      double itemCost = remainingS * costPerS;
+      print('💵 [DETAIL] ❌ S платные: $remainingS × ${costPerS}₽ = ${itemCost.toStringAsFixed(0)}₽');
+      return itemCost;
+    }
+    
+    if (item.size == BaggageSize.m) {
+      if (remainingM == 0) {
+        print('💵 [DETAIL] ✅ Все M багажи БЕСПЛАТНЫ (${item.quantity} шт)');
+        return 0.0;
+      }
+      double costPerM = item.pricePerExtraItem;
+      double itemCost = remainingM * costPerM;
+      print('💵 [DETAIL] ❌ M платные: $remainingM × ${costPerM}₽ = ${itemCost.toStringAsFixed(0)}₽');
+      return itemCost;
+    }
+    
+    if (item.size == BaggageSize.l) {
+      if (remainingL == 0) {
+        print('💵 [DETAIL] ✅ Все L багажи БЕСПЛАТНЫ (${item.quantity} шт)');
+        return 0.0;
+      }
+      double costPerL = item.pricePerExtraItem;
+      double itemCost = remainingL * costPerL;
+      print('💵 [DETAIL] ❌ L платные: $remainingL × ${costPerL}₽ = ${itemCost.toStringAsFixed(0)}₽');
+      return itemCost;
+    }
+    
+    // Custom всегда платный
+    if (item.size == BaggageSize.custom) {
+      double itemCost = item.quantity * item.pricePerExtraItem;
+      print('💵 [DETAIL] ❌ Custom платно: ${item.quantity} × ${item.pricePerExtraItem}₽ = ${itemCost.toStringAsFixed(0)}₽');
+      return itemCost;
+    }
+    
+    return 0.0;
+  }
+  
+  /// Расчет общей стоимости всего багажа с учетом пассажиров
+  double _calculateTotalBaggageCost() {
+    print('💵 [DETAIL] ========== РАСЧЕТ ОБЩЕЙ СТОИМОСТИ БАГАЖА ==========');
+    print('💵 [DETAIL] Количество пассажиров: ${_currentBooking.passengerCount}');
+    print('💵 [DETAIL] Бесплатных S багажей: ${_currentBooking.passengerCount * 2}');
+    
+    if (_currentBooking.baggage.isEmpty) {
+      print('💵 [DETAIL] Багаж не выбран, стоимость: 0₽');
+      return 0.0;
+    }
+    
+    double total = 0.0;
+    for (var item in _currentBooking.baggage) {
+      final itemCost = _calculateBaggageCostForItem(item);
+      total += itemCost;
+    }
+    
+    print('💵 [DETAIL] ========== ИТОГО БАГАЖ: ${total.toStringAsFixed(0)}₽ ==========');
+    return total;
+  }
+  
+  // ========== КОНЕЦ РАСЧЕТА БАГАЖА ==========
+
   Widget _buildBaggageCard(theme) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -308,6 +425,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             )
           else
             ..._currentBooking.baggage.map((item) {
+              // Используем новую формулу с учетом пассажиров
+              final bagCost = _calculateBaggageCostForItem(item);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
@@ -320,10 +439,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                       style: TextStyle(fontSize: 16, color: theme.label),
                     ),
                     Text(
-                      '+${item.calculateCost().toInt()} ₽',
+                      bagCost > 0 ? '+${bagCost.toInt()} ₽' : 'Бесплатно',
                       style: TextStyle(
                         fontSize: 16,
-                        color: theme.primary,
+                        color: bagCost > 0 ? theme.primary : CupertinoColors.systemGreen,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
