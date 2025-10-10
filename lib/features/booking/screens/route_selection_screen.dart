@@ -127,16 +127,6 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Или выберите точки вручную',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: theme.label,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
                         // Откуда
                         _buildStopSelector(
                           title: 'Откуда',

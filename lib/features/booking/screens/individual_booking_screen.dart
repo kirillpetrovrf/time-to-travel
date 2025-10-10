@@ -4,14 +4,14 @@ import '../../../models/route_stop.dart';
 import '../../../models/trip_type.dart';
 import '../../../models/booking.dart';
 import '../../../models/baggage.dart';
-import '../../../models/pet_info.dart';
+import '../../../models/pet_info_v3.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../home/screens/home_screen.dart';
 import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
-import 'pet_selection_screen.dart';
+import '../widgets/simple_pet_selection_sheet.dart';
 import 'vehicle_selection_screen.dart';
 
 class IndividualBookingScreen extends StatefulWidget {
@@ -953,22 +953,19 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   Future<void> _openPetSelection() async {
-    await Navigator.push(
-      context,
-      CupertinoPageRoute(
-        builder: (context) => PetSelectionScreen(
-          initialPetInfo: _selectedPets.isNotEmpty ? _selectedPets.first : null,
-          onPetSelected: (PetInfo? pet) {
-            setState(() {
-              if (pet != null) {
-                _selectedPets = [pet]; // Заменяем список одним животным
-              } else {
-                _selectedPets = [];
-              }
-            });
-            // Navigator.pop будет вызван в самом PetSelectionScreen
-          },
-        ),
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (context) => SimplePetSelectionSheet(
+        initialPet: _selectedPets.isNotEmpty ? _selectedPets.first : null,
+        onPetSelected: (PetInfo? pet) {
+          setState(() {
+            if (pet != null) {
+              _selectedPets = [pet]; // Заменяем список одним животным
+            } else {
+              _selectedPets = [];
+            }
+          });
+        },
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import '../../../models/user.dart';
 import '../../../models/route_stop.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/custom_navigation_bar.dart';
@@ -99,11 +100,11 @@ class _BookingScreenState extends State<BookingScreen> {
                         'Готовые маршруты с фиксированными остановками',
                     features: [
                       'Донецк → Ростов-на-Дону',
+                      'Ростов-на-Дону → Донецк',
                       'Популярные промежуточные города',
-                      'Быстрое бронирование',
                     ],
                     theme: theme,
-                    onTap: () => _showRouteSelection('popular'),
+                    onTap: () => _showPopularRoutesModal(),
                   ),
 
                   const SizedBox(height: 16),
@@ -186,14 +187,26 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  // Метод для популярных маршрутов - сразу показываем выбор типа поездки
+  void _showPopularRoutesModal() {
+    // Просто показываем модальное окно выбора типа поездки
+    // Направление пользователь выберет уже на экране бронирования
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => _TripTypeSelectionModalSimple(
+        onTripTypeSelected: (tripType) {
+          _navigateToBookingWithoutRoute(tripType);
+        },
+      ),
+    );
+  }
+
   void _showTripTypeSelection(
     RouteStop fromStop,
     RouteStop toStop,
     String routeType,
   ) {
-    // Возвращаемся к экрану бронирования и показываем выбор типа поездки
-    Navigator.of(context).pop();
-
+    // Показываем выбор типа поездки без закрытия предыдущего модального окна
     showCupertinoModalPopup(
       context: context,
       builder: (context) => _TripTypeSelectionModal(
@@ -207,26 +220,72 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  void _navigateToBooking(
+  Future<void> _navigateToBooking(
     RouteStop fromStop,
     RouteStop toStop,
     String tripType,
-  ) {
-    if (tripType == 'group') {
-      Navigator.of(context).push(
-        CupertinoPageRoute(
-          builder: (context) =>
-              GroupBookingScreen(fromStop: fromStop, toStop: toStop),
-        ),
-      );
-    } else {
-      Navigator.of(context).push(
-        CupertinoPageRoute(
-          builder: (context) =>
-              IndividualBookingScreen(fromStop: fromStop, toStop: toStop),
-        ),
-      );
+  ) async {
+    print('🚀 [НАВИГАЦИЯ] Начало _navigateToBooking, tripType: $tripType');
+
+    // Закрываем модальное окно
+    print('🚀 [НАВИГАЦИЯ] Закрываем модальное окно');
+    Navigator.of(context).pop();
+
+    // Небольшая задержка для завершения анимации
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    if (!mounted) {
+      print('❌ [НАВИГАЦИЯ] Виджет unmounted');
+      return;
     }
+
+    print('🚀 [НАВИГАЦИЯ] Открываем экран бронирования');
+
+    // Открываем экран бронирования
+    await Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => tripType == 'group'
+            ? GroupBookingScreen(fromStop: fromStop, toStop: toStop)
+            : IndividualBookingScreen(fromStop: fromStop, toStop: toStop),
+      ),
+    );
+
+    print('✅ [НАВИГАЦИЯ] Вернулись с экрана бронирования');
+  }
+
+  // Новый метод для навигации без выбранного маршрута
+  Future<void> _navigateToBookingWithoutRoute(String tripType) async {
+    print(
+      '🚀 [НАВИГАЦИЯ] Начало _navigateToBookingWithoutRoute, tripType: $tripType',
+    );
+
+    // Закрываем модальное окно
+    print('🚀 [НАВИГАЦИЯ] Закрываем модальное окно');
+    Navigator.of(context).pop();
+
+    // Небольшая задержка для завершения анимации
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    if (!mounted) {
+      print('❌ [НАВИГАЦИЯ] Виджет unmounted');
+      return;
+    }
+
+    print(
+      '🚀 [НАВИГАЦИЯ] Открываем экран бронирования без предвыбранного маршрута',
+    );
+
+    // Открываем экран бронирования БЕЗ fromStop и toStop
+    // Пользователь выберет направление на самом экране
+    await Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => tripType == 'group'
+            ? const GroupBookingScreen() // Без параметров
+            : const IndividualBookingScreen(), // Без параметров
+      ),
+    );
+
+    print('✅ [НАВИГАЦИЯ] Вернулись с экрана бронирования');
   }
 
   Widget _buildDispatcherView(CustomTheme theme) {
@@ -470,6 +529,275 @@ class _DispatcherCard extends StatelessWidget {
   }
 }
 
+// Модальное окно для выбора направления и типа поездки (объединенное)
+class _PopularRoutesTripSelectionModal extends StatefulWidget {
+  final RouteStop donetsk;
+  final RouteStop rostov;
+  final Function(RouteStop fromStop, RouteStop toStop, String tripType)
+  onSelected;
+
+  const _PopularRoutesTripSelectionModal({
+    required this.donetsk,
+    required this.rostov,
+    required this.onSelected,
+  });
+
+  @override
+  State<_PopularRoutesTripSelectionModal> createState() =>
+      _PopularRoutesTripSelectionModalState();
+}
+
+class _PopularRoutesTripSelectionModalState
+    extends State<_PopularRoutesTripSelectionModal> {
+  int _selectedRouteIndex = 0; // 0 = Донецк → Ростов, 1 = Ростов → Донецк
+
+  @override
+  Widget build(BuildContext context) {
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: BoxDecoration(
+        color: theme.systemBackground,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Заголовок
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: theme.separator)),
+            ),
+            child: Text(
+              'Выберите направление и тип поездки',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: theme.label,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+
+          // Контент
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Секция выбора направления
+                    Text(
+                      'Направление',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: theme.label,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Донецк → Ростов
+                    _RouteOptionCard(
+                      fromStop: widget.donetsk,
+                      toStop: widget.rostov,
+                      isSelected: _selectedRouteIndex == 0,
+                      theme: theme,
+                      onTap: () {
+                        setState(() {
+                          _selectedRouteIndex = 0;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Ростов → Донецк
+                    _RouteOptionCard(
+                      fromStop: widget.rostov,
+                      toStop: widget.donetsk,
+                      isSelected: _selectedRouteIndex == 1,
+                      theme: theme,
+                      onTap: () {
+                        setState(() {
+                          _selectedRouteIndex = 1;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Секция выбора типа поездки
+                    Text(
+                      'Тип поездки',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: theme.label,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Групповая поездка
+                    _TripTypeOption(
+                      icon: CupertinoIcons.group,
+                      title: 'Групповая поездка',
+                      description:
+                          'Поделитесь автомобилем с другими пассажирами',
+                      price: '2000 ₽',
+                      features: [
+                        'Фиксированное расписание',
+                        'Комфортабельные автомобили',
+                        'Опытные водители',
+                      ],
+                      theme: theme,
+                      onTap: () {
+                        final fromStop = _selectedRouteIndex == 0
+                            ? widget.donetsk
+                            : widget.rostov;
+                        final toStop = _selectedRouteIndex == 0
+                            ? widget.rostov
+                            : widget.donetsk;
+                        widget.onSelected(fromStop, toStop, 'group');
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Индивидуальная поездка
+                    _TripTypeOption(
+                      icon: CupertinoIcons.car,
+                      title: 'Индивидуальная поездка',
+                      description: 'Персональный автомобиль только для вас',
+                      price: 'от 8000 ₽',
+                      features: [
+                        'Гибкое расписание',
+                        'Личный водитель',
+                        'Возможность остановок по пути',
+                      ],
+                      theme: theme,
+                      onTap: () {
+                        final fromStop = _selectedRouteIndex == 0
+                            ? widget.donetsk
+                            : widget.rostov;
+                        final toStop = _selectedRouteIndex == 0
+                            ? widget.rostov
+                            : widget.donetsk;
+                        widget.onSelected(fromStop, toStop, 'individual');
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Карточка варианта маршрута
+class _RouteOptionCard extends StatelessWidget {
+  final RouteStop fromStop;
+  final RouteStop toStop;
+  final bool isSelected;
+  final CustomTheme theme;
+  final VoidCallback onTap;
+
+  const _RouteOptionCard({
+    required this.fromStop,
+    required this.toStop,
+    required this.isSelected,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.systemRed.withOpacity(0.1)
+              : theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? theme.systemRed : theme.separator,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected
+                  ? CupertinoIcons.check_mark_circled_solid
+                  : CupertinoIcons.circle,
+              color: isSelected ? theme.systemRed : theme.secondaryLabel,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fromStop.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.arrow_right,
+                        size: 16,
+                        color: theme.systemRed,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        toStop.name,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: theme.label,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '2000 ₽',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: theme.systemRed,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TripTypeSelectionModal extends StatelessWidget {
   final RouteStop fromStop;
   final RouteStop toStop;
@@ -546,7 +874,6 @@ class _TripTypeSelectionModal extends StatelessWidget {
                       ],
                       theme: theme,
                       onTap: () {
-                        Navigator.of(context).pop();
                         onTripTypeSelected('group');
                       },
                     ),
@@ -566,7 +893,100 @@ class _TripTypeSelectionModal extends StatelessWidget {
                       ],
                       theme: theme,
                       onTap: () {
-                        Navigator.of(context).pop();
+                        onTripTypeSelected('individual');
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Простое модальное окно выбора типа поездки (БЕЗ выбора направления)
+class _TripTypeSelectionModalSimple extends StatelessWidget {
+  final Function(String) onTripTypeSelected;
+
+  const _TripTypeSelectionModalSimple({required this.onTripTypeSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.65,
+      decoration: BoxDecoration(
+        color: theme.systemBackground,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Заголовок
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: theme.separator)),
+            ),
+            child: Text(
+              'Выберите тип поездки',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: theme.label,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+
+          // Опции
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Групповая поездка
+                    _TripTypeOption(
+                      icon: CupertinoIcons.group,
+                      title: 'Групповая поездка',
+                      description:
+                          'Поделитесь автомобилем с другими пассажирами',
+                      price: '2000 ₽',
+                      features: [
+                        'Фиксированное расписание',
+                        'Комфортабельные автомобили',
+                        'Опытные водители',
+                      ],
+                      theme: theme,
+                      onTap: () {
+                        onTripTypeSelected('group');
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Индивидуальная поездка
+                    _TripTypeOption(
+                      icon: CupertinoIcons.car,
+                      title: 'Индивидуальная поездка',
+                      description: 'Персональный автомобиль только для вас',
+                      price: 'от 8000 ₽',
+                      features: [
+                        'Гибкое расписание',
+                        'Личный водитель',
+                        'Возможность остановок по пути',
+                      ],
+                      theme: theme,
+                      onTap: () {
                         onTripTypeSelected('individual');
                       },
                     ),

@@ -1,6 +1,6 @@
 import 'trip_type.dart';
 import 'baggage.dart';
-import 'pet_info.dart';
+import 'pet_info_v3.dart';
 import 'passenger_info.dart';
 import 'route_stop.dart';
 

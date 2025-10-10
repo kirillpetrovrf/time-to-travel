@@ -1,126 +1,140 @@
-/// Размеры животных для тарификации (ОБНОВЛЕНО под ТЗ v3.0)
-/// ИЗМЕНЕНИЯ: Убран размер XS, добавлена система согласий
-enum PetSize {
-  s, // S: Маленький (до 8 кг) - кошка, маленькая собака
-  m, // M: Средний (до 25 кг) - ТОЛЬКО индивидуальная поездка
-  l, // L: Большой (свыше 25 кг) - ТОЛЬКО индивидуальная поездка
+/// Категории животных (НОВАЯ ЛОГИКА v4.0)
+/// Упрощённая схема без учёта веса
+enum PetCategory {
+  upTo5kgWithCarrier, // До 5 кг в переноске - БЕСПЛАТНО
+  upTo5kgWithoutCarrier, // До 5 кг без переноски - 1000₽
+  over6kg, // Свыше 6 кг - 2000₽ + индивидуальный трансфер
 }
 
-/// Информация о животном (ОБНОВЛЕНО под ТЗ v3.0)
+/// УСТАРЕВШИЙ enum (для обратной совместимости)
+/// TODO: Удалить после миграции всех данных
+@Deprecated('Используйте PetCategory вместо PetSize')
+enum PetSize { s, m, l }
+
+/// Информация о животном (ОБНОВЛЕНО под ТЗ v4.0 - упрощённая схема)
 class PetInfo {
-  final PetSize size;
-  final String breed;
-  final String? description; // Дополнительное описание животного
-  final bool agreementAccepted; // НОВОЕ: согласие с условиями перевозки
+  final PetCategory category;
+  final String breed; // Автозаполнение по категории
+  final String? description; // Дополнительное описание
+  final bool agreementAccepted; // Согласие с условиями перевозки
+
+  // Для обратной совместимости (УСТАРЕВШИЕ)
+  @Deprecated('Используйте category')
+  final PetSize? size;
 
   const PetInfo({
-    required this.size,
+    required this.category,
     required this.breed,
     this.description,
     required this.agreementAccepted,
+    @Deprecated('Используйте category') this.size,
   });
 
-  /// Получение описания размера (ОБНОВЛЕНО)
-  String get sizeDescription {
-    switch (size) {
-      case PetSize.s:
-        return 'Маленький (S)';
-      case PetSize.m:
-        return 'Средний (M)';
-      case PetSize.l:
-        return 'Большой (L)';
+  /// Автоматическое заполнение названия по категории
+  static String getDefaultBreed(PetCategory category) {
+    switch (category) {
+      case PetCategory.upTo5kgWithCarrier:
+        return 'Животное до 5 кг в переноске';
+      case PetCategory.upTo5kgWithoutCarrier:
+        return 'Животное до 5 кг без переноски';
+      case PetCategory.over6kg:
+        return 'Животное свыше 6 кг';
     }
   }
 
-  /// Получение ограничения по весу (НОВОЕ)
-  String get weightLimit {
-    switch (size) {
-      case PetSize.s:
-        return 'до 8 кг';
-      case PetSize.m:
-        return 'до 25 кг';
-      case PetSize.l:
-        return 'свыше 25 кг';
+  /// Получение описания категории
+  String get categoryDescription {
+    switch (category) {
+      case PetCategory.upTo5kgWithCarrier:
+        return 'До 5 кг в переноске';
+      case PetCategory.upTo5kgWithoutCarrier:
+        return 'До 5 кг без переноски';
+      case PetCategory.over6kg:
+        return 'Свыше 6 кг';
     }
   }
 
-  /// Получение примеров животных (НОВОЕ)
-  String get examples {
-    switch (size) {
-      case PetSize.s:
-        return 'Кошка, маленькая собака (чихуахуа, той-терьер)';
-      case PetSize.m:
-        return 'Средняя собака (спаниель, бигль)';
-      case PetSize.l:
-        return 'Крупная собака (лабрадор, немецкая овчарка)';
-    }
-  }
-
-  /// Способ транспортировки (НОВОЕ)
-  String get transportMethod {
-    switch (size) {
-      case PetSize.s:
-        return 'В переноске в салоне';
-      case PetSize.m:
-        return 'Только индивидуальная поездка (отдельное место)';
-      case PetSize.l:
-        return 'Только индивидуальная поездка (отдельное место)';
-    }
-  }
-
-  /// Требует ли индивидуальную поездку (НОВОЕ)
+  /// Требует ли индивидуальную поездку
   bool get requiresIndividualTrip {
-    return size == PetSize.m || size == PetSize.l;
+    return category == PetCategory.over6kg;
   }
 
-  /// Получение стоимости (ОБНОВЛЕНО под ТЗ v3.0)
+  /// Получение стоимости
   double get cost {
-    switch (size) {
-      case PetSize.s:
-        return 500.0; // +500₽
-      case PetSize.m:
-      case PetSize.l:
-        return 2000.0; // +2000₽ + принудительная индивидуальная поездка
+    switch (category) {
+      case PetCategory.upTo5kgWithCarrier:
+        return 0.0; // Бесплатно
+      case PetCategory.upTo5kgWithoutCarrier:
+        return 1000.0; // 1000₽
+      case PetCategory.over6kg:
+        return 2000.0; // 2000₽ (+ индивидуальный трансфер 8000₽)
     }
   }
 
-  /// Требует ли обязательного согласия (НОВОЕ)
-  bool get requiresAgreement {
-    return size == PetSize.m || size == PetSize.l;
+  /// Получение полной стоимости (с индивидуальным трансфером если нужно)
+  double get totalCost {
+    if (category == PetCategory.over6kg) {
+      return 2000.0 +
+          8000.0; // 2000₽ за животное + 8000₽ индивидуальный трансфер
+    }
+    return cost;
   }
 
-  /// Конвертация в Map для сохранения в Firestore (ОБНОВЛЕНО)
+  /// Конвертация в Map для сохранения в Firestore (ОБНОВЛЕНО v4.0)
   Map<String, dynamic> toJson() {
     return {
-      'size': size.name,
+      'category': category.name,
       'breed': breed,
       'description': description,
       'agreementAccepted': agreementAccepted,
+      // Для обратной совместимости сохраняем size
+      'size': _categoryToSize(category).name,
     };
   }
 
-  /// Создание из Map из Firestore (ОБНОВЛЕНО)
+  /// Создание из Map из Firestore (ОБНОВЛЕНО v4.0)
   factory PetInfo.fromJson(Map<String, dynamic> json) {
-    return PetInfo(
-      size: PetSize.values.firstWhere(
+    // Пытаемся загрузить новую категорию
+    PetCategory? category;
+    if (json.containsKey('category')) {
+      try {
+        category = PetCategory.values.firstWhere(
+          (e) => e.name == json['category'],
+        );
+      } catch (e) {
+        // Если категория не найдена, используем старую логику
+      }
+    }
+
+    // Если категории нет, конвертируем из старого size
+    if (category == null && json.containsKey('size')) {
+      final size = PetSize.values.firstWhere(
         (e) => e.name == json['size'],
         orElse: () => PetSize.s,
-      ),
-      breed: json['breed'] ?? '',
+      );
+      category = _sizeToCategory(size);
+    }
+
+    // По умолчанию - с переноской
+    category ??= PetCategory.upTo5kgWithCarrier;
+
+    return PetInfo(
+      category: category,
+      breed: json['breed'] ?? getDefaultBreed(category),
       description: json['description'],
       agreementAccepted: json['agreementAccepted'] ?? false,
     );
   }
 
-  /// Копирование с изменениями (НОВОЕ)
+  /// Копирование с изменениями
   PetInfo copyWith({
-    PetSize? size,
+    PetCategory? category,
     String? breed,
     String? description,
     bool? agreementAccepted,
   }) {
     return PetInfo(
-      size: size ?? this.size,
+      category: category ?? this.category,
       breed: breed ?? this.breed,
       description: description ?? this.description,
       agreementAccepted: agreementAccepted ?? this.agreementAccepted,
@@ -129,14 +143,14 @@ class PetInfo {
 
   @override
   String toString() {
-    return 'PetInfo(size: $size, breed: $breed)';
+    return 'PetInfo(category: ${category.name}, breed: $breed)';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is PetInfo &&
-        other.size == size &&
+        other.category == category &&
         other.breed == breed &&
         other.description == description &&
         other.agreementAccepted == agreementAccepted;
@@ -144,22 +158,45 @@ class PetInfo {
 
   @override
   int get hashCode {
-    return size.hashCode ^
+    return category.hashCode ^
         breed.hashCode ^
         description.hashCode ^
         agreementAccepted.hashCode;
   }
+
+  // Вспомогательные методы для конвертации (обратная совместимость)
+  static PetCategory _sizeToCategory(PetSize size) {
+    switch (size) {
+      case PetSize.s:
+        return PetCategory.upTo5kgWithCarrier; // По умолчанию с переноской
+      case PetSize.m:
+      case PetSize.l:
+        return PetCategory.over6kg;
+    }
+  }
+
+  static PetSize _categoryToSize(PetCategory category) {
+    switch (category) {
+      case PetCategory.upTo5kgWithCarrier:
+      case PetCategory.upTo5kgWithoutCarrier:
+        return PetSize.s;
+      case PetCategory.over6kg:
+        return PetSize.l;
+    }
+  }
 }
 
-/// Утилиты для работы с животными (ОБНОВЛЕНО под ТЗ v3.0)
+/// Утилиты для работы с животными (ОБНОВЛЕНО под ТЗ v4.0)
 class PetUtils {
   /// Получение краткого описания для животного
   static String formatPetSummary(PetInfo? petInfo) {
     if (petInfo == null) return 'Без животных';
 
-    final sizeText = petInfo.sizeDescription;
-    final costText = petInfo.cost > 0 ? ' (+${petInfo.cost.toInt()}₽)' : '';
-    return '${petInfo.breed} ($sizeText)$costText';
+    final categoryText = petInfo.categoryDescription;
+    final costText = petInfo.cost > 0
+        ? ' (+${petInfo.cost.toInt()}₽)'
+        : ' (Бесплатно)';
+    return '$categoryText$costText';
   }
 
   /// Проверка необходимости принудительной индивидуальной поездки
@@ -172,24 +209,8 @@ class PetUtils {
     return petInfo?.cost ?? 0.0;
   }
 
-  /// Проверка валидности согласия
-  static bool isAgreementValid(PetInfo? petInfo) {
-    if (petInfo == null) return true;
-    if (!petInfo.requiresAgreement) return true;
-    return petInfo.agreementAccepted;
-  }
-
   /// Получение описания для отображения в UI
   static String getDisplayDescription(PetInfo petInfo) {
-    final parts = <String>[
-      '${petInfo.breed} (${petInfo.sizeDescription})',
-      petInfo.weightLimit,
-    ];
-
-    if (petInfo.description?.isNotEmpty == true) {
-      parts.add(petInfo.description!);
-    }
-
-    return parts.join(' • ');
+    return '${petInfo.breed} • ${petInfo.categoryDescription}';
   }
 }
