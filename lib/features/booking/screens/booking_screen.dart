@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import '../../../models/user.dart';
 import '../../../models/route_stop.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/custom_navigation_bar.dart';
@@ -82,14 +81,6 @@ class _BookingScreenState extends State<BookingScreen> {
                     textAlign: TextAlign.center,
                   ),
 
-                  const SizedBox(height: 8),
-
-                  Text(
-                    'Комфортные поездки по маршруту Донецк ⇄ Ростов-на-Дону',
-                    style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
-                    textAlign: TextAlign.center,
-                  ),
-
                   const SizedBox(height: 40),
 
                   // Популярные маршруты
@@ -102,6 +93,8 @@ class _BookingScreenState extends State<BookingScreen> {
                       'Донецк → Ростов-на-Дону',
                       'Ростов-на-Дону → Донецк',
                       'Популярные промежуточные города',
+                      'Групповые поездки: 2000 ₽ за место',
+                      'Индивидуальные поездки: от 8000 за авто ₽',
                     ],
                     theme: theme,
                     onTap: () => _showPopularRoutesModal(),
@@ -124,46 +117,6 @@ class _BookingScreenState extends State<BookingScreen> {
                     onTap: () => _showRouteSelection('free'),
                   ),
 
-                  const SizedBox(height: 24),
-
-                  // Информация
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.secondarySystemBackground,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              CupertinoIcons.info_circle_fill,
-                              color: CupertinoColors.systemBlue,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Информация о ценах',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: theme.label,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Групповые поездки: 2000 ₽ за место\nИндивидуальные поездки: от 8000 ₽',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.secondaryLabel,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -189,14 +142,14 @@ class _BookingScreenState extends State<BookingScreen> {
 
   // Метод для популярных маршрутов - сразу показываем выбор типа поездки
   void _showPopularRoutesModal() {
-    // Просто показываем модальное окно выбора типа поездки
-    // Направление пользователь выберет уже на экране бронирования
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => _TripTypeSelectionModalSimple(
-        onTripTypeSelected: (tripType) {
-          _navigateToBookingWithoutRoute(tripType);
-        },
+    // Открываем как полноэкранную страницу
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => _TripTypeSelectionModalSimple(
+          onTripTypeSelected: (tripType) {
+            _navigateToBookingWithoutRoute(tripType);
+          },
+        ),
       ),
     );
   }
@@ -206,16 +159,17 @@ class _BookingScreenState extends State<BookingScreen> {
     RouteStop toStop,
     String routeType,
   ) {
-    // Показываем выбор типа поездки без закрытия предыдущего модального окна
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => _TripTypeSelectionModal(
-        fromStop: fromStop,
-        toStop: toStop,
-        routeType: routeType,
-        onTripTypeSelected: (tripType) {
-          _navigateToBooking(fromStop, toStop, tripType);
-        },
+    // Открываем как полноэкранную страницу
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => _TripTypeSelectionModal(
+          fromStop: fromStop,
+          toStop: toStop,
+          routeType: routeType,
+          onTripTypeSelected: (tripType) {
+            _navigateToBooking(fromStop, toStop, tripType);
+          },
+        ),
       ),
     );
   }
@@ -816,92 +770,90 @@ class _TripTypeSelectionModal extends StatelessWidget {
     final themeManager = context.themeManager;
     final theme = themeManager.currentTheme;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.65,
-      decoration: BoxDecoration(
-        color: theme.systemBackground,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Заголовок
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: theme.separator)),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Выберите тип поездки',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: theme.label,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${fromStop.name} → ${toStop.name}',
-                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
-                ),
-              ],
-            ),
+    return CupertinoPageScaffold(
+      backgroundColor: theme.systemBackground,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: theme.secondarySystemBackground,
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => Navigator.of(context).pop(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                CupertinoIcons.back,
+                color: theme.primary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Назад',
+                style: TextStyle(color: theme.primary),
+              ),
+            ],
           ),
-
-          // Опции
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Групповая поездка
-                    _TripTypeOption(
-                      icon: CupertinoIcons.group,
-                      title: 'Групповая поездка',
-                      description:
-                          'Поделитесь автомобилем с другими пассажирами',
-                      price: '2000 ₽',
-                      features: [
-                        'Фиксированное расписание',
-                        'Комфортабельные автомобили',
-                        'Опытные водители',
-                      ],
-                      theme: theme,
-                      onTap: () {
-                        onTripTypeSelected('group');
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Индивидуальная поездка
-                    _TripTypeOption(
-                      icon: CupertinoIcons.car,
-                      title: 'Индивидуальная поездка',
-                      description: 'Персональный автомобиль только для вас',
-                      price: 'от 8000 ₽',
-                      features: [
-                        'Гибкое расписание',
-                        'Личный водитель',
-                        'Возможность остановок по пути',
-                      ],
-                      theme: theme,
-                      onTap: () {
-                        onTripTypeSelected('individual');
-                      },
-                    ),
-                  ],
-                ),
+        ),
+        middle: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Выберите тип поездки',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: theme.label,
               ),
             ),
+            Text(
+              '${fromStop.name} → ${toStop.name}',
+              style: TextStyle(fontSize: 13, color: theme.secondaryLabel),
+            ),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Групповая поездка
+              _TripTypeOption(
+                icon: CupertinoIcons.group,
+                title: 'Групповая поездка',
+                description:
+                    'Поделитесь автомобилем с другими пассажирами',
+                price: '2000 ₽',
+                features: [
+                  'Фиксированное расписание',
+                  'Комфортабельные автомобили',
+                  'Опытные водители',
+                ],
+                theme: theme,
+                onTap: () {
+                  onTripTypeSelected('group');
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Индивидуальная поездка
+              _TripTypeOption(
+                icon: CupertinoIcons.car,
+                title: 'Индивидуальная поездка',
+                description: 'Персональный автомобиль только для вас',
+                price: 'от 8000 ₽',
+                features: [
+                  'Гибкое расписание',
+                  'Личный водитель',
+                  'Возможность остановок по пути',
+                ],
+                theme: theme,
+                onTap: () {
+                  onTripTypeSelected('individual');
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -918,84 +870,81 @@ class _TripTypeSelectionModalSimple extends StatelessWidget {
     final themeManager = context.themeManager;
     final theme = themeManager.currentTheme;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.65,
-      decoration: BoxDecoration(
-        color: theme.systemBackground,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
+    return CupertinoPageScaffold(
+      backgroundColor: theme.systemBackground,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: theme.secondarySystemBackground,
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => Navigator.of(context).pop(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                CupertinoIcons.back,
+                color: theme.primary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Назад',
+                style: TextStyle(color: theme.primary),
+              ),
+            ],
+          ),
+        ),
+        middle: Text(
+          'Выберите тип поездки',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: theme.label,
+          ),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Заголовок
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: theme.separator)),
-            ),
-            child: Text(
-              'Выберите тип поездки',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: theme.label,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Групповая поездка
+              _TripTypeOption(
+                icon: CupertinoIcons.group,
+                title: 'Групповая поездка',
+                description:
+                    'Поделитесь автомобилем с другими пассажирами',
+                price: '2000 ₽',
+                features: [
+                  'Фиксированное расписание',
+                  'Комфортабельные автомобили',
+                  'Опытные водители',
+                ],
+                theme: theme,
+                onTap: () {
+                  onTripTypeSelected('group');
+                },
               ),
-              textAlign: TextAlign.center,
-            ),
-          ),
 
-          // Опции
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Групповая поездка
-                    _TripTypeOption(
-                      icon: CupertinoIcons.group,
-                      title: 'Групповая поездка',
-                      description:
-                          'Поделитесь автомобилем с другими пассажирами',
-                      price: '2000 ₽',
-                      features: [
-                        'Фиксированное расписание',
-                        'Комфортабельные автомобили',
-                        'Опытные водители',
-                      ],
-                      theme: theme,
-                      onTap: () {
-                        onTripTypeSelected('group');
-                      },
-                    ),
+              const SizedBox(height: 16),
 
-                    const SizedBox(height: 16),
-
-                    // Индивидуальная поездка
-                    _TripTypeOption(
-                      icon: CupertinoIcons.car,
-                      title: 'Индивидуальная поездка',
-                      description: 'Персональный автомобиль только для вас',
-                      price: 'от 8000 ₽',
-                      features: [
-                        'Гибкое расписание',
-                        'Личный водитель',
-                        'Возможность остановок по пути',
-                      ],
-                      theme: theme,
-                      onTap: () {
-                        onTripTypeSelected('individual');
-                      },
-                    ),
-                  ],
-                ),
+              // Индивидуальная поездка
+              _TripTypeOption(
+                icon: CupertinoIcons.car,
+                title: 'Индивидуальная поездка',
+                description: 'Персональный автомобиль только для вас',
+                price: 'от 8000 ₽',
+                features: [
+                  'Гибкое расписание',
+                  'Личный водитель',
+                  'Возможность остановок по пути',
+                ],
+                theme: theme,
+                onTap: () {
+                  onTripTypeSelected('individual');
+                },
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

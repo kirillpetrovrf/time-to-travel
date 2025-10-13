@@ -13,11 +13,11 @@ import '../../../services/booking_service.dart';
 import '../../../services/trip_settings_service.dart';
 import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
+import '../../../theme/app_theme.dart';
 import '../../admin/screens/admin_panel_screen.dart';
 import '../../home/screens/home_screen.dart';
 import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
-import 'add_passenger_screen.dart';
 import 'individual_booking_screen.dart';
 import '../widgets/simple_pet_selection_sheet.dart';
 
@@ -54,6 +54,9 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   bool _hasVKDiscount = false;
   bool _baggageSelectionVisited =
       false; // Флаг: заходил ли пользователь в выбор багажа
+  
+  // Переключатель для детей
+  bool _hasChildren = false; // Включен ли переключатель "Добавить ребёнка"
 
   @override
   void initState() {
@@ -920,58 +923,54 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
               children: [
                 if (index > 0)
                   Divider(height: 1, color: theme.separator.withOpacity(0.2)),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => _editPassenger(index),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          passenger.type == PassengerType.adult
-                              ? CupertinoIcons.person
-                              : CupertinoIcons.smiley,
-                          color: theme.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        passenger.type == PassengerType.adult
+                            ? CupertinoIcons.person
+                            : CupertinoIcons.smiley,
+                        color: theme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              passenger.displayName,
+                              style: TextStyle(
+                                color: theme.label,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (passenger.seatInfo.isNotEmpty) ...[
+                              const SizedBox(height: 2),
                               Text(
-                                passenger.displayName,
+                                passenger.seatInfo,
                                 style: TextStyle(
-                                  color: theme.label,
-                                  fontSize: 16,
+                                  color: theme.secondaryLabel,
+                                  fontSize: 14,
                                 ),
                               ),
-                              if (passenger.seatInfo.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  passenger.seatInfo,
-                                  style: TextStyle(
-                                    color: theme.secondaryLabel,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
                             ],
-                          ),
+                          ],
                         ),
-                        CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: () => _removePassenger(index),
-                          child: Icon(
-                            CupertinoIcons.trash,
-                            color: theme.systemRed,
-                            size: 20,
-                          ),
+                      ),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => _removePassenger(index),
+                        child: Icon(
+                          CupertinoIcons.trash,
+                          color: theme.systemRed,
+                          size: 20,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -998,52 +997,164 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
               ),
             ),
           ],
+
+          // Разделитель перед переключателем ребёнка
+          if (_passengers.length < (_tripSettings?.maxPassengers ?? 8))
+            Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+
+          // Переключатель "Добавить ребёнка"
+          if (_passengers.length < (_tripSettings?.maxPassengers ?? 8))
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.smiley, color: theme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Добавить ребёнка',
+                      style: TextStyle(
+                        color: theme.label,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  CupertinoSwitch(
+                    value: _hasChildren,
+                    onChanged: (value) {
+                      if (value) {
+                        // Включаем - открываем модальное окно для добавления ребёнка
+                        _showAddChildModal();
+                      } else {
+                        // Выключаем - показываем диалог подтверждения
+                        _showRemoveAllChildrenDialog();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+          // Кнопка "+ Добавить ребёнка" (показывается только когда переключатель включен)
+          if (_hasChildren && _passengers.length < (_tripSettings?.maxPassengers ?? 8)) ...[
+            Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              onPressed: _showAddChildModal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.add_circled, color: theme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Добавить ребёнка',
+                    style: TextStyle(color: theme.primary, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Future<void> _addPassenger() async {
+  void _addPassenger() {
     print('👥 [PASSENGERS] Добавление нового пассажира...');
     print('👥 [PASSENGERS] Текущее количество: ${_passengers.length}');
-    final passenger = await Navigator.push<PassengerInfo>(
-      context,
-      CupertinoPageRoute(builder: (context) => const AddPassengerScreen()),
-    );
-
-    if (passenger != null) {
-      setState(() {
-        _passengers.add(passenger);
-        print(
-          '👥 [PASSENGERS] ✅ Пассажир добавлен! Новое количество: ${_passengers.length}',
-        );
-        print(
-          '👥 [PASSENGERS] 🔄 Будет пересчитан багаж: ${_passengers.length * 2} бесплатных S',
-        );
-      });
-    } else {
-      print('👥 [PASSENGERS] ❌ Добавление отменено');
-    }
+    
+    setState(() {
+      // Добавляем взрослого пассажира напрямую
+      _passengers.add(PassengerInfo(type: PassengerType.adult));
+      print(
+        '👥 [PASSENGERS] ✅ Пассажир добавлен! Новое количество: ${_passengers.length}',
+      );
+      print(
+        '👥 [PASSENGERS] 🔄 Будет пересчитан багаж: ${_passengers.length * 2} бесплатных S',
+      );
+    });
   }
 
-  Future<void> _editPassenger(int index) async {
-    print('👥 [PASSENGERS] Редактирование пассажира #${index + 1}...');
-    final passenger = await Navigator.push<PassengerInfo>(
-      context,
-      CupertinoPageRoute(
-        builder: (context) =>
-            AddPassengerScreen(initialPassenger: _passengers[index]),
+  // Показать модальное окно для добавления ребёнка
+  Future<void> _showAddChildModal() async {
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => _ChildConfigurationModal(
+        theme: theme,
+        onSave: (int ageMonths, ChildSeatType seatType, bool useOwnSeat) {
+          print('👶 [CHILD] Добавление ребёнка...');
+          print('👶 [CHILD] Возраст: $ageMonths месяцев');
+          print('👶 [CHILD] Тип кресла: $seatType');
+          print('👶 [CHILD] Своё кресло: $useOwnSeat');
+
+          setState(() {
+            _passengers.add(
+              PassengerInfo(
+                type: PassengerType.child,
+                seatType: seatType,
+                useOwnSeat: useOwnSeat,
+                ageMonths: ageMonths,
+              ),
+            );
+            _hasChildren = true; // Включаем переключатель
+            print('👶 [CHILD] ✅ Ребёнок добавлен! Всего пассажиров: ${_passengers.length}');
+          });
+        },
       ),
     );
+  }
 
-    if (passenger != null) {
+  // Диалог подтверждения удаления всех детей
+  void _showRemoveAllChildrenDialog() {
+    final childrenCount = _passengers.where((p) => p.type == PassengerType.child).length;
+
+    if (childrenCount == 0) {
+      // Если детей нет, просто выключаем переключатель
       setState(() {
-        _passengers[index] = passenger;
-        print('👥 [PASSENGERS] ✅ Пассажир #${index + 1} обновлен');
+        _hasChildren = false;
       });
-    } else {
-      print('👥 [PASSENGERS] ❌ Редактирование отменено');
+      return;
     }
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Удалить всех детей?'),
+        content: Text(
+          'Вы уверены, что хотите удалить всех детей из списка пассажиров? ($childrenCount ${_getChildCountWord(childrenCount)})',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Отмена'),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Удалить'),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _passengers.removeWhere((p) => p.type == PassengerType.child);
+                _hasChildren = false;
+                print('👶 [CHILD] ✅ Все дети удалены! Осталось пассажиров: ${_passengers.length}');
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getChildCountWord(int count) {
+    if (count == 1) return 'ребёнок';
+    if (count >= 2 && count <= 4) return 'ребёнка';
+    return 'детей';
   }
 
   void _removePassenger(int index) {
@@ -2149,5 +2260,574 @@ class _StopPickerModalState extends State<_StopPickerModal> {
         ],
       ),
     );
+  }
+}
+
+// Модальное окно для настройки ребёнка
+class _ChildConfigurationModal extends StatefulWidget {
+  final CustomTheme theme;
+  final Function(int ageMonths, ChildSeatType seatType, bool useOwnSeat) onSave;
+
+  const _ChildConfigurationModal({
+    required this.theme,
+    required this.onSave,
+  });
+
+  @override
+  State<_ChildConfigurationModal> createState() =>
+      _ChildConfigurationModalState();
+}
+
+class _ChildConfigurationModalState extends State<_ChildConfigurationModal> {
+  int? _ageMonths;
+  ChildSeatType? _selectedSeatType;
+  bool _useOwnSeat = false;
+
+  bool get _canSave => _ageMonths != null && _selectedSeatType != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Автоматически открываем picker выбора возраста после открытия модального окна
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showAgePicker();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        height: MediaQuery.of(context).size.height,
+        decoration: BoxDecoration(
+          color: widget.theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Заголовок (фиксированный)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: widget.theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Отмена',
+                      style: TextStyle(color: widget.theme.primary),
+                    ),
+                  ),
+                  Text(
+                    'Добавить ребёнка',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: widget.theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _canSave
+                        ? () {
+                            widget.onSave(
+                              _ageMonths!,
+                              _selectedSeatType!,
+                              _useOwnSeat,
+                            );
+                            Navigator.pop(context);
+                          }
+                        : null,
+                    child: Text(
+                      'Готово',
+                      style: TextStyle(
+                        color: _canSave
+                            ? widget.theme.primary
+                            : widget.theme.tertiaryLabel,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Контент (прокручиваемый)
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Блок: Возраст ребёнка
+                    _buildAgeSection(),
+
+                    const SizedBox(height: 24),
+
+                    // Блок: Тип автокресла (показывается после выбора возраста)
+                    if (_ageMonths != null) _buildSeatTypeSection(),
+
+                    const SizedBox(height: 24),
+
+                    // Блок: Чьё кресло (показывается после выбора типа кресла)
+                    if (_selectedSeatType != null && _selectedSeatType != ChildSeatType.none)
+                      _buildOwnSeatSection(),
+
+                    const SizedBox(height: 50),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Возраст ребёнка',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.label,
+          ),
+        ),
+        const SizedBox(height: 12),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _showAgePicker,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _ageMonths != null
+                    ? widget.theme.primary
+                    : widget.theme.separator.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(CupertinoIcons.calendar, color: widget.theme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _ageMonths == null
+                        ? 'Укажите возраст'
+                        : _formatAge(_ageMonths!),
+                    style: TextStyle(
+                      color: _ageMonths == null
+                          ? widget.theme.tertiaryLabel
+                          : widget.theme.label,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  color: widget.theme.secondaryLabel,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSeatTypeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Тип автокресла',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.label,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...ChildSeatType.values.map((seatType) {
+          final isSelected = seatType == _selectedSeatType;
+          final isRecommended =
+              seatType == ChildSeatTypeExtension.recommendByAge(_ageMonths!);
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedSeatType = seatType;
+                // Если выбрано "без кресла", сбрасываем useOwnSeat
+                if (seatType == ChildSeatType.none) {
+                  _useOwnSeat = false;
+                } else {
+                  // Если выбрано кресло - показываем диалог выбора чьё кресло
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    _showSeatOwnershipDialog();
+                  });
+                }
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: widget.theme.secondarySystemBackground,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? widget.theme.primary
+                      : widget.theme.separator.withOpacity(0.2),
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (isRecommended)
+                        const Icon(
+                          CupertinoIcons.star_fill,
+                          color: CupertinoColors.systemYellow,
+                          size: 16,
+                        ),
+                      if (isRecommended) const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          seatType.displayName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: widget.theme.label,
+                          ),
+                        ),
+                      ),
+                      if (isSelected)
+                        Icon(
+                          CupertinoIcons.checkmark_circle_fill,
+                          color: widget.theme.primary,
+                          size: 20,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    seatType.description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: widget.theme.secondaryLabel,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildOwnSeatSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Чьё автокресло',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.label,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Кресло водителя
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _useOwnSeat = false;
+            });
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: !_useOwnSeat
+                    ? widget.theme.primary
+                    : widget.theme.separator.withOpacity(0.2),
+                width: !_useOwnSeat ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Кресло водителя',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: !_useOwnSeat
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: widget.theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Бесплатно',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.systemGreen,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!_useOwnSeat)
+                  Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    color: widget.theme.primary,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // Своё кресло
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _useOwnSeat = true;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _useOwnSeat
+                    ? widget.theme.primary
+                    : widget.theme.separator.withOpacity(0.2),
+                width: _useOwnSeat ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Своё кресло',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: _useOwnSeat
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: widget.theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Бесплатно',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.systemGreen,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_useOwnSeat)
+                  Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    color: widget.theme.primary,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAgePicker() {
+    int selectedYears = (_ageMonths ?? 0) ~/ 12;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => Container(
+        height: 300,
+        color: widget.theme.systemBackground,
+        child: Column(
+          children: [
+            Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: widget.theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text('Отмена', style: TextStyle(color: widget.theme.primary)),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Возраст ребёнка',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: widget.theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text('Готово', style: TextStyle(color: widget.theme.primary)),
+                    onPressed: () {
+                      setState(() {
+                        _ageMonths = selectedYears * 12;
+                        // Автоматически рекомендуем тип кресла
+                        _selectedSeatType = ChildSeatTypeExtension.recommendByAge(_ageMonths!);
+                      });
+                      Navigator.pop(context);
+                      
+                      // Если автоматически выбрано кресло (не "Без кресла"), показываем диалог выбора
+                      if (_selectedSeatType != null && _selectedSeatType != ChildSeatType.none) {
+                        Future.delayed(const Duration(milliseconds: 300), () {
+                          _showSeatOwnershipDialog();
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                backgroundColor: widget.theme.systemBackground,
+                itemExtent: 44,
+                scrollController: FixedExtentScrollController(
+                  initialItem: selectedYears,
+                ),
+                onSelectedItemChanged: (index) {
+                  selectedYears = index;
+                },
+                children: List.generate(
+                  16,
+                  (index) => Center(
+                    child: Text(
+                      '$index ${_yearWord(index)}',
+                      style: TextStyle(fontSize: 20, color: widget.theme.label),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSeatOwnershipDialog() {
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false, // Пользователь должен обязательно выбрать
+      builder: (BuildContext context) {
+        return CupertinoAlertDialog(
+          title: const Text('Чьё автокресло?'),
+          content: const Text('Выберите, чьё кресло будет использоваться'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () {
+                setState(() {
+                  _useOwnSeat = false;
+                });
+                Navigator.pop(context);
+              },
+              child: Column(
+                children: [
+                  const Text(
+                    'Кресло водителя',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'Бесплатно',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoDialogAction(
+              onPressed: () {
+                setState(() {
+                  _useOwnSeat = true;
+                });
+                Navigator.pop(context);
+              },
+              child: Column(
+                children: [
+                  const Text(
+                    'Своё кресло',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'Бесплатно',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _yearWord(int years) {
+    if (years == 0) return 'лет';
+    if (years == 1) return 'год';
+    if (years >= 2 && years <= 4) return 'года';
+    return 'лет';
+  }
+
+  String _formatAge(int ageMonths) {
+    final years = ageMonths ~/ 12;
+    return '$years ${_yearWord(years)}';
   }
 }
