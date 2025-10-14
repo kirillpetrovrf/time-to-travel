@@ -279,6 +279,15 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   /// ⚠️ ВНИМАНИЕ: Используется ТОЛЬКО для отображения, НЕ для расчета общей цены!
   /// Реальная цена высчитывается методом _calculateTotalBaggageCost()
   double _calculateBaggageCostForItem(BaggageItem item) {
+    // ПРОВЕРКА: Индивидуальный трансфер - весь багаж бесплатный
+    if (_currentBooking.tripType == TripType.individual) {
+      print(
+        '💵 [DETAIL] 🎁 ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - ${item.size.name.toUpperCase()} багаж БЕСПЛАТНЫЙ',
+      );
+      return 0.0;
+    }
+
+    // ГРУППОВАЯ ПОЕЗДКА - квотная система
     // Получаем все багажи
     final allBaggage = _currentBooking.baggage;
     final passengerCount = _currentBooking.passengerCount;
@@ -395,6 +404,14 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   /// Расчет общей стоимости всего багажа с учетом пассажиров
   double _calculateTotalBaggageCost() {
     print('💵 [DETAIL] ========== РАСЧЕТ ОБЩЕЙ СТОИМОСТИ БАГАЖА ==========');
+
+    // ПРОВЕРКА: Индивидуальный трансфер - весь багаж бесплатный
+    if (_currentBooking.tripType == TripType.individual) {
+      print('💵 [DETAIL] 🎁 ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - весь багаж БЕСПЛАТНЫЙ');
+      return 0.0;
+    }
+
+    // ГРУППОВАЯ ПОЕЗДКА - квотная система
     print(
       '💵 [DETAIL] Количество пассажиров: ${_currentBooking.passengerCount}',
     );
@@ -452,7 +469,41 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               'Нет багажа',
               style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
             )
-          else
+          else ...[
+            // Информационное сообщение для индивидуального трансфера
+            if (_currentBooking.tripType == TripType.individual) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: CupertinoColors.systemGreen.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.gift,
+                      color: CupertinoColors.systemGreen,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Весь багаж БЕСПЛАТНО (аренда всей машины)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: theme.label,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             ..._currentBooking.baggage.map((item) {
               // Используем новую формулу с учетом пассажиров
               final bagCost = _calculateBaggageCostForItem(item);
@@ -468,19 +519,20 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                       style: TextStyle(fontSize: 16, color: theme.label),
                     ),
                     Text(
-                      bagCost > 0 ? '+${bagCost.toInt()} ₽' : 'Бесплатно',
+                      bagCost > 0 ? '+${bagCost.toInt()} ₽' : 'БЕСПЛАТНО',
                       style: TextStyle(
                         fontSize: 16,
                         color: bagCost > 0
-                            ? theme.primary
+                            ? theme.systemRed
                             : CupertinoColors.systemGreen,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               );
             }).toList(),
+          ],
         ],
       ),
     );

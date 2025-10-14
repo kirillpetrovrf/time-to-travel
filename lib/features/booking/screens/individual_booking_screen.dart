@@ -5,9 +5,12 @@ import '../../../models/trip_type.dart';
 import '../../../models/booking.dart';
 import '../../../models/baggage.dart';
 import '../../../models/pet_info_v3.dart';
+import '../../../models/passenger_info.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
+import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
+import '../../../theme/app_theme.dart';
 import '../../home/screens/home_screen.dart';
 import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
@@ -27,13 +30,24 @@ class IndividualBookingScreen extends StatefulWidget {
 
 class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   Direction _selectedDirection = Direction.donetskToRostov;
-  DateTime _selectedDate = DateTime.now();
-  TimeOfDay _selectedTime = TimeOfDay.now();
-  int _passengerCount = 1;
+  DateTime? _selectedDate; // nullable - пользователь должен выбрать
+  String _selectedTime = ''; // String вместо TimeOfDay для SQLite
+  List<PassengerInfo> _passengers = []; // Изменено с int на List<PassengerInfo>
   bool _isLoading = false;
 
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _dropoffController = TextEditingController();
+
+  // Для прокрутки и фокусировки на полях адресов
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _pickupFocusNode = FocusNode();
+  final FocusNode _dropoffFocusNode = FocusNode();
+  final GlobalKey _addressSectionKey = GlobalKey();
+
+  // Выбор городов (новая логика как в групповой поездке)
+  RouteStop? _selectedFromStop;
+  RouteStop? _selectedToStop;
+  List<RouteStop> _availableStops = [];
 
   // Багаж и животные
   List<BaggageItem> _selectedBaggage = [];
@@ -43,10 +57,50 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   // НОВОЕ (ТЗ v3.0): Выбор транспорта для индивидуальных поездок
   VehicleClass? _selectedVehicleClass;
 
+  // Переключатель для детей
+  bool _hasChildren = false; // Включен ли переключатель "Добавить ребёнка"
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRouteStops();
+    // Добавляем одного взрослого по умолчанию
+    _passengers = [PassengerInfo(type: PassengerType.adult)];
+  }
+
+  Future<void> _loadRouteStops() async {
+    final routeService = RouteService.instance;
+    final stops = routeService.getRouteStops('donetsk_to_rostov');
+
+    setState(() {
+      _availableStops = stops;
+
+      // Устанавливаем начальные значения из переданных параметров или по умолчанию
+      if (widget.fromStop != null && widget.toStop != null) {
+        _selectedFromStop = widget.fromStop;
+        _selectedToStop = widget.toStop;
+      } else {
+        // По умолчанию: Донецк → Ростов
+        _selectedFromStop = stops.firstWhere((stop) => stop.id == 'donetsk');
+        _selectedToStop = stops.firstWhere((stop) => stop.id == 'rostov');
+      }
+
+      // Обновляем направление
+      if (_selectedFromStop?.id == 'donetsk') {
+        _selectedDirection = Direction.donetskToRostov;
+      } else if (_selectedFromStop?.id == 'rostov') {
+        _selectedDirection = Direction.rostovToDonetsk;
+      }
+    });
+  }
+
   @override
   void dispose() {
     _pickupController.dispose();
     _dropoffController.dispose();
+    _scrollController.dispose();
+    _pickupFocusNode.dispose();
+    _dropoffFocusNode.dispose();
     super.dispose();
   }
 
@@ -69,6 +123,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           children: [
             Expanded(
               child: SingleChildScrollView(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -80,14 +135,28 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     const SizedBox(height: 24),
 
                     // Адреса
-                    _buildSectionTitle('Адреса', theme),
-                    _buildAddressFields(theme),
+                    Container(
+                      key: _addressSectionKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildSectionTitle('Адреса', theme),
+                          _buildAddressFields(theme),
+                        ],
+                      ),
+                    ),
 
                     const SizedBox(height: 24),
 
-                    // Дата и время
-                    _buildSectionTitle('Дата и время', theme),
-                    _buildDateTimePicker(theme),
+                    // Дата поездки
+                    _buildSectionTitle('Дата поездки', theme),
+                    _buildDatePicker(theme),
+
+                    const SizedBox(height: 24),
+
+                    // Время отправления
+                    _buildSectionTitle('Время отправления', theme),
+                    _buildTimePicker(theme),
 
                     const SizedBox(height: 24),
 
@@ -168,6 +237,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   Widget _buildDirectionPicker(theme) {
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.secondarySystemBackground,
         borderRadius: BorderRadius.circular(12),
@@ -175,53 +245,282 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       ),
       child: Column(
         children: [
-          _buildRadioTile(
+          // Откуда
+          _buildStopSelector(
             theme: theme,
-            title: 'Донецк → Ростов-на-Дону',
-            value: Direction.donetskToRostov,
-            groupValue: _selectedDirection,
-            onChanged: (value) => setState(() => _selectedDirection = value!),
+            label: 'Откуда',
+            icon: CupertinoIcons.location,
+            selectedStop: _selectedFromStop,
+            onTap: () => _showFromStopPicker(theme),
           ),
-          Divider(height: 1, color: theme.separator.withOpacity(0.2)),
-          _buildRadioTile(
+
+          const SizedBox(height: 12),
+
+          // Кнопка переключения направления
+          Center(
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _swapStops,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  CupertinoIcons.arrow_up_arrow_down,
+                  color: theme.primary,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Куда
+          _buildStopSelector(
             theme: theme,
-            title: 'Ростов-на-Дону → Донецк',
-            value: Direction.rostovToDonetsk,
-            groupValue: _selectedDirection,
-            onChanged: (value) => setState(() => _selectedDirection = value!),
+            label: 'Куда',
+            icon: CupertinoIcons.location_solid,
+            selectedStop: _selectedToStop,
+            onTap: () => _showToStopPicker(theme),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRadioTile<T>({
+  Widget _buildStopSelector({
     required theme,
-    required String title,
-    required T value,
-    required T groupValue,
-    required ValueChanged<T?> onChanged,
+    required String label,
+    required IconData icon,
+    required RouteStop? selectedStop,
+    required VoidCallback onTap,
   }) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
-      onPressed: () => onChanged(value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      onPressed: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.systemBackground,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.separator.withOpacity(0.3)),
+        ),
         child: Row(
           children: [
-            Icon(
-              value == groupValue
-                  ? CupertinoIcons.check_mark_circled_solid
-                  : CupertinoIcons.circle,
-              color: value == groupValue
-                  ? theme.primary
-                  : theme.secondaryLabel.withOpacity(0.3),
-            ),
+            Icon(icon, color: theme.primary, size: 20),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                title,
-                style: TextStyle(color: theme.label, fontSize: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 12, color: theme.secondaryLabel),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    selectedStop?.name ?? 'Выберите город',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: theme.label,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              CupertinoIcons.chevron_down,
+              color: theme.secondaryLabel,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _swapStops() {
+    setState(() {
+      final temp = _selectedFromStop;
+      _selectedFromStop = _selectedToStop;
+      _selectedToStop = temp;
+
+      // Обновляем направление
+      if (_selectedFromStop?.id == 'donetsk') {
+        _selectedDirection = Direction.donetskToRostov;
+      } else if (_selectedFromStop?.id == 'rostov') {
+        _selectedDirection = Direction.rostovToDonetsk;
+      }
+
+      // Сбрасываем адреса при смене направления
+      _pickupController.clear();
+      _dropoffController.clear();
+    });
+  }
+
+  void _showFromStopPicker(theme) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 300,
+        color: theme.systemBackground,
+        child: Column(
+          children: [
+            Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      'Отмена',
+                      style: TextStyle(color: theme.primary),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Откуда',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      'Готово',
+                      style: TextStyle(color: theme.primary),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                backgroundColor: theme.systemBackground,
+                itemExtent: 44,
+                onSelectedItemChanged: (index) {
+                  setState(() {
+                    _selectedFromStop = _availableStops[index];
+
+                    // Обновляем направление
+                    if (_selectedFromStop?.id == 'donetsk') {
+                      _selectedDirection = Direction.donetskToRostov;
+                    } else if (_selectedFromStop?.id == 'rostov') {
+                      _selectedDirection = Direction.rostovToDonetsk;
+                    }
+
+                    // Сбрасываем адреса
+                    _pickupController.clear();
+                    _dropoffController.clear();
+                  });
+                },
+                scrollController: FixedExtentScrollController(
+                  initialItem: _selectedFromStop != null
+                      ? _availableStops.indexOf(_selectedFromStop!)
+                      : 0,
+                ),
+                children: _availableStops
+                    .map(
+                      (stop) => Center(
+                        child: Text(
+                          stop.name,
+                          style: TextStyle(fontSize: 18, color: theme.label),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showToStopPicker(theme) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 300,
+        color: theme.systemBackground,
+        child: Column(
+          children: [
+            Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      'Отмена',
+                      style: TextStyle(color: theme.primary),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Куда',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      'Готово',
+                      style: TextStyle(color: theme.primary),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                backgroundColor: theme.systemBackground,
+                itemExtent: 44,
+                onSelectedItemChanged: (index) {
+                  setState(() {
+                    _selectedToStop = _availableStops[index];
+
+                    // Сбрасываем адреса при смене направления
+                    _pickupController.clear();
+                    _dropoffController.clear();
+                  });
+                },
+                scrollController: FixedExtentScrollController(
+                  initialItem: _selectedToStop != null
+                      ? _availableStops.indexOf(_selectedToStop!)
+                      : 1,
+                ),
+                children: _availableStops
+                    .map(
+                      (stop) => Center(
+                        child: Text(
+                          stop.name,
+                          style: TextStyle(fontSize: 18, color: theme.label),
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
           ],
@@ -242,9 +541,10 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           ),
           child: CupertinoTextField(
             controller: _pickupController,
-            placeholder: _selectedDirection == Direction.donetskToRostov
-                ? 'Адрес в Донецке'
-                : 'Адрес в Ростове-на-Дону',
+            focusNode: _pickupFocusNode,
+            placeholder: _selectedFromStop != null
+                ? 'Адрес в ${_selectedFromStop!.name}'
+                : 'Адрес отправления',
             padding: const EdgeInsets.all(16),
             decoration: null,
             style: TextStyle(color: theme.label),
@@ -273,6 +573,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           ),
           child: CupertinoTextField(
             controller: _dropoffController,
+            focusNode: _dropoffFocusNode,
             placeholder: _selectedDirection == Direction.donetskToRostov
                 ? 'Адрес в Ростове-на-Дону'
                 : 'Адрес в Донецке',
@@ -296,69 +597,80 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     );
   }
 
-  Widget _buildDateTimePicker(theme) {
-    return Column(
-      children: [
-        // Дата
-        Container(
-          decoration: BoxDecoration(
-            color: theme.secondarySystemBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.separator.withOpacity(0.2)),
-          ),
-          child: CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            onPressed: () => _showDatePicker(),
-            child: Row(
-              children: [
-                Icon(CupertinoIcons.calendar, color: theme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _formatDate(_selectedDate),
-                    style: TextStyle(color: theme.label, fontSize: 16),
-                  ),
+  Widget _buildDatePicker(theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedDate != null
+              ? theme.separator.withOpacity(0.2)
+              : theme.systemRed,
+        ),
+      ),
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        onPressed: () => _showDatePicker(),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.calendar, color: theme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedDate == null
+                    ? 'Выберите дату поездки'
+                    : _formatDate(_selectedDate!),
+                style: TextStyle(
+                  color: _selectedDate == null
+                      ? theme.tertiaryLabel
+                      : theme.label,
+                  fontSize: 16,
                 ),
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  color: theme.secondaryLabel.withOpacity(0.3),
-                ),
-              ],
+              ),
             ),
+            Icon(CupertinoIcons.chevron_right, color: theme.secondaryLabel),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimePicker(theme) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () => _showTimePickerModal(theme),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.secondarySystemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _selectedTime.isNotEmpty
+                ? theme.separator.withOpacity(0.2)
+                : theme.systemRed,
           ),
         ),
-
-        const SizedBox(height: 12),
-
-        // Время
-        Container(
-          decoration: BoxDecoration(
-            color: theme.secondarySystemBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.separator.withOpacity(0.2)),
-          ),
-          child: CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            onPressed: () => _showTimePicker(),
-            child: Row(
-              children: [
-                Icon(CupertinoIcons.clock, color: theme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _formatTime(_selectedTime),
-                    style: TextStyle(color: theme.label, fontSize: 16),
-                  ),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.clock, color: theme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedTime.isEmpty
+                    ? 'Выберите время отправления'
+                    : _selectedTime,
+                style: TextStyle(
+                  color: _selectedTime.isEmpty
+                      ? theme.tertiaryLabel
+                      : theme.label,
+                  fontSize: 16,
                 ),
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  color: theme.secondaryLabel.withOpacity(0.3),
-                ),
-              ],
+              ),
             ),
-          ),
+            Icon(CupertinoIcons.chevron_right, color: theme.secondaryLabel),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -369,85 +681,149 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(CupertinoIcons.person_2, color: theme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Пассажиров: $_passengerCount',
-                style: TextStyle(color: theme.label, fontSize: 16),
-              ),
-            ),
+      child: Column(
+        children: [
+          // Список пассажиров
+          ..._passengers.asMap().entries.map((entry) {
+            final index = entry.key;
+            final passenger = entry.value;
+            return Column(
+              children: [
+                if (index > 0)
+                  Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        passenger.type == PassengerType.adult
+                            ? CupertinoIcons.person
+                            : CupertinoIcons.smiley,
+                        color: theme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              passenger.displayName,
+                              style: TextStyle(
+                                color: theme.label,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (passenger.seatInfo.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                passenger.seatInfo,
+                                style: TextStyle(
+                                  color: theme.secondaryLabel,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => _removePassenger(index),
+                        child: Icon(
+                          CupertinoIcons.trash,
+                          color: theme.systemRed,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+
+          // Кнопка добавить пассажира
+          if (_passengers.length < 8) ...[
+            if (_passengers.isNotEmpty)
+              Divider(height: 1, color: theme.separator.withOpacity(0.2)),
             CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _passengerCount > 1
-                  ? () {
-                      setState(() {
-                        _passengerCount--;
-                        print(
-                          '👥 [INDIVIDUAL] ➖ Количество пассажиров уменьшено: $_passengerCount',
-                        );
-                        print(
-                          '👥 [INDIVIDUAL] 🔄 Будет пересчитан багаж: ${_passengerCount * 2} бесплатных S',
-                        );
-                      });
-                    }
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _passengerCount > 1
-                      ? theme.primary
-                      : theme.secondaryLabel.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  CupertinoIcons.minus,
-                  color: _passengerCount > 1
-                      ? CupertinoColors.white
-                      : theme.secondaryLabel.withOpacity(0.3),
-                  size: 16,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _passengerCount < 8
-                  ? () {
-                      setState(() {
-                        _passengerCount++;
-                        print(
-                          '👥 [INDIVIDUAL] ➕ Количество пассажиров увеличено: $_passengerCount',
-                        );
-                        print(
-                          '👥 [INDIVIDUAL] 🔄 Будет пересчитан багаж: ${_passengerCount * 2} бесплатных S',
-                        );
-                      });
-                    }
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _passengerCount < 8
-                      ? theme.primary
-                      : theme.secondaryLabel.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  CupertinoIcons.plus,
-                  color: _passengerCount < 8
-                      ? CupertinoColors.white
-                      : theme.secondaryLabel.withOpacity(0.3),
-                  size: 16,
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              onPressed: _addPassenger,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.add_circled, color: theme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Добавить пассажира',
+                    style: TextStyle(color: theme.primary, fontSize: 16),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
+
+          // Разделитель перед переключателем ребёнка
+          if (_passengers.length < 8)
+            Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+
+          // Переключатель "Добавить ребёнка"
+          if (_passengers.length < 8)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.smiley, color: theme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Добавить ребёнка',
+                      style: TextStyle(
+                        color: theme.label,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  CupertinoSwitch(
+                    value: _hasChildren,
+                    onChanged: (value) {
+                      if (value) {
+                        // Включаем - открываем модальное окно для добавления ребёнка
+                        _showAddChildModal(theme);
+                      } else {
+                        // Выключаем - показываем диалог подтверждения
+                        _showRemoveAllChildrenDialog();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+          // Кнопка "+ Добавить ребёнка" (показывается только когда переключатель включен)
+          if (_hasChildren && _passengers.length < 8) ...[
+            Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              onPressed: () => _showAddChildModal(theme),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.add_circled, color: theme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Добавить ребёнка',
+                    style: TextStyle(color: theme.primary, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -500,12 +876,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   Widget _buildPricingSummary(theme) {
     final totalPrice = _calculatePrice();
-    final baseTimeString =
-        '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
-    final basePrice = TripPricing.getIndividualTripPrice(
-      baseTimeString,
-      _selectedDirection,
-    );
+
+    // Если время не выбрано, показываем базовую цену
+    final basePrice = _selectedTime.isEmpty
+        ? 8000
+        : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
+
     final nightSurcharge =
         _isNightTime() && _selectedDirection == Direction.donetskToRostov
         ? 2000
@@ -657,7 +1033,14 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   bool _isNightTime() {
-    return _selectedTime.hour >= 22;
+    // _selectedTime теперь String формата '22:00'
+    if (_selectedTime.isEmpty) return false;
+
+    final parts = _selectedTime.split(':');
+    if (parts.length != 2) return false;
+
+    final hour = int.tryParse(parts[0]) ?? 0;
+    return hour >= 22;
   }
 
   Widget _buildBaggageSection(theme) {
@@ -689,13 +1072,16 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     const SizedBox(height: 2),
                     Text(
                       _selectedBaggage.isNotEmpty
-                          ? '+${_calculateBaggagePrice().toInt()} ₽'
+                          ? 'Бесплатно'
                           : 'Размеры S, M, L, Custom',
                       style: TextStyle(
                         color: _selectedBaggage.isNotEmpty
-                            ? theme.primary
+                            ? theme.systemGreen
                             : theme.secondaryLabel,
                         fontSize: 14,
+                        fontWeight: _selectedBaggage.isNotEmpty
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -784,146 +1170,43 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   double _calculateBaggagePrice() {
     print('💵 [INDIVIDUAL] ========== РАСЧЕТ СТОИМОСТИ БАГАЖА ==========');
-    print('💵 [INDIVIDUAL] Количество пассажиров: $_passengerCount');
-    print(
-      '💵 [INDIVIDUAL] Бесплатных S багажей: ${_passengerCount * 2} ($_passengerCount × 2)',
-    );
-    // ФИНАЛЬНАЯ ЛОГИКА v8.0 (с учетом пассажиров):
-    // Если ТОЛЬКО S: первые (passengerCount × 2) бесплатно, остальные по 500₽
-    // Если есть M/L: ВСЕ S платно + один M/L бесплатно
+    print('💵 [INDIVIDUAL] 🎁 ВЕСЬ БАГАЖ БЕСПЛАТНЫЙ (аренда всей машины)');
+
+    // НОВАЯ ЛОГИКА v9.0 для ИНДИВИДУАЛЬНОГО ТРАНСФЕРА:
+    // Весь багаж БЕСПЛАТНЫЙ, т.к. клиент арендует всю машину целиком
 
     if (_selectedBaggage.isEmpty) {
       print('💵 [INDIVIDUAL] Багаж не выбран, стоимость: 0₽');
       return 0.0;
     }
 
-    // Подсчитываем количество каждого размера
+    // Подсчитываем количество багажа (для логирования)
     int sCount = 0, mCount = 0, lCount = 0, customCount = 0;
-    double sPrice = 500.0, mPrice = 1000.0, lPrice = 2000.0, customPrice = 0.0;
 
     for (var item in _selectedBaggage) {
       switch (item.size) {
         case BaggageSize.s:
           sCount = item.quantity;
-          sPrice = item.pricePerExtraItem;
           break;
         case BaggageSize.m:
           mCount = item.quantity;
-          mPrice = item.pricePerExtraItem;
           break;
         case BaggageSize.l:
           lCount = item.quantity;
-          lPrice = item.pricePerExtraItem;
           break;
         case BaggageSize.custom:
           customCount = item.quantity;
-          customPrice = item.pricePerExtraItem;
           break;
       }
     }
 
-    bool hasMorL = (mCount > 0 || lCount > 0 || customCount > 0);
-
     print(
-      '💵 [INDIVIDUAL] Состав: S=$sCount, M=$mCount, L=$lCount, Custom=$customCount',
+      '💵 [INDIVIDUAL] Выбранный багаж: S=$sCount, M=$mCount, L=$lCount, Custom=$customCount',
     );
-    print('💵 [INDIVIDUAL] Есть M/L/Custom: $hasMorL');
+    print('💵 [INDIVIDUAL] ✅ Весь багаж БЕСПЛАТНЫЙ (аренда машины)');
+    print('💵 [INDIVIDUAL] ========== ИТОГО: 0₽ ==========');
 
-    double total = 0.0;
-
-    // СЛУЧАЙ 1: Только S (особое правило с учетом пассажиров)
-    if (!hasMorL && sCount > 0) {
-      print('💵 [INDIVIDUAL] --- Только S багажи ---');
-      int freeSCount = _passengerCount * 2; // ← 2 на каждого пассажира
-      if (sCount <= freeSCount) {
-        print('💵 [INDIVIDUAL] ✅ Все бесплатно ($sCount из $freeSCount S)');
-        print('💵 [INDIVIDUAL] ========== ИТОГО: 0₽ ==========');
-        return 0.0;
-      }
-      int paidS = sCount - freeSCount;
-      total = paidS * sPrice;
-      print(
-        '💵 [INDIVIDUAL] ✅ $freeSCount бесплатно + $paidS платных = ${total.toStringAsFixed(0)}₽',
-      );
-      print(
-        '💵 [INDIVIDUAL] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
-      );
-      return total;
-    }
-
-    // СЛУЧАЙ 2: Есть разные размеры
-    // ФИНАЛЬНАЯ ПРАВИЛЬНАЯ ЛОГИКА v7.0:
-    // - ВСЕ S платно (без скидки)
-    // - ОДИН M бесплатно
-    // - При наличии и M и L: L со скидкой 50%
-    // - Если только L (без M): первый L бесплатно
-
-    print('💵 [INDIVIDUAL] --- Смешанный багаж (S + M/L/Custom) ---');
-    // total уже объявлен выше
-
-    // Платные S (все S платные при смешанном багаже)
-
-    // Платные S (все S платные при смешанном багаже)
-    if (sCount > 0) {
-      double cost = sCount * sPrice;
-      total += cost;
-      print(
-        '💵 [INDIVIDUAL] Платные S: $sCount × ${sPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
-      );
-    }
-
-    // Платные M (первый бесплатно)
-    if (mCount > 0) {
-      int freeMCount = 1;
-      int paidM = mCount - freeMCount;
-      if (paidM > 0) {
-        double cost = paidM * mPrice;
-        total += cost;
-        print(
-          '💵 [INDIVIDUAL] Платные M: $paidM × ${mPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
-        );
-      }
-      print('💵 [INDIVIDUAL] Бесплатный M: $freeMCount шт');
-    }
-
-    // Платные L с особой логикой
-    if (lCount > 0) {
-      if (mCount > 0) {
-        // Есть M - L со скидкой 50%
-        double discountedLPrice = lPrice / 2;
-        double cost = lCount * discountedLPrice;
-        total += cost;
-        print(
-          '💵 [INDIVIDUAL] Платные L (со скидкой 50%): $lCount × ${discountedLPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
-        );
-      } else {
-        // Нет M - первый L бесплатно
-        int freeLCount = 1;
-        int paidL = lCount - freeLCount;
-        if (paidL > 0) {
-          double cost = paidL * lPrice;
-          total += cost;
-          print(
-            '💵 [INDIVIDUAL] Платные L: $paidL × ${lPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
-          );
-        }
-        print('💵 [INDIVIDUAL] Бесплатный L: $freeLCount шт');
-      }
-    }
-
-    // Custom всегда платно
-    if (customCount > 0) {
-      double cost = customCount * customPrice;
-      total += cost;
-      print(
-        '💵 [INDIVIDUAL] Custom: $customCount × ${customPrice.toStringAsFixed(0)}₽ = ${cost.toStringAsFixed(0)}₽',
-      );
-    }
-
-    print(
-      '💵 [INDIVIDUAL] ========== ИТОГО: ${total.toStringAsFixed(0)}₽ ==========',
-    );
-    return total;
+    return 0.0;
   }
 
   double _calculatePetPrice() {
@@ -932,13 +1215,17 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   Future<void> _openBaggageSelection() async {
     print('🔍 [INDIVIDUAL] _openBaggageSelection() вызван');
-    print('🔍 [INDIVIDUAL] Текущее количество пассажиров: $_passengerCount');
+    print(
+      '🔍 [INDIVIDUAL] Текущее количество пассажиров: ${_passengers.length}',
+    );
     await Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => BaggageSelectionScreen(
           initialBaggage: _selectedBaggage,
-          passengerCount: _passengerCount, // ← Передаем количество пассажиров
+          passengerCount: _passengers.length,
+          isIndividualTrip:
+              true, // ← ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - весь багаж бесплатный
           onBaggageSelected: (List<BaggageItem> baggage) {
             print('🔍 [INDIVIDUAL] onBaggageSelected вызван');
             print('🔍 [INDIVIDUAL] Получен багаж: ${baggage.length} предметов');
@@ -971,10 +1258,14 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   int _calculatePrice() {
-    final timeString =
-        '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
+    // Если время не выбрано, возвращаем базовую цену
+    if (_selectedTime.isEmpty) {
+      return 8000; // Базовая цена индивидуального трансфера
+    }
+
+    // _selectedTime уже строка формата '15:00'
     final basePrice = TripPricing.getIndividualTripPrice(
-      timeString,
+      _selectedTime,
       _selectedDirection,
     );
     final baggagePrice = _calculateBaggagePrice();
@@ -982,97 +1273,6 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
 
     return (basePrice + baggagePrice + petPrice - vkDiscount).toInt();
-  }
-
-  void _showDatePicker() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => Container(
-        height: 300,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: Column(
-          children: [
-            Container(
-              height: 44,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    child: const Text('Отмена'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  CupertinoButton(
-                    child: const Text('Готово'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.date,
-                initialDateTime: _selectedDate,
-                minimumDate: DateTime.now(),
-                maximumDate: DateTime.now().add(const Duration(days: 30)),
-                onDateTimeChanged: (date) =>
-                    setState(() => _selectedDate = date),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showTimePicker() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => Container(
-        height: 300,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: Column(
-          children: [
-            Container(
-              height: 44,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    child: const Text('Отмена'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  CupertinoButton(
-                    child: const Text('Готово'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.time,
-                initialDateTime: DateTime(
-                  2024,
-                  1,
-                  1,
-                  _selectedTime.hour,
-                  _selectedTime.minute,
-                ),
-                use24hFormat: true,
-                onDateTimeChanged: (dateTime) {
-                  setState(() {
-                    _selectedTime = TimeOfDay(
-                      hour: dateTime.hour,
-                      minute: dateTime.minute,
-                    );
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   String _formatDate(DateTime date) {
@@ -1093,22 +1293,239 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _formatTime(TimeOfDay time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  /// Прокручивает экран к секции адресов и фокусируется на первом пустом поле
+  void _scrollToAddressFields() {
+    // Получаем контекст секции адресов
+    final RenderBox? renderBox =
+        _addressSectionKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox != null) {
+      // Вычисляем позицию секции адресов
+      final position = renderBox.localToGlobal(Offset.zero).dy;
+      final scrollPosition =
+          _scrollController.offset + position - 100; // -100 для отступа сверху
+
+      // Плавно прокручиваем к секции адресов
+      _scrollController.animateTo(
+        scrollPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+
+    // Фокусируемся на первом пустом поле через небольшую задержку
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (_pickupController.text.trim().isEmpty) {
+        _pickupFocusNode.requestFocus();
+      } else if (_dropoffController.text.trim().isEmpty) {
+        _dropoffFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _showDatePicker() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Временная переменная для хранения выбранной даты
+    DateTime tempSelectedDate = _selectedDate ?? today;
+
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 350,
+        decoration: BoxDecoration(
+          color: theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Заголовок
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Дата поездки',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      setState(() {
+                        _selectedDate = tempSelectedDate;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Выбрать',
+                      style: TextStyle(
+                        color: theme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.date,
+                initialDateTime: tempSelectedDate,
+                minimumDate: today,
+                maximumDate: today.add(const Duration(days: 30)),
+                onDateTimeChanged: (date) {
+                  tempSelectedDate = date;
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTimePickerModal(theme) {
+    // Парсим текущее время или используем текущее системное время
+    DateTime initialTime = DateTime.now();
+    if (_selectedTime.isNotEmpty) {
+      try {
+        final timeParts = _selectedTime.split(':');
+        initialTime = DateTime(
+          initialTime.year,
+          initialTime.month,
+          initialTime.day,
+          int.parse(timeParts[0]),
+          int.parse(timeParts[1]),
+        );
+      } catch (e) {
+        // Если не удалось распарсить, используем текущее время
+        print('⚠️ Не удалось распарсить время: $_selectedTime');
+      }
+    }
+
+    // Временная переменная для хранения выбранного времени
+    DateTime tempSelectedTime = initialTime;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 260,
+        decoration: BoxDecoration(
+          color: theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Заголовок
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.separator)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Время отправления',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      // Форматируем время в строку HH:mm
+                      final formattedTime =
+                          '${tempSelectedTime.hour.toString().padLeft(2, '0')}:'
+                          '${tempSelectedTime.minute.toString().padLeft(2, '0')}';
+
+                      setState(() {
+                        _selectedTime = formattedTime;
+                      });
+
+                      print('⏰ Выбрано время: $formattedTime');
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Готово',
+                      style: TextStyle(
+                        color: theme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Time Picker
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.time,
+                use24hFormat: true,
+                initialDateTime: initialTime,
+                onDateTimeChanged: (DateTime newTime) {
+                  tempSelectedTime = newTime;
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _bookTrip() async {
+    // Валидация выбора городов
+    if (_selectedFromStop == null || _selectedToStop == null) {
+      _showError('Пожалуйста, выберите города отправления и назначения');
+      return;
+    }
+
+    // Валидация даты
+    if (_selectedDate == null) {
+      _showError(
+        'Пожалуйста, выберите дату поездки',
+        onOkPressed: () => _showDatePicker(),
+      );
+      return;
+    }
+
+    // Валидация времени
+    if (_selectedTime.isEmpty) {
+      final theme = context.themeManager.currentTheme;
+      _showError(
+        'Пожалуйста, выберите время отправления',
+        onOkPressed: () => _showTimePickerModal(theme),
+      );
+      return;
+    }
+
+    // Валидация адресов
     if (_pickupController.text.trim().isEmpty ||
         _dropoffController.text.trim().isEmpty) {
       _showError(
         'Пожалуйста, укажите адреса отправления и назначения',
-        onOkPressed: () {
-          // Прокручиваем к началу страницы где находятся поля адресов
-          // и фокусируемся на первом пустом поле
-          if (_pickupController.text.trim().isEmpty) {
-            // Можно добавить логику фокусировки, если нужно
-          }
-        },
+        onOkPressed: () => _scrollToAddressFields(),
       );
       return;
     }
@@ -1122,23 +1539,37 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         return;
       }
 
+      print('📅 [INDIVIDUAL] Создание бронирования:');
+      print('📅 [INDIVIDUAL]   Дата: ${_selectedDate!.toIso8601String()}');
+      print('📅 [INDIVIDUAL]   Время: $_selectedTime');
+      print('📅 [INDIVIDUAL]   От: ${_selectedFromStop!.name}');
+      print('📅 [INDIVIDUAL]   До: ${_selectedToStop!.name}');
+
       final booking = Booking(
         id: '', // Будет установлен при создании
         clientId: user.id,
         tripType: TripType.individual,
         direction: _selectedDirection,
-        departureDate: _selectedDate,
-        departureTime: _formatTime(_selectedTime),
-        passengerCount: _passengerCount,
+        departureDate: _selectedDate!, // DateTime для SQLite
+        departureTime: _selectedTime, // String для SQLite
+        passengerCount: _passengers.length,
         pickupAddress: _pickupController.text.trim(),
         dropoffAddress: _dropoffController.text.trim(),
+        fromStop: _selectedFromStop, // Добавляем остановку отправления
+        toStop: _selectedToStop, // Добавляем остановку назначения
         totalPrice: _calculatePrice(),
         status: BookingStatus.pending,
         createdAt: DateTime.now(),
         trackingPoints: const [],
+        baggage: _selectedBaggage,
+        pets: _selectedPets,
+        passengers: _passengers, // ← Добавляем пассажиров
       );
 
       final bookingId = await BookingService().createBooking(booking);
+
+      print('✅ [INDIVIDUAL] Бронирование создано с ID: $bookingId');
+      print('✅ [INDIVIDUAL] Данные сохранены в SQLite + Firebase');
 
       // Получаем созданное бронирование с ID
       final createdBooking = await BookingService().getBookingById(bookingId);
@@ -1149,6 +1580,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         _showError('Не удалось получить данные созданного бронирования');
       }
     } catch (e) {
+      print('❌ [INDIVIDUAL] Ошибка при создании бронирования: $e');
       _showError('Ошибка при создании бронирования: $e');
     } finally {
       setState(() => _isLoading = false);
@@ -1320,5 +1752,709 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         ),
       ),
     );
+  }
+
+  // ========== МЕТОДЫ ДЛЯ РАБОТЫ С ПАССАЖИРАМИ ==========
+
+  void _addPassenger() {
+    print('👥 [INDIVIDUAL] Добавление нового пассажира...');
+    print('👥 [INDIVIDUAL] Текущее количество: ${_passengers.length}');
+
+    setState(() {
+      // Добавляем взрослого пассажира напрямую
+      _passengers.add(PassengerInfo(type: PassengerType.adult));
+      print(
+        '👥 [INDIVIDUAL] ✅ Пассажир добавлен! Новое количество: ${_passengers.length}',
+      );
+      print(
+        '👥 [INDIVIDUAL] 🔄 Будет пересчитан багаж: ${_passengers.length * 2} бесплатных S',
+      );
+    });
+  }
+
+  void _removePassenger(int index) {
+    if (_passengers.length <= 1) {
+      _showError('Должен быть хотя бы один пассажир');
+      return;
+    }
+
+    setState(() {
+      final removedPassenger = _passengers[index];
+      _passengers.removeAt(index);
+      print(
+        '👥 [INDIVIDUAL] ✅ Пассажир удалён! Осталось: ${_passengers.length}',
+      );
+
+      // Если удалили последнего ребёнка, выключаем переключатель
+      if (removedPassenger.isChild && !_passengers.any((p) => p.isChild)) {
+        _hasChildren = false;
+      }
+    });
+  }
+
+  // Показать модальное окно для добавления ребёнка
+  Future<void> _showAddChildModal(theme) async {
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => _ChildConfigurationModal(
+        theme: theme,
+        onSave: (int ageMonths, ChildSeatType seatType, bool useOwnSeat) {
+          print('👶 [INDIVIDUAL] Добавление ребёнка...');
+          print('👶 [INDIVIDUAL] Возраст: $ageMonths месяцев');
+          print('👶 [INDIVIDUAL] Тип кресла: $seatType');
+          print('👶 [INDIVIDUAL] Своё кресло: $useOwnSeat');
+
+          setState(() {
+            _passengers.add(
+              PassengerInfo(
+                type: PassengerType.child,
+                seatType: seatType,
+                useOwnSeat: useOwnSeat,
+                ageMonths: ageMonths,
+              ),
+            );
+            _hasChildren = true; // Включаем переключатель
+            print(
+              '👶 [INDIVIDUAL] ✅ Ребёнок добавлен! Всего пассажиров: ${_passengers.length}',
+            );
+          });
+        },
+      ),
+    );
+  }
+
+  // Диалог подтверждения удаления всех детей
+  void _showRemoveAllChildrenDialog() {
+    final childrenCount = _passengers
+        .where((p) => p.type == PassengerType.child)
+        .length;
+
+    if (childrenCount == 0) {
+      // Если детей нет, просто выключаем переключатель
+      setState(() {
+        _hasChildren = false;
+      });
+      return;
+    }
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Удалить всех детей?'),
+        content: Text(
+          'Вы уверены, что хотите удалить всех детей из списка пассажиров? ($childrenCount ${_getChildCountWord(childrenCount)})',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Отмена'),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Удалить'),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _passengers.removeWhere((p) => p.type == PassengerType.child);
+                _hasChildren = false;
+                print(
+                  '👶 [INDIVIDUAL] ✅ Все дети удалены! Осталось пассажиров: ${_passengers.length}',
+                );
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getChildCountWord(int count) {
+    if (count == 1) return 'ребёнок';
+    if (count >= 2 && count <= 4) return 'ребёнка';
+    return 'детей';
+  }
+
+  // ========== КОНЕЦ МЕТОДОВ ДЛЯ ПАССАЖИРОВ ==========
+}
+
+// ========== ВИДЖЕТ МОДАЛЬНОГО ОКНА ВЫБОРА ДЕТСКОГО КРЕСЛА ==========
+
+class _ChildConfigurationModal extends StatefulWidget {
+  final CustomTheme theme;
+  final Function(int ageMonths, ChildSeatType seatType, bool useOwnSeat) onSave;
+
+  const _ChildConfigurationModal({required this.theme, required this.onSave});
+
+  @override
+  State<_ChildConfigurationModal> createState() =>
+      _ChildConfigurationModalState();
+}
+
+class _ChildConfigurationModalState extends State<_ChildConfigurationModal> {
+  int? _ageMonths;
+  ChildSeatType? _selectedSeatType;
+  bool _useOwnSeat = false;
+
+  bool get _canSave => _ageMonths != null && _selectedSeatType != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Автоматически открываем picker выбора возраста после открытия модального окна
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showAgePicker();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        height: MediaQuery.of(context).size.height,
+        decoration: BoxDecoration(
+          color: widget.theme.systemBackground,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Заголовок (фиксированный)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: widget.theme.separator),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Отмена',
+                      style: TextStyle(color: widget.theme.primary),
+                    ),
+                  ),
+                  Text(
+                    'Добавить ребёнка',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: widget.theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _canSave
+                        ? () {
+                            widget.onSave(
+                              _ageMonths!,
+                              _selectedSeatType!,
+                              _useOwnSeat,
+                            );
+                            Navigator.pop(context);
+                          }
+                        : null,
+                    child: Text(
+                      'Готово',
+                      style: TextStyle(
+                        color: _canSave
+                            ? widget.theme.primary
+                            : widget.theme.tertiaryLabel,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Контент (прокручиваемый)
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Блок: Возраст ребёнка
+                    _buildAgeSection(),
+
+                    const SizedBox(height: 24),
+
+                    // Блок: Тип автокресла (показывается после выбора возраста)
+                    if (_ageMonths != null) _buildSeatTypeSection(),
+
+                    const SizedBox(height: 24),
+
+                    // Блок: Чьё кресло (показывается после выбора типа кресла)
+                    if (_selectedSeatType != null &&
+                        _selectedSeatType != ChildSeatType.none)
+                      _buildOwnSeatSection(),
+
+                    const SizedBox(height: 50),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Возраст ребёнка',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.label,
+          ),
+        ),
+        const SizedBox(height: 12),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _showAgePicker,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _ageMonths != null
+                    ? widget.theme.primary
+                    : widget.theme.separator.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(CupertinoIcons.calendar, color: widget.theme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _ageMonths == null
+                        ? 'Укажите возраст'
+                        : _formatAge(_ageMonths!),
+                    style: TextStyle(
+                      color: _ageMonths == null
+                          ? widget.theme.tertiaryLabel
+                          : widget.theme.label,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  color: widget.theme.secondaryLabel,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSeatTypeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Тип автокресла',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.label,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...ChildSeatType.values.map((seatType) {
+          final isSelected = seatType == _selectedSeatType;
+          final isRecommended =
+              seatType == ChildSeatTypeExtension.recommendByAge(_ageMonths!);
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedSeatType = seatType;
+                // Если выбрано "без кресла", сбрасываем useOwnSeat
+                if (seatType == ChildSeatType.none) {
+                  _useOwnSeat = false;
+                } else {
+                  // Если выбрано кресло - показываем диалог выбора чьё кресло
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    _showSeatOwnershipDialog();
+                  });
+                }
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: widget.theme.secondarySystemBackground,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? widget.theme.primary
+                      : widget.theme.separator.withOpacity(0.2),
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (isRecommended)
+                        const Icon(
+                          CupertinoIcons.star_fill,
+                          color: CupertinoColors.systemYellow,
+                          size: 16,
+                        ),
+                      if (isRecommended) const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          seatType.displayName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: widget.theme.label,
+                          ),
+                        ),
+                      ),
+                      if (isSelected)
+                        Icon(
+                          CupertinoIcons.checkmark_circle_fill,
+                          color: widget.theme.primary,
+                          size: 20,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    seatType.description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: widget.theme.secondaryLabel,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildOwnSeatSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Чьё автокресло',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.label,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Кресло водителя
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _useOwnSeat = false;
+            });
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: !_useOwnSeat
+                    ? widget.theme.primary
+                    : widget.theme.separator.withOpacity(0.2),
+                width: !_useOwnSeat ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Кресло водителя',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: !_useOwnSeat
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: widget.theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Бесплатно',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.systemGreen,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!_useOwnSeat)
+                  Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    color: widget.theme.primary,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // Своё кресло
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _useOwnSeat = true;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _useOwnSeat
+                    ? widget.theme.primary
+                    : widget.theme.separator.withOpacity(0.2),
+                width: _useOwnSeat ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Своё кресло',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: _useOwnSeat
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: widget.theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Бесплатно',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.systemGreen,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_useOwnSeat)
+                  Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    color: widget.theme.primary,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAgePicker() {
+    int selectedYears = (_ageMonths ?? 0) ~/ 12;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => Container(
+        height: 300,
+        color: widget.theme.systemBackground,
+        child: Column(
+          children: [
+            Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: widget.theme.separator),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      'Отмена',
+                      style: TextStyle(color: widget.theme.primary),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Возраст ребёнка',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: widget.theme.label,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      'Готово',
+                      style: TextStyle(color: widget.theme.primary),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _ageMonths = selectedYears * 12;
+                        // Автоматически рекомендуем тип кресла
+                        _selectedSeatType =
+                            ChildSeatTypeExtension.recommendByAge(_ageMonths!);
+                      });
+                      Navigator.pop(context);
+
+                      // Если автоматически выбрано кресло (не "Без кресла"), показываем диалог выбора
+                      if (_selectedSeatType != null &&
+                          _selectedSeatType != ChildSeatType.none) {
+                        Future.delayed(const Duration(milliseconds: 300), () {
+                          _showSeatOwnershipDialog();
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                backgroundColor: widget.theme.systemBackground,
+                itemExtent: 44,
+                scrollController: FixedExtentScrollController(
+                  initialItem: selectedYears,
+                ),
+                onSelectedItemChanged: (index) {
+                  selectedYears = index;
+                },
+                children: List.generate(
+                  16,
+                  (index) => Center(
+                    child: Text(
+                      '$index ${_yearWord(index)}',
+                      style: TextStyle(fontSize: 20, color: widget.theme.label),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSeatOwnershipDialog() {
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false, // Пользователь должен обязательно выбрать
+      builder: (BuildContext context) {
+        return CupertinoAlertDialog(
+          title: const Text('Чьё автокресло?'),
+          content: const Text('Выберите, чьё кресло будет использоваться'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () {
+                setState(() {
+                  _useOwnSeat = false;
+                });
+                Navigator.pop(context);
+              },
+              child: Column(
+                children: [
+                  const Text(
+                    'Кресло водителя',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'Бесплатно',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoDialogAction(
+              onPressed: () {
+                setState(() {
+                  _useOwnSeat = true;
+                });
+                Navigator.pop(context);
+              },
+              child: Column(
+                children: [
+                  const Text(
+                    'Своё кресло',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'Бесплатно',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _yearWord(int years) {
+    if (years == 0) return 'лет';
+    if (years == 1) return 'год';
+    if (years >= 2 && years <= 4) return 'года';
+    return 'лет';
+  }
+
+  String _formatAge(int ageMonths) {
+    final years = ageMonths ~/ 12;
+    return '$years ${_yearWord(years)}';
   }
 }

@@ -5,22 +5,21 @@ import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 
 /// Экран выбора багажа (ПОЛНОСТЬЮ ПЕРЕДЕЛАН под ТЗ v3.0)
-/// НОВЫЕ ПРАВИЛА v9.0: Бесплатные багажи на каждого пассажира:
-/// - S багаж: 2 бесплатно на каждого пассажира
-/// - M багаж: 1 бесплатно на каждого пассажира
-/// - L багаж: 1 бесплатно на каждого пассажира
-/// При смешивании S с M/L: ВСЕ S платные, M/L остаются бесплатными по формуле
+/// НОВЫЕ ПРАВИЛА v13.0:
+/// - ГРУППОВАЯ ПОЕЗДКА: квотная система (2×S или 1×M или 1×L на пассажира)
+/// - ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР: весь багаж БЕСПЛАТНЫЙ (аренда всей машины)
 class BaggageSelectionScreen extends StatefulWidget {
   final List<BaggageItem> initialBaggage;
   final Function(List<BaggageItem>) onBaggageSelected;
-  final int
-  passengerCount; // Количество пассажиров для расчета бесплатных багажей
+  final int passengerCount; // Количество пассажиров
+  final bool isIndividualTrip; // Тип поездки (индивидуальная или групповая)
 
   const BaggageSelectionScreen({
     super.key,
     this.initialBaggage = const [],
     required this.onBaggageSelected,
     required this.passengerCount,
+    this.isIndividualTrip = false, // По умолчанию - групповая поездка
   });
 
   @override
@@ -48,6 +47,9 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
 
   void _initializeQuantities() {
     print('🧳 [БАГАЖ] ============ ИНИЦИАЛИЗАЦИЯ БАГАЖА ============');
+    print(
+      '🧳 [БАГАЖ] ТИП ПОЕЗДКИ: ${widget.isIndividualTrip ? "ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР" : "ГРУППОВАЯ ПОЕЗДКА"}',
+    );
     print('🧳 [БАГАЖ] Количество пассажиров: ${widget.passengerCount}');
     print(
       '🧳 [БАГАЖ] Бесплатных S багажей: ${widget.passengerCount * 2} (${widget.passengerCount} × 2)',
@@ -149,6 +151,11 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
     final quantity = _quantities[size] ?? 0;
     if (quantity == 0) return 0;
 
+    // ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР: весь багаж бесплатный
+    if (widget.isIndividualTrip) {
+      return quantity; // Все багажи бесплатные
+    }
+
     final sCount = _quantities[BaggageSize.s] ?? 0;
     final mCount = _quantities[BaggageSize.m] ?? 0;
     final lCount = _quantities[BaggageSize.l] ?? 0;
@@ -179,7 +186,9 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
 
     // Шаг 3: Распределяем S - ЛЮБОЕ количество до лимита бесплатно
     if (remainingS > 0 && availablePassengers > 0) {
-      int maxFreeS = availablePassengers * 2; // Каждому оставшемуся пассажиру - 2 бесплатных S
+      int maxFreeS =
+          availablePassengers *
+          2; // Каждому оставшемуся пассажиру - 2 бесплатных S
       int freeS = remainingS <= maxFreeS ? remainingS : maxFreeS;
       remainingS -= freeS;
     }
@@ -199,7 +208,38 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
   }
 
   double _calculateTotalCost() {
-    print('💵 [БАГАЖ] ========== РАСЧЕТ СТОИМОСТИ v12.0 ==========');
+    // ЛОГИКА v13.0: Проверяем тип поездки
+    if (widget.isIndividualTrip) {
+      // ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР: весь багаж БЕСПЛАТНЫЙ
+      print(
+        '💵 [БАГАЖ] ========== РАСЧЕТ СТОИМОСТИ (ИНДИВИДУАЛЬНЫЙ) ==========',
+      );
+      print('💵 [БАГАЖ] 🎁 ВЕСЬ БАГАЖ БЕСПЛАТНЫЙ (аренда всей машины)');
+
+      int totalBaggageCount = _getTotalBaggageCount();
+      if (totalBaggageCount == 0) {
+        print('💵 [БАГАЖ] Багаж не выбран, стоимость: 0₽');
+        return 0.0;
+      }
+
+      final sCount = _quantities[BaggageSize.s] ?? 0;
+      final mCount = _quantities[BaggageSize.m] ?? 0;
+      final lCount = _quantities[BaggageSize.l] ?? 0;
+      final customCount = _quantities[BaggageSize.custom] ?? 0;
+
+      print(
+        '💵 [БАГАЖ] Выбранный багаж: S=$sCount, M=$mCount, L=$lCount, Custom=$customCount',
+      );
+      print('💵 [БАГАЖ] ✅ Весь багаж БЕСПЛАТНЫЙ (аренда всей машины)');
+      print('💵 [БАГАЖ] ========== ИТОГО: 0₽ ==========');
+
+      return 0.0;
+    }
+
+    // ГРУППОВАЯ ПОЕЗДКА: квотная система
+    print(
+      '💵 [БАГАЖ] ========== РАСЧЕТ СТОИМОСТИ v12.0 (ГРУППОВАЯ) ==========',
+    );
     print('💵 [БАГАЖ] Количество пассажиров: ${widget.passengerCount}');
 
     int totalBaggageCount = _getTotalBaggageCount();
@@ -265,10 +305,10 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
     if (remainingS > 0 && availablePassengers > 0) {
       int maxFreeS = availablePassengers * 2; // Лимит бесплатных S
       freeS = remainingS <= maxFreeS ? remainingS : maxFreeS;
-      
+
       // Считаем сколько пассажиров использовали бесплатные S
       int usedPassengers = (freeS / 2).ceil(); // Округляем вверх
-      
+
       remainingS -= freeS;
       print(
         '💵 [БАГАЖ] Бесплатных S: $freeS шт (лимит: $maxFreeS), использовано $usedPassengers пассажиров',
@@ -597,6 +637,16 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
                           fontSize: 14,
                         ),
                       )
+                    // ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - весь багаж БЕСПЛАТНЫЙ
+                    else if (widget.isIndividualTrip)
+                      Text(
+                        'БЕСПЛАТНО',
+                        style: TextStyle(
+                          color: CupertinoColors.activeGreen,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
                     // Для индивидуального (custom) багажа - особая логика
                     else if (size == BaggageSize.custom)
                       Column(
@@ -793,55 +843,88 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
       ),
       child: Column(
         children: [
-          // Бесплатный багаж
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Бесплатный багаж:',
-                style: TextStyle(color: theme.label, fontSize: 16),
+          // ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - специальное сообщение
+          if (widget.isIndividualTrip) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              Text(
-                hasFreeBaggage ? 'Включен' : 'Не выбран',
-                style: TextStyle(
-                  color: hasFreeBaggage
-                      ? CupertinoColors.activeGreen
-                      : theme.placeholderText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.gift,
+                    color: CupertinoColors.systemGreen,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Весь багаж БЕСПЛАТНО\n(аренда всей машины)',
+                      style: TextStyle(
+                        color: CupertinoColors.systemGreen,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-
-          // Правила бесплатного багажа
-          const SizedBox(height: 8),
-          Text(
-            'Только на 1 пассажира : S : 2 или M / L : 1',
-            style: TextStyle(color: theme.secondaryLabel, fontSize: 14),
-            textAlign: TextAlign.center,
-          ),
-
-          // Дополнительный багаж (если есть)
-          if (totalCost > 0) ...[
-            const SizedBox(height: 12),
+            ),
+          ]
+          // ГРУППОВАЯ ПОЕЗДКА - обычная логика
+          else ...[
+            // Бесплатный багаж
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Дополнительный багаж:',
+                  'Бесплатный багаж:',
                   style: TextStyle(color: theme.label, fontSize: 16),
                 ),
                 Text(
-                  '${totalCost.toStringAsFixed(0)}₽',
+                  hasFreeBaggage ? 'Включен' : 'Не выбран',
                   style: TextStyle(
-                    color: theme.label,
+                    color: hasFreeBaggage
+                        ? CupertinoColors.activeGreen
+                        : theme.placeholderText,
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
+
+            // Правила бесплатного багажа
+            const SizedBox(height: 8),
+            Text(
+              'Только на 1 пассажира : S : 2 или M / L : 1',
+              style: TextStyle(color: theme.secondaryLabel, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+
+            // Дополнительный багаж (если есть)
+            if (totalCost > 0) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Дополнительный багаж:',
+                    style: TextStyle(color: theme.label, fontSize: 16),
+                  ),
+                  Text(
+                    '${totalCost.toStringAsFixed(0)}₽',
+                    style: TextStyle(
+                      color: theme.label,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ],
       ),
