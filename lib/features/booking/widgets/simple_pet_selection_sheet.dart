@@ -5,15 +5,18 @@ import '../../../theme/app_theme.dart';
 
 /// Упрощённый выбор животного через Bottom Sheet
 /// Высота: 65% экрана
-/// 3 фиксированных варианта выбора категории животного
+/// 3 фиксированных варианта выбора категории животного (для групповой)
+/// 2 варианта для индивидуального трансфера
 class SimplePetSelectionSheet extends StatefulWidget {
   final PetInfo? initialPet;
   final Function(PetInfo?) onPetSelected;
+  final bool isIndividualTrip; // Индивидуальный трансфер или групповая поездка
 
   const SimplePetSelectionSheet({
     super.key,
     this.initialPet,
     required this.onPetSelected,
+    this.isIndividualTrip = false, // По умолчанию - групповая поездка
   });
 
   @override
@@ -131,8 +134,11 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
         ),
         const SizedBox(height: 12),
         _buildCategoryOption(PetCategory.upTo5kgWithCarrier, theme),
-        const SizedBox(height: 12),
-        _buildCategoryOption(PetCategory.upTo5kgWithoutCarrier, theme),
+        // Для групповой поездки показываем вариант "без переноски"
+        if (!widget.isIndividualTrip) ...[
+          const SizedBox(height: 12),
+          _buildCategoryOption(PetCategory.upTo5kgWithoutCarrier, theme),
+        ],
         const SizedBox(height: 12),
         _buildCategoryOption(PetCategory.over6kg, theme),
       ],
@@ -146,6 +152,12 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
       breed: '',
       agreementAccepted: false,
     );
+
+    // Получаем текст категории с учетом типа трансфера
+    String categoryText = petInfo.categoryDescription;
+    if (widget.isIndividualTrip && category == PetCategory.upTo5kgWithCarrier) {
+      categoryText = 'До 5 кг'; // Убираем "в переноске" для индивидуального
+    }
 
     return GestureDetector(
       onTap: () {
@@ -181,14 +193,15 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    petInfo.categoryDescription,
+                    categoryText,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: theme.label,
                     ),
                   ),
-                  if (category == PetCategory.over6kg) ...[
+                  if (category == PetCategory.over6kg &&
+                      !widget.isIndividualTrip) ...[
                     const SizedBox(height: 4),
                     Text(
                       'Только индивидуальный трансфер',
@@ -228,8 +241,8 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
       agreementAccepted: false,
     );
 
-    // Предупреждение для категории over6kg
-    if (petInfo.requiresIndividualTrip) {
+    // Предупреждение для категории over6kg (только для групповой поездки)
+    if (petInfo.requiresIndividualTrip && !widget.isIndividualTrip) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -272,7 +285,12 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
       );
     }
 
-    // Информация для других категорий
+    // Для индивидуального трансфера не показываем информационную карточку
+    if (widget.isIndividualTrip) {
+      return const SizedBox.shrink();
+    }
+
+    // Информация для других категорий (только для групповой поездки)
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

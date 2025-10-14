@@ -54,6 +54,9 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   List<PetInfo> _selectedPets = [];
   bool _hasVKDiscount = false;
 
+  // Флаг посещения экрана выбора багажа (для диалога подтверждения)
+  bool _baggageSelectionVisited = false;
+
   // НОВОЕ (ТЗ v3.0): Выбор транспорта для индивидуальных поездок
   VehicleClass? _selectedVehicleClass;
 
@@ -190,29 +193,28 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     // Стоимость
                     _buildPricingSummary(theme),
 
+                    const SizedBox(height: 24),
+
+                    // Кнопка бронирования
+                    CupertinoButton.filled(
+                      onPressed: _isLoading ? null : _bookTrip,
+                      child: _isLoading
+                          ? const CupertinoActivityIndicator(
+                              color: CupertinoColors.white,
+                            )
+                          : Text(
+                              'Забронировать за ${_calculatePrice()} ₽',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+
                     // Отступ снизу для системных кнопок навигации
                     const SizedBox(height: 80),
                   ],
                 ),
-              ),
-            ),
-
-            // Кнопка бронирования
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: CupertinoButton.filled(
-                onPressed: _isLoading ? null : _bookTrip,
-                child: _isLoading
-                    ? const CupertinoActivityIndicator(
-                        color: CupertinoColors.white,
-                      )
-                    : Text(
-                        'Забронировать за ${_calculatePrice()} ₽',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
               ),
             ),
           ],
@@ -1100,53 +1102,99 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   Widget _buildPetsSection(theme) {
+    final hasPet = _selectedPets.isNotEmpty;
+
     return Container(
       decoration: BoxDecoration(
         color: theme.secondarySystemBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.separator.withOpacity(0.2)),
       ),
-      child: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: _openPetSelection,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Icon(CupertinoIcons.paw, color: theme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _selectedPets.isEmpty
-                          ? 'Добавить животных'
-                          : '${_selectedPets.length} ${_getPetCountText(_selectedPets.length)}',
-                      style: TextStyle(color: theme.label, fontSize: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Переключатель "Везу животное"
+            Row(
+              children: [
+                Icon(CupertinoIcons.paw, color: theme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Везу животное',
+                    style: TextStyle(
+                      color: theme.label,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _selectedPets.isNotEmpty
-                          ? '+${_calculatePetPrice().toInt()} ₽'
-                          : 'S, M, L размеры',
-                      style: TextStyle(
-                        color: _selectedPets.isNotEmpty
-                            ? theme.primary
-                            : theme.secondaryLabel,
-                        fontSize: 14,
+                  ),
+                ),
+                CupertinoSwitch(
+                  value: hasPet,
+                  onChanged: (value) {
+                    if (value) {
+                      // Включаем - открываем окно выбора
+                      _openSimplePetSelection();
+                    } else {
+                      // Выключаем - удаляем животное
+                      setState(() {
+                        _selectedPets.clear();
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+
+            // Если животное выбрано - показываем карточку
+            if (hasPet) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.tertiarySystemBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getPetDisplayText(),
+                            style: TextStyle(
+                              color: theme.label,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '+${_calculatePetPrice().toInt()} ₽',
+                            style: TextStyle(
+                              color: theme.primary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: Text(
+                        'Изменить',
+                        style: TextStyle(color: CupertinoColors.activeBlue),
+                      ),
+                      onPressed: _openSimplePetSelection,
                     ),
                   ],
                 ),
               ),
-              Icon(
-                CupertinoIcons.chevron_right,
-                color: theme.secondaryLabel,
-                size: 20,
-              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -1160,12 +1208,6 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   int _getTotalBaggageCount() {
     return _selectedBaggage.fold(0, (sum, item) => sum + item.quantity);
-  }
-
-  String _getPetCountText(int count) {
-    if (count == 1) return 'животное';
-    if (count < 5) return 'животных';
-    return 'животных';
   }
 
   double _calculateBaggagePrice() {
@@ -1231,6 +1273,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
             print('🔍 [INDIVIDUAL] Получен багаж: ${baggage.length} предметов');
             setState(() {
               _selectedBaggage = baggage;
+              _baggageSelectionVisited =
+                  true; // Пользователь посетил экран выбора багажа
             });
             // Navigator.pop будет вызван в самом BaggageSelectionScreen
           },
@@ -1239,11 +1283,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     );
   }
 
-  Future<void> _openPetSelection() async {
+  Future<void> _openSimplePetSelection() async {
     await showCupertinoModalPopup(
       context: context,
       builder: (context) => SimplePetSelectionSheet(
         initialPet: _selectedPets.isNotEmpty ? _selectedPets.first : null,
+        isIndividualTrip: true, // ← ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР
         onPetSelected: (PetInfo? pet) {
           setState(() {
             if (pet != null) {
@@ -1257,20 +1302,85 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     );
   }
 
-  int _calculatePrice() {
-    // Если время не выбрано, возвращаем базовую цену
-    if (_selectedTime.isEmpty) {
-      return 8000; // Базовая цена индивидуального трансфера
-    }
+  String _getPetDisplayText() {
+    if (_selectedPets.isEmpty) return 'Не выбрано';
 
-    // _selectedTime уже строка формата '15:00'
-    final basePrice = TripPricing.getIndividualTripPrice(
-      _selectedTime,
-      _selectedDirection,
+    final pet = _selectedPets.first;
+    final categoryText = pet.categoryDescription;
+
+    // Описание уже не содержит вес (новая логика)
+    return categoryText;
+  }
+
+  /// Диалог подтверждения наличия багажа
+  void _showBaggageConfirmationDialog() {
+    print('🔍 [INDIVIDUAL] _showBaggageConfirmationDialog() вызван');
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Наличие багажа'),
+        content: const Text(
+          'Вы не выбрали наличие багажа.\n\nЕсть ли у вас багаж для перевозки?',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Нет багажа'),
+            onPressed: () {
+              print('🔍 [INDIVIDUAL] Нажата кнопка "Нет багажа"');
+              Navigator.pop(context);
+              setState(() {
+                _baggageSelectionVisited =
+                    true; // Пользователь подтвердил отсутствие багажа
+                _selectedBaggage = []; // Очищаем багаж на всякий случай
+              });
+              // Продолжаем бронирование
+              _bookTrip();
+            },
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: Text(
+              'Да, есть багаж',
+              style: TextStyle(
+                color: theme.systemRed,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onPressed: () {
+              print('🔍 [INDIVIDUAL] Нажата кнопка "Да, есть багаж"');
+              Navigator.pop(context);
+              // Открываем экран выбора багажа
+              _openBaggageSelection();
+            },
+          ),
+        ],
+      ),
     );
+  }
+
+  int _calculatePrice() {
+    // Базовая цена (если время не выбрано, используем 8000₽)
+    final basePrice = _selectedTime.isEmpty
+        ? 8000
+        : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
+
+    // Дополнительные услуги
     final baggagePrice = _calculateBaggagePrice();
     final petPrice = _calculatePetPrice();
     final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
+
+    print('💰 [INDIVIDUAL] ========== РАСЧЕТ ИТОГОВОЙ ЦЕНЫ ==========');
+    print('💰 [INDIVIDUAL] Базовая цена: ${basePrice}₽');
+    print('💰 [INDIVIDUAL] Багаж: ${baggagePrice.toInt()}₽');
+    print('💰 [INDIVIDUAL] Животные: ${petPrice.toInt()}₽');
+    print('💰 [INDIVIDUAL] VK скидка: -${vkDiscount.toInt()}₽');
+    print(
+      '💰 [INDIVIDUAL] ИТОГО: ${(basePrice + baggagePrice + petPrice - vkDiscount).toInt()}₽',
+    );
+    print('💰 [INDIVIDUAL] ==========================================');
 
     return (basePrice + baggagePrice + petPrice - vkDiscount).toInt();
   }
@@ -1353,16 +1463,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                 border: Border(bottom: BorderSide(color: theme.separator)),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(
-                    'Дата поездки',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: theme.label,
-                    ),
-                  ),
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: () {
@@ -1467,7 +1569,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                       Navigator.of(context).pop();
                     },
                     child: Text(
-                      'Готово',
+                      'Выбрать',
                       style: TextStyle(
                         color: theme.primary,
                         fontWeight: FontWeight.w600,
@@ -1529,6 +1631,15 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       );
       return;
     }
+
+    // НОВАЯ ПРОВЕРКА: Пользователь должен подтвердить наличие/отсутствие багажа
+    if (!_baggageSelectionVisited) {
+      print('🔍 [INDIVIDUAL] Показываем диалог подтверждения багажа');
+      _showBaggageConfirmationDialog();
+      return;
+    }
+
+    print('🔍 [INDIVIDUAL] Продолжаем бронирование...');
 
     setState(() => _isLoading = true);
 

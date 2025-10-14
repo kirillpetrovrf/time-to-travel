@@ -568,10 +568,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             // Новая логика: используем categoryDescription вместо breed и size
             String displayText = pet.categoryDescription;
 
-            // Показываем итоговую цену (для over6kg это будет 10000₽ вместо 2000₽)
-            final displayCost = pet.requiresIndividualTrip
-                ? pet.totalCost
-                : pet.cost;
+            // Для индивидуального трансфера показываем только стоимость животного (2000₽),
+            // т.к. стоимость трансфера (8000₽) уже включена в базовую цену
+            final displayCost = pet.cost;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -586,13 +585,15 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                           displayText,
                           style: TextStyle(fontSize: 16, color: theme.label),
                         ),
-                        if (pet.requiresIndividualTrip) ...[
+                        // Для групповой поездки показываем предупреждение о необходимости индивидуального трансфера
+                        if (pet.requiresIndividualTrip &&
+                            _currentBooking.tripType == TripType.group) ...[
                           const SizedBox(height: 4),
                           Text(
-                            'Включая индивидуальный трансфер',
+                            'Требуется индивидуальный трансфер',
                             style: TextStyle(
                               fontSize: 12,
-                              color: theme.secondaryLabel,
+                              color: CupertinoColors.systemOrange,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
