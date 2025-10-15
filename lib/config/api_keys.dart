@@ -13,6 +13,6 @@ class ApiKeys {
 
     // Временная заглушка для разработки
     // ЗАМЕНИТЕ на реальный ключ после получения!
-    return 'YOUR_YANDEX_API_KEY_HERE';
+    return '2f1d6a75-b751-4077-b305-c6abaea0b542';
   }
 }

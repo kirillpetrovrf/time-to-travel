@@ -9,6 +9,7 @@ import '../../admin/screens/admin_panel_screen.dart';
 import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
+import 'custom_route_booking_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -114,7 +115,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       'Индивидуальная настройка',
                     ],
                     theme: theme,
-                    onTap: () => _showRouteSelection('free'),
+                    onTap: () => _navigateToCustomRoute(),
                   ),
 
                   const SizedBox(height: 32),
@@ -136,6 +137,15 @@ class _BookingScreenState extends State<BookingScreen> {
             _showTripTypeSelection(fromStop, toStop, routeType);
           },
         ),
+      ),
+    );
+  }
+
+  // Открыть экран свободного маршрута с калькулятором
+  void _navigateToCustomRoute() {
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => const CustomRouteBookingScreen(),
       ),
     );
   }
@@ -780,15 +790,9 @@ class _TripTypeSelectionModal extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                CupertinoIcons.back,
-                color: theme.primary,
-              ),
+              Icon(CupertinoIcons.back, color: theme.primary),
               const SizedBox(width: 4),
-              Text(
-                'Назад',
-                style: TextStyle(color: theme.primary),
-              ),
+              Text('Назад', style: TextStyle(color: theme.primary)),
             ],
           ),
         ),
@@ -819,8 +823,7 @@ class _TripTypeSelectionModal extends StatelessWidget {
               _TripTypeOption(
                 icon: CupertinoIcons.group,
                 title: 'Групповая поездка',
-                description:
-                    'Поделитесь автомобилем с другими пассажирами',
+                description: 'Поделитесь автомобилем с другими пассажирами',
                 price: '2000 ₽',
                 features: [
                   'Фиксированное расписание',
@@ -880,15 +883,9 @@ class _TripTypeSelectionModalSimple extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                CupertinoIcons.back,
-                color: theme.primary,
-              ),
+              Icon(CupertinoIcons.back, color: theme.primary),
               const SizedBox(width: 4),
-              Text(
-                'Назад',
-                style: TextStyle(color: theme.primary),
-              ),
+              Text('Назад', style: TextStyle(color: theme.primary)),
             ],
           ),
         ),
@@ -910,8 +907,7 @@ class _TripTypeSelectionModalSimple extends StatelessWidget {
               _TripTypeOption(
                 icon: CupertinoIcons.group,
                 title: 'Групповая поездка',
-                description:
-                    'Поделитесь автомобилем с другими пассажирами',
+                description: 'Поделитесь автомобилем с другими пассажирами',
                 price: '2000 ₽',
                 features: [
                   'Фиксированное расписание',
