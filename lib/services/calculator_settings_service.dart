@@ -7,8 +7,13 @@ class CalculatorSettingsService {
       CalculatorSettingsService._();
   CalculatorSettingsService._();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore? _firestore;
   CalculatorSettings? _cachedSettings;
+  
+  FirebaseFirestore get firestore {
+    _firestore ??= FirebaseFirestore.instance;
+    return _firestore!;
+  }
 
   /// Получить текущие настройки из Firebase
   Future<CalculatorSettings> getSettings() async {
@@ -17,12 +22,13 @@ class CalculatorSettingsService {
     try {
       // Проверяем кеш
       if (_cachedSettings != null) {
-        print('✅ [CALCULATOR] Настройки взяты из кеша: $_cachedSettings');
+        print('✅ [CALCULATOR] Настройки взяты из кеша');
         return _cachedSettings!;
       }
 
       // Загружаем из Firebase
-      final doc = await _firestore
+      print('📡 [CALCULATOR] Попытка загрузки из Firebase...');
+      final doc = await firestore
           .collection('calculator_settings')
           .doc('current')
           .get();
@@ -38,21 +44,29 @@ class CalculatorSettingsService {
       final settings = CalculatorSettings.fromJson(doc.data()!);
       _cachedSettings = settings;
 
-      print('✅ [CALCULATOR] Настройки загружены: $settings');
+      print('✅ [CALCULATOR] Настройки загружены из Firebase');
       return settings;
     } catch (e) {
-      print('❌ [CALCULATOR] Ошибка загрузки настроек: $e');
-      print('⚠️ [CALCULATOR] Используем настройки по умолчанию');
-      return CalculatorSettings.defaultSettings;
+      print('❌ [CALCULATOR] Ошибка загрузки настроек из Firebase: $e');
+      print('⚠️ [CALCULATOR] Используем локальные настройки по умолчанию:');
+      final defaultSettings = CalculatorSettings.defaultSettings;
+      print('   • Базовая стоимость: ${defaultSettings.baseCost}₽');
+      print('   • Цена за км: ${defaultSettings.costPerKm}₽');
+      print('   • Минимальная цена: ${defaultSettings.minPrice}₽');
+      print('   • Округление: ${defaultSettings.roundToThousands ? "ДА" : "НЕТ"}');
+      
+      // Кешируем дефолтные настройки
+      _cachedSettings = defaultSettings;
+      return defaultSettings;
     }
   }
 
   /// Обновить настройки (только для админов)
   Future<void> updateSettings(CalculatorSettings settings) async {
-    print('💾 [CALCULATOR] Сохранение настроек: $settings');
+    print('💾 [CALCULATOR] Сохранение настроек...');
 
     try {
-      await _firestore
+      await firestore
           .collection('calculator_settings')
           .doc('current')
           .set(settings.toJson());
@@ -71,7 +85,7 @@ class CalculatorSettingsService {
   Future<void> _createDefaultSettings() async {
     try {
       final defaultSettings = CalculatorSettings.defaultSettings;
-      await _firestore
+      await firestore
           .collection('calculator_settings')
           .doc('current')
           .set(defaultSettings.toJson());
@@ -79,7 +93,8 @@ class CalculatorSettingsService {
       _cachedSettings = defaultSettings;
       print('✅ [CALCULATOR] Настройки по умолчанию созданы в Firebase');
     } catch (e) {
-      print('❌ [CALCULATOR] Ошибка создания настроек по умолчанию: $e');
+      print('❌ [CALCULATOR] Ошибка создания настроек: $e');
+      // Не бросаем ошибку - просто используем локальные настройки
     }
   }
 
