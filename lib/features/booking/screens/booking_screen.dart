@@ -9,7 +9,7 @@ import '../../admin/screens/admin_panel_screen.dart';
 import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
-import 'custom_route_booking_screen.dart';
+import 'custom_route_with_map_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -141,11 +141,11 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  // Открыть экран свободного маршрута с калькулятором
+  // Открыть экран свободного маршрута с калькулятором И КАРТОЙ
   void _navigateToCustomRoute() {
     Navigator.of(context).push(
       CupertinoPageRoute(
-        builder: (context) => const CustomRouteBookingScreen(),
+        builder: (context) => const CustomRouteWithMapScreen(),
       ),
     );
   }

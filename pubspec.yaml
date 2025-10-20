@@ -53,8 +53,8 @@ dependencies:
   # Для HTTP запросов
   http: ^1.1.2
   
-  # Для работы с картами Yandex
-  yandex_mapkit: ^4.1.0
+  # Для работы с картами Yandex (ОБНОВЛЕНО до последней версии)
+  yandex_maps_mapkit: 4.24.0-beta
   
   # Для геолокации
   geolocator: ^10.1.0
@@ -67,7 +67,7 @@ dependencies:
   provider: ^6.1.1
   
   # Для работы с URL ссылками
-  url_launcher: ^6.2.2
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/theme_manager.dart';
+import 'about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -213,7 +214,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: CupertinoIcons.info_circle,
             title: 'О приложении',
             onTap: () {
-              _showAboutDialog();
+              Navigator.push(
+                context,
+                CupertinoPageRoute(builder: (context) => const AboutScreen()),
+              );
             },
           ),
         ],
@@ -279,24 +283,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case null:
         return 'Пользователь';
     }
-  }
-
-  void _showAboutDialog() {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Time to Travel'),
-        content: const Text(
-          'Приложение для пассажирских перевозок\n\nВерсия: 1.0.0',
-        ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showLogoutDialog() {

@@ -1,9 +1,8 @@
 /// Конфигурация для работы с картами
 class MapConfig {
-  // Временно используем пустой API ключ для разработки
-  // В продакшене необходимо получить реальный API ключ от Yandex
+  // API ключ Yandex MapKit
   // Получить можно здесь: https://developer.tech.yandex.ru/
-  static const String yandexMapKitApiKey = '';
+  static const String yandexMapKitApiKey = '2f1d6a75-b751-4077-b305-c6abaea0b542';
 
   // Проверка наличия API ключа
   static bool get hasApiKey =>

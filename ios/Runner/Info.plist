@@ -58,5 +58,8 @@
 		<string>https</string>
 		<string>tg</string>
 	</array>
+	<!-- Yandex MapKit API ключ -->
+	<key>YandexMapKit</key>
+	<string>2f1d6a75-b751-4077-b305-c6abaea0b542</string>
 </dict>
 </plist>

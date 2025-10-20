@@ -1,26 +1,21 @@
 import 'dart:math';
+import 'package:yandex_mapkit/yandex_mapkit.dart';
 import '../models/route_info.dart';
 
-/// Сервис для работы с Yandex MapKit SDK (версия 4.24.0-beta)
-///
-/// СТАТУС: Упрощенная версия с fallback логикой
-/// TODO: Реализовать полноценную интеграцию с API 4.24.0:
-/// - SearchManager для геокодирования
-/// - DrivingRouter для построения маршрутов
-/// - SuggestSession для автодополнения
+/// Сервис для работы с Yandex MapKit SDK
 class YandexMapsService {
   static final YandexMapsService instance = YandexMapsService._();
   YandexMapsService._();
 
   bool _isInitialized = false;
 
-  /// Инициализация MapKit (вызывается автоматически через main.dart)
+  /// Инициализация MapKit (вызывается автоматически)
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
       print('🗺️ [YANDEX MAPKIT] Инициализация...');
-      // MapKit инициализируется в main.dart через mapkit_init.initMapkit()
+      // MapKit автоматически использует ключ из AndroidManifest.xml и Info.plist
       _isInitialized = true;
       print('✅ [YANDEX MAPKIT] Инициализирован успешно');
     } catch (e) {
@@ -35,19 +30,54 @@ class YandexMapsService {
     print('🗺️ [YANDEX MAPKIT] Геокодирование адреса: "$address"');
 
     try {
-      // TODO: Обновить под новый API SearchManager из версии 4.24.0
-      // Пока используем fallback координаты
-      return _getMockCoordinates(address);
+      // Используем YandexSearch.searchByText для поиска адреса
+      // Возвращает Record: (SearchSession, Future<SearchSessionResult>)
+      final resultWithSession = YandexSearch.searchByText(
+        searchText: address,
+        geometry: Geometry.fromBoundingBox(
+          const BoundingBox(
+            northEast: Point(latitude: 90.0, longitude: 180.0),
+            southWest: Point(latitude: -90.0, longitude: -180.0),
+          ),
+        ),
+        searchOptions: const SearchOptions(
+          searchType: SearchType.geo,
+          geometry: false,
+        ),
+      );
 
-      // Код ниже для справки (требует обновления под новый API):
-      // import 'package:yandex_maps_mapkit/search.dart';
-      // final resultWithSession = await YandexSearch.searchByText(
-      //   searchText: address,
-      //   geometry: Geometry.fromPoint(Point(latitude: 55.75, longitude: 37.62)),
-      //   searchOptions: const SearchOptions(searchType: SearchType.geo),
-      // );
-      // final result = await resultWithSession.$2;
-      // await resultWithSession.$1.close();
+      // Получаем результат из Record
+      final session = resultWithSession.$1;  // SearchSession
+      final result = await resultWithSession.$2;  // Future<SearchSessionResult>
+
+      // Закрываем сессию
+      await session.close();
+
+      if (result.error != null) {
+        print('⚠️ [YANDEX MAPKIT] Ошибка поиска: ${result.error}');
+        return _getMockCoordinates(address);
+      }
+
+      if (result.items != null && result.items!.isNotEmpty) {
+        final firstItem = result.items!.first;
+        
+        // Получаем координаты из geometry
+        if (firstItem.geometry.isNotEmpty) {
+          final point = firstItem.geometry.first.point;
+          
+          if (point != null) {
+            final coords = Coordinates(
+              latitude: point.latitude,
+              longitude: point.longitude,
+            );
+            print('✅ [YANDEX MAPKIT] Координаты найдены: $coords');
+            return coords;
+          }
+        }
+      }
+
+      print('⚠️ [YANDEX MAPKIT] Адрес не найден');
+      return _getMockCoordinates(address);
     } catch (e) {
       print('❌ [YANDEX MAPKIT] Ошибка геокодирования: $e');
       return _getMockCoordinates(address);
@@ -78,23 +108,73 @@ class YandexMapsService {
       print('📍 [YANDEX MAPKIT] От: $fromCoords');
       print('📍 [YANDEX MAPKIT] До: $toCoords');
 
-      // TODO: Реализовать построение маршрута через DrivingRouter API 4.24.0
-      // import 'package:yandex_maps_mapkit/directions.dart';
-      // final resultWithSession = await YandexDriving.requestRoutes(
-      //   points: [
-      //     RequestPoint(
-      //       point: Point(latitude: fromCoords.latitude, longitude: fromCoords.longitude),
-      //       requestPointType: RequestPointType.wayPoint,
-      //     ),
-      //     RequestPoint(
-      //       point: Point(latitude: toCoords.latitude, longitude: toCoords.longitude),
-      //       requestPointType: RequestPointType.wayPoint,
-      //     ),
-      //   ],
-      //   drivingOptions: const DrivingOptions(routesCount: 1),
-      // );
+      // Шаг 2: Строим маршрут через DrivingRouter
+      final drivingRouter = DirectionsFactory.createDrivingRouter(
+        DrivingRouterType.combined,
+      );
 
-      // Пока используем fallback расчет по прямой
+      final requestPoints = [
+        RequestPoint(
+          point: Point(
+            latitude: fromCoords.latitude,
+            longitude: fromCoords.longitude,
+          ),
+          requestPointType: RequestPointType.wayPoint,
+        ),
+        RequestPoint(
+          point: Point(
+            latitude: toCoords.latitude,
+            longitude: toCoords.longitude,
+          ),
+          requestPointType: RequestPointType.wayPoint,
+        ),
+      ];
+
+      final resultWithSession = drivingRouter.requestRoutes(
+        points: requestPoints,
+        drivingOptions: const DrivingOptions(
+          initialAzimuth: null,
+          routesCount: 1,
+          avoidTolls: false,
+          avoidUnpaved: false,
+          avoidPoorConditions: false,
+        ),
+      );
+
+      // Ждем результат
+      final result = await resultWithSession.result;
+
+      if (result.routes != null && result.routes!.isNotEmpty) {
+        final route = result.routes!.first;
+
+        // Извлекаем расстояние и время
+        final metadata = route.metadata as DrivingRouteMetadata;
+        final distanceMeters = metadata.weight.distance.value;
+        final durationSeconds = metadata.weight.time.value;
+
+        final distanceKm = distanceMeters / 1000.0;
+        final durationMinutes = durationSeconds / 60.0;
+
+        final routeInfo = RouteInfo(
+          distance: distanceKm,
+          duration: durationMinutes,
+          fromAddress: fromAddress,
+          toAddress: toAddress,
+        );
+
+        print('✅ [YANDEX MAPKIT] Маршрут построен:');
+        print('   📏 Расстояние: ${distanceKm.toStringAsFixed(1)} км');
+        print('   ⏱️ Время: ${durationMinutes.toInt()} минут');
+        print('🚗 [YANDEX MAPKIT] =========================================');
+
+        return routeInfo;
+      }
+
+      print(
+        '⚠️ [YANDEX MAPKIT] Маршрут не найден, используем расчет по прямой',
+      );
+
+      // Fallback: рассчитываем по формуле Гаверсина
       return _calculateRouteByDistance(
         fromCoords,
         toCoords,
@@ -103,6 +183,7 @@ class YandexMapsService {
       );
     } catch (e) {
       print('❌ [YANDEX MAPKIT] Ошибка расчёта маршрута: $e');
+      print('⚠️ [YANDEX MAPKIT] Пробуем расчет по прямой...');
 
       // Fallback: рассчитываем по координатам
       final fromCoords = await geocode(fromAddress);
@@ -132,15 +213,43 @@ class YandexMapsService {
     print('💡 [YANDEX MAPKIT] Поиск подсказок для: "$query"');
 
     try {
-      // TODO: Реализовать через SuggestSession API 4.24.0
-      // import 'package:yandex_maps_mapkit/search.dart';
-      // final resultWithSession = await YandexSearch.searchByText(
-      //   searchText: query,
-      //   geometry: Geometry.fromBoundingBox(...),
-      //   searchOptions: const SearchOptions(searchType: SearchType.geo),
-      // );
+      final resultWithSession = YandexSearch.searchByText(
+        searchText: query,
+        geometry: Geometry.fromBoundingBox(
+          const BoundingBox(
+            northEast: Point(latitude: 90.0, longitude: 180.0),
+            southWest: Point(latitude: -90.0, longitude: -180.0),
+          ),
+        ),
+        searchOptions: const SearchOptions(
+          searchType: SearchType.geo,
+          geometry: false,
+          snippets: [SearchSnippet.business],
+        ),
+      );
 
-      return []; // Пока возвращаем пустой список
+      final result = await resultWithSession.result;
+
+      if (result.items != null && result.items!.isNotEmpty) {
+        final suggestions = result.items!
+            .take(10) // Берем первые 10 результатов
+            .map((item) {
+              // Пытаемся получить полный адрес
+              if (item.toponymMetadata != null) {
+                return item.toponymMetadata!.address.formattedAddress;
+              } else if (item.businessMetadata != null) {
+                return item.businessMetadata!.address.formattedAddress;
+              }
+              return item.name;
+            })
+            .where((s) => s.isNotEmpty)
+            .toList();
+
+        print('✅ [YANDEX MAPKIT] Найдено подсказок: ${suggestions.length}');
+        return suggestions;
+      }
+
+      return [];
     } catch (e) {
       print('❌ [YANDEX MAPKIT] Ошибка получения подсказок: $e');
       return [];
@@ -180,7 +289,7 @@ class YandexMapsService {
       return Coordinates(latitude: 54.7, longitude: 55.9);
     }
 
-    print('⚠️ [YANДEX MAPKIT] Адрес не распознан: $address');
+    print('⚠️ [YANDEX MAPKIT] Адрес не распознан: $address');
     return null;
   }
 
@@ -194,7 +303,7 @@ class YandexMapsService {
     final distance = _calculateDistance(from, to);
     final duration = distance / 80 * 60; // Примерно 80 км/ч
 
-    print('✅ [YANДEX MAPKIT] Маршрут рассчитан по прямой:');
+    print('✅ [YANDEX MAPKIT] Маршрут рассчитан по прямой:');
     print('   📏 Расстояние: ${distance.toStringAsFixed(1)} км');
     print('   ⏱️ Время: ${duration.toInt()} минут');
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Разрешаем cleartext (HTTP) трафик для всех доменов -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- Доверяем системным сертификатам -->
+            <certificates src="system" />
+            <!-- Доверяем пользовательским сертификатам (для отладки) -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Специальная конфигурация для Yandex Maps -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">yandex.ru</domain>
+        <domain includeSubdomains="true">yandex.net</domain>
+        <domain includeSubdomains="true">yandex.com</domain>
+        <domain includeSubdomains="true">maps.yandex.ru</domain>
+        <domain includeSubdomains="true">static-maps.yandex.ru</domain>
+    </domain-config>
+</network-security-config>
