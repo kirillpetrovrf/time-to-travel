@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../../theme/colors.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/time_to_travel_logo.dart';
+import '../../widgets/permission_request_dialog.dart';
 import '../auth/screens/auth_screen.dart';
 import '../home/screens/home_screen.dart';
 
@@ -83,13 +85,24 @@ class _SplashScreenState extends State<SplashScreen>
       final isLoggedIn = await AuthService.instance.isLoggedIn();
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          CupertinoPageRoute(
-            builder: (context) => isLoggedIn
-                ? HomeScreen() // Убираем const, так как HomeScreen не const
-                : const AuthScreen(),
-          ),
-        );
+        // Инициализация сервиса уведомлений
+        await NotificationService.instance.initialize();
+
+        final nextScreen = isLoggedIn
+            ? HomeScreen() // Убираем const, так как HomeScreen не const
+            : const AuthScreen();
+
+        Navigator.of(
+          context,
+        ).pushReplacement(CupertinoPageRoute(builder: (context) => nextScreen));
+
+        // Показываем диалог разрешений после перехода на главный экран
+        if (isLoggedIn && mounted) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            await showPermissionDialogIfNeeded(context);
+          }
+        }
       }
     } catch (e) {
       // В случае ошибки перенаправляем на экран авторизации

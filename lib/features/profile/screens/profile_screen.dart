@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/theme_manager.dart';
+import '../../settings/screens/settings_screen.dart';
+import '../../notifications/screens/notifications_screen.dart';
 import 'about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -189,10 +191,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildSettingsItem(
             theme: theme,
+            icon: CupertinoIcons.settings,
+            title: 'Настройки',
+            onTap: () {
+              Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+
+          Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+
+          _buildSettingsItem(
+            theme: theme,
             icon: CupertinoIcons.bell,
             title: 'Уведомления',
             onTap: () {
-              // TODO: Открыть настройки уведомлений
+              Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (context) => const NotificationsScreen(),
+                ),
+              );
             },
           ),
 

@@ -16,6 +16,7 @@ class AuthService {
   // Ключи для локальной авторизации
   static const String _offlineUserKey = 'offline_user';
   static const String _isOfflineModeKey = 'is_offline_mode';
+  static const String _currentUserIdKey = 'current_user_id';
 
   static AuthService? _instance;
 
@@ -43,6 +44,7 @@ class AuthService {
     );
 
     await prefs.setString(_offlineUserKey, jsonEncode(demoUser.toJson()));
+    await prefs.setString(_currentUserIdKey, demoUser.id);
     await prefs.setBool(_isOfflineModeKey, true);
     debugPrint('ℹ️ Создан локальный демо-пользователь (Firebase не подключен)');
   }
@@ -145,6 +147,20 @@ class AuthService {
     } catch (e) {
       debugPrint('❌ Ошибка повышения до диспетчера: $e');
     }
+  }
+
+  // Получение ID текущего пользователя
+  Future<String?> getCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString(_currentUserIdKey);
+    
+    if (userId == null) {
+      debugPrint('⚠️ ID текущего пользователя не найден, создаем нового...');
+      await _createOfflineUser();
+      return prefs.getString(_currentUserIdKey);
+    }
+    
+    return userId;
   }
 
   // Выход из системы (работает локально)

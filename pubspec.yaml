@@ -63,6 +63,10 @@ dependencies:
   geolocator: ^10.1.0
   permission_handler: ^11.0.1
   
+  # Для локальных уведомлений (работают даже когда приложение закрыто)
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  
   # Для локализации
   intl: ^0.20.2
   

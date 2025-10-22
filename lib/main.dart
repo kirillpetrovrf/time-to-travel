@@ -7,9 +7,15 @@ import 'package:yandex_mapkit/yandex_mapkit.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'services/auth_service.dart';
+import 'services/booking_service.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/splash/splash_screen.dart';
+import 'features/orders/screens/booking_detail_screen.dart';
+import 'models/booking.dart';
+
+/// Глобальный NavigatorKey для навигации из уведомлений
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +60,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
 
     return CupertinoApp(
       title: 'Time to Travel',
+      navigatorKey: navigatorKey, // Добавляем глобальный ключ
       theme: AppTheme.getCurrentTheme(themeManager.currentTheme),
       debugShowCheckedModeBanner: false,
       home: const SplashScreen(), // Заменяем AuthCheckWidget на SplashScreen
@@ -66,6 +73,11 @@ class _TimeToTravelAppContent extends StatelessWidget {
             break;
           case '/home':
             child = HomeScreen();
+            break;
+          case '/booking-details':
+            // Получаем bookingId из аргументов
+            final bookingId = settings.arguments as String;
+            child = _BookingDetailsLoader(bookingId: bookingId);
             break;
           default:
             child = const SplashScreen(); // Заменяем на SplashScreen
@@ -138,5 +150,98 @@ class _AuthCheckWidgetState extends State<AuthCheckWidget> {
         ),
       ),
     );
+  }
+}
+
+/// Виджет для загрузки и отображения деталей заказа по ID
+class _BookingDetailsLoader extends StatefulWidget {
+  final String bookingId;
+
+  const _BookingDetailsLoader({required this.bookingId});
+
+  @override
+  State<_BookingDetailsLoader> createState() => _BookingDetailsLoaderState();
+}
+
+class _BookingDetailsLoaderState extends State<_BookingDetailsLoader> {
+  Booking? _booking;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBooking();
+  }
+
+  Future<void> _loadBooking() async {
+    try {
+      final bookingService = BookingService();
+      final bookings = await bookingService.getCurrentClientBookings();
+
+      // Ищем заказ по ID
+      final booking = bookings.firstWhere(
+        (b) => b.id == widget.bookingId,
+        orElse: () => throw Exception('Заказ не найден'),
+      );
+
+      if (mounted) {
+        setState(() {
+          _booking = booking;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(middle: Text('Загрузка...')),
+        child: Center(child: CupertinoActivityIndicator()),
+      );
+    }
+
+    if (_error != null || _booking == null) {
+      return CupertinoPageScaffold(
+        navigationBar: const CupertinoNavigationBar(middle: Text('Ошибка')),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                size: 64,
+                color: CupertinoColors.systemRed,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _error ?? 'Заказ не найден',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ),
+              const SizedBox(height: 24),
+              CupertinoButton.filled(
+                child: const Text('Вернуться'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return BookingDetailScreen(booking: _booking!);
   }
 }

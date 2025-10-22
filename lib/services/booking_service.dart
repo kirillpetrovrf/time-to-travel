@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/booking.dart';
+import 'auth_service.dart';
+import 'notification_service.dart';
 
 /// ⚠️ ВАЖНО: Сейчас используется только SQLite/SharedPreferences
 /// TODO: Интеграция с Firebase - реализуется позже
@@ -73,6 +75,38 @@ class BookingService {
     await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));
 
     print('📱 Создано оффлайн бронирование: $bookingId');
+
+    // 🔔 ПЛАНИРУЕМ УВЕДОМЛЕНИЯ СРАЗУ ПОСЛЕ СОЗДАНИЯ ЗАКАЗА
+    debugPrint('🔔 ========================================');
+    debugPrint('🔔 ПЛАНИРОВАНИЕ УВЕДОМЛЕНИЙ ДЛЯ ЗАКАЗА');
+    debugPrint('🔔 ID заказа: $bookingId');
+    debugPrint('🔔 Дата поездки: ${bookingWithId.departureDate}');
+    debugPrint('🔔 Время поездки: ${bookingWithId.departureTime}');
+    debugPrint('🔔 ========================================');
+
+    final notificationService = NotificationService.instance;
+    final notificationsScheduled = await notificationService
+        .scheduleAllBookingNotifications(bookingWithId);
+
+    if (notificationsScheduled) {
+      debugPrint('✅ Уведомления успешно запланированы для заказа $bookingId');
+    } else {
+      debugPrint(
+        '⚠️ Не все уведомления были запланированы для заказа $bookingId',
+      );
+    }
+
+    // Показать список запланированных уведомлений
+    final pending = await notificationService.getPendingNotifications();
+    debugPrint(
+      '📋 Всего запланировано уведомлений в системе: ${pending.length}',
+    );
+    for (final notification in pending) {
+      debugPrint(
+        '   - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}',
+      );
+    }
+
     return bookingId;
   }
 
@@ -99,6 +133,20 @@ class BookingService {
       }
     }
     return null;
+  }
+
+  /// Получение всех бронирований текущего клиента
+  Future<List<Booking>> getCurrentClientBookings() async {
+    // Получаем ID текущего пользователя через AuthService
+    final currentUserId = await AuthService.instance.getCurrentUserId();
+
+    if (currentUserId == null || currentUserId.isEmpty) {
+      debugPrint('⚠️ ID текущего пользователя не найден');
+      return [];
+    }
+
+    debugPrint('✅ Загрузка заказов для пользователя: $currentUserId');
+    return getClientBookings(currentUserId);
   }
 
   /// Получение всех бронирований клиента (локально)

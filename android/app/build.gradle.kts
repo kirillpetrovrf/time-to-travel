@@ -13,6 +13,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Включаем desugaring для flutter_local_notifications
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -48,4 +50,6 @@ dependencies {
     implementation("com.yandex.android:maps.mobile:4.6.1-lite")
     // play-services-location требуется для новой версии MapKit
     implementation("com.google.android.gms:play-services-location:21.1.0")
+    // Core library desugaring для flutter_local_notifications
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

@@ -8,8 +8,16 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     
-    <!-- Разрешения для звонков -->
-    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- Разрешения для уведомлений (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- Разрешения для точных уведомлений (для напоминаний о поездках) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    
+    <!-- Разрешение на работу в фоновом режиме -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     
     <application
         android:label="Time to Travel"
@@ -48,6 +56,21 @@
         <meta-data
             android:name="com.yandex.mapkit.ApiKey"
             android:value="2f1d6a75-b751-4077-b305-c6abaea0b542" />
+        
+        <!-- Receiver для перезагрузки устройства (для восстановления уведомлений) -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+        
+        <!-- Receiver для точных уведомлений -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -58,15 +81,6 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
-        </intent>
-        <!-- Для звонков -->
-        <intent>
-            <action android:name="android.intent.action.DIAL" />
-            <data android:scheme="tel" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.CALL" />
-            <data android:scheme="tel" />
         </intent>
         <!-- Для открытия веб-ссылок -->
         <intent>
