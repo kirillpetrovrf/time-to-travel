@@ -3,10 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // TODO: Раскомментировать при подключении реального Firebase проекта
 // import 'package:firebase_core/firebase_core.dart';
 // import 'firebase_options.dart';
-import 'package:yandex_maps_mapkit/init.dart' as mapkit_init;
+import 'package:yandex_mapkit/yandex_mapkit.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
-import 'config/map_config.dart';
 import 'services/auth_service.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
@@ -33,17 +32,8 @@ void main() async {
     );
   }
 
-  // Инициализация Yandex MapKit (НОВАЯ ВЕРСИЯ 4.24.0-beta)
-  if (MapConfig.hasApiKey) {
-    try {
-      await mapkit_init.initMapkit(apiKey: MapConfig.yandexMapKitApiKey);
-      print('✅ Yandex MapKit успешно инициализирован (v4.24.0)');
-    } catch (e) {
-      print('⚠️ Ошибка инициализации MapKit: $e');
-    }
-  } else {
-    print('ℹ️ Yandex MapKit не инициализирован: отсутствует API ключ');
-  }
+  // ✅ Yandex MapKit инициализируется автоматически в MainApplication (Android)
+  // Не требуется инициализация в Flutter коде
 
   runApp(const TimeToTravelApp());
 }

@@ -44,6 +44,8 @@ flutter {
 }
 
 dependencies {
+    // Yandex MapKit SDK (lite variant)
+    implementation("com.yandex.android:maps.mobile:4.6.1-lite")
     // play-services-location требуется для новой версии MapKit
     implementation("com.google.android.gms:play-services-location:21.1.0")
 }

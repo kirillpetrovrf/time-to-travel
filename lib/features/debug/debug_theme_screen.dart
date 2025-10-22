@@ -142,7 +142,7 @@ class _DebugThemeScreenState extends State<DebugThemeScreen> {
             ? CupertinoColors.activeBlue
             : CupertinoColors.systemGrey5,
         onPressed: () {
-          themeManager.setTheme(theme);
+          // Theme is fixed, no switching available
         },
         child: Text(
           name,

@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:yandex_maps_mapkit/mapkit.dart' hide TextStyle, Icon;
-import 'package:yandex_maps_mapkit/yandex_map.dart';
+import 'package:yandex_mapkit/yandex_mapkit.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../services/yandex_maps_service.dart';
@@ -18,25 +17,6 @@ class CustomRouteWithMapScreen extends StatefulWidget {
       _CustomRouteWithMapScreenState();
 }
 
-// Реализация MapCameraListener
-class _CameraListenerImpl implements MapCameraListener {
-  final Function(VisibleRegion) onRegionChanged;
-
-  _CameraListenerImpl(this.onRegionChanged);
-
-  @override
-  void onCameraPositionChanged(
-    Map map,
-    CameraPosition cameraPosition,
-    CameraUpdateReason cameraUpdateReason,
-    bool finished,
-  ) {
-    if (finished) {
-      onRegionChanged(map.visibleRegion);
-    }
-  }
-}
-
 class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   final TextEditingController _fromController = TextEditingController();
   final TextEditingController _toController = TextEditingController();
@@ -52,9 +32,8 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   String? _errorMessage;
   CalculatorSettings? _settings;
 
-  // Карта
-  MapWindow? _mapWindow;
-  VisibleRegion? _visibleRegion;
+  // Yandex Map controller
+  YandexMapController? _mapController;
 
   // UI состояние
   bool _isMapReady = false;
@@ -86,87 +65,31 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     super.dispose();
   }
 
-  void _onMapCreated(MapWindow mapWindow) {
-    _mapWindow = mapWindow;
+  void _onMapCreated(YandexMapController controller) {
+    _mapController = controller;
 
     print('🗺️ [MAP] ========== ИНИЦИАЛИЗАЦИЯ КАРТЫ ==========');
-    print('🗺️ [MAP] MapWindow создан: ${_mapWindow != null}');
-    print('🗺️ [MAP] Map объект: ${_mapWindow?.map != null}');
+    print('🗺️ [MAP] YandexMapController создан: ${_mapController != null}');
 
     try {
-      // Проверяем доступность карты
-      final map = _mapWindow!.map;
-      print('🗺️ [MAP] ✅ Map объект доступен');
-
-      // 🔧 ЭКСПЕРИМЕНТ: Попробуем переключить на растровую карту (может помочь с тайлами)
-      try {
-        map.mapType = MapType.Map;
-        print('🗺️ [MAP] 🔧 Переключено на MapType.Map (растровая карта)');
-      } catch (e) {
-        print('🗺️ [MAP] ⚠️ Не удалось переключить тип карты: $e');
-      }
+      print('🗺️ [MAP] ✅ Map контроллер доступен');
 
       // Устанавливаем начальную позицию на Пермь
       final permPoint = const Point(latitude: 58.0105, longitude: 56.2502);
       print('🗺️ [MAP] Перемещаем камеру на: $permPoint');
 
-      map.move(CameraPosition(permPoint, zoom: 11.0, azimuth: 0.0, tilt: 0.0));
+      _mapController!.moveCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: permPoint, zoom: 11.0),
+        ),
+      );
       print('🗺️ [MAP] ✅ Камера перемещена');
 
-      // Проверяем доступность logo
-      print('🗺️ [MAP] Проверяем настройки карты...');
-      print('🗺️ [MAP] Logo доступен: ${map.logo != null}');
-
-      // 🔍 ДИАГНОСТИКА: Проверяем состояние карты
-      print('🗺️ [MAP] 🔍 ДИАГНОСТИКА КАРТЫ:');
-      print('🗺️ [MAP] 🔍 MapType: ${map.mapType}');
-      print('🗺️ [MAP] 🔍 Камера: ${map.cameraPosition}');
-      print('🗺️ [MAP] 🔍 Видимая область: ${map.visibleRegion}');
-
-      // 🔍 Проверяем тайлы и кеш
-      print('🗺️ [MAP] ⚠️ ВНИМАНИЕ: Если тайлы не загружаются:');
-      print('🗺️ [MAP] ⚠️ 1. Проверьте интернет-соединение');
-      print('🗺️ [MAP] ⚠️ 2. Проверьте API-ключ Yandex Maps');
-      print('🗺️ [MAP] ⚠️ 3. Проверьте сетевые разрешения Android');
-      print('🗺️ [MAP] ⚠️ 4. Поищите в логах "No available cache for request"');
-
-      // Подписываемся на изменения видимой области
-      final cameraListener = _CameraListenerImpl((region) {
-        if (mounted) {
-          setState(() {
-            _visibleRegion = region;
-            print(
-              '🗺️ [MAP] 📍 Видимая область обновлена: ${region.bottomLeft} - ${region.topRight}',
-            );
-          });
-        }
-      });
-      map.addCameraListener(cameraListener);
-      print('🗺️ [MAP] ✅ CameraListener добавлен');
-
-      // Сохраняем начальную видимую область
-      final initialRegion = map.visibleRegion;
-      print(
-        '🗺️ [MAP] Начальная видимая область: ${initialRegion.bottomLeft} - ${initialRegion.topRight}',
-      );
-
       setState(() {
-        _visibleRegion = initialRegion;
         _isMapReady = true;
       });
 
       print('🗺️ [MAP] ========== ✅ КАРТА ГОТОВА К РАБОТЕ ==========');
-
-      // Ждём 3 секунды и проверяем, загрузились ли тайлы
-      Future.delayed(const Duration(seconds: 3), () {
-        print('🗺️ [MAP] 🔍 ПРОВЕРКА ПОСЛЕ 3 СЕКУНД:');
-        print('🗺️ [MAP] 🔍 Если вы видите только сетку без изображения:');
-        print('🗺️ [MAP] 🔍 ❌ Тайлы НЕ ЗАГРУЗИЛИСЬ от Yandex API');
-        print('🗺️ [MAP] 🔍 Проверьте логи на наличие ошибок:');
-        print('🗺️ [MAP] 🔍 - "No available cache for request"');
-        print('🗺️ [MAP] 🔍 - "HTTP" или "SSL" ошибки');
-        print('🗺️ [MAP] 🔍 - "Connection" ошибки');
-      });
     } catch (e, stackTrace) {
       print('🗺️ [MAP] ❌ ОШИБКА при инициализации карты:');
       print('🗺️ [MAP] Ошибка: $e');
@@ -249,7 +172,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       child: Stack(
         children: [
           // Карта на весь экран
-          YandexMap(onMapCreated: _onMapCreated),
+          YandexMap(onMapCreated: _onMapCreated, mapObjects: const []),
 
           // Оверлей с полями ввода
           SafeArea(

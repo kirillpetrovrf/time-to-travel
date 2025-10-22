@@ -53,8 +53,11 @@ dependencies:
   # Для HTTP запросов
   http: ^1.1.2
   
-  # Для работы с картами Yandex (ОБНОВЛЕНО до последней версии)
-  yandex_maps_mapkit: 4.24.0-beta
+  # Yandex MapKit ПОЛНАЯ версия (с Search, Suggest, Routing)
+  # ПРОБЛЕМА: Suggest API в beta версиях имеет баг - callback не вызывается
+  # РЕШЕНИЕ: Временно используем локальную базу адресов
+  # Документация: https://yandex.ru/dev/mapkit/doc/ru/flutter/
+  yandex_mapkit: ^4.1.0
   
   # Для геолокации
   geolocator: ^10.1.0
