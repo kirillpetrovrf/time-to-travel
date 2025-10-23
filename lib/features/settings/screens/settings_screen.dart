@@ -50,7 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  /// Получить количество запланированных уведомлений
+  /// Получить количество запланированных уведомлений (только БУДУЩИЕ)
   Future<int> _getNotificationsCount() async {
     try {
       final bookingService = BookingService();
@@ -58,6 +58,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       int count = 0;
       final now = DateTime.now();
+
+      debugPrint('🔔 [SETTINGS] Подсчет уведомлений...');
+      debugPrint('🔔 [SETTINGS] Текущее время: $now');
+      debugPrint('🔔 [SETTINGS] Количество заказов: ${bookings.length}');
 
       for (final booking in bookings) {
         // Парсим время отправления
@@ -70,6 +74,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           int.parse(timeParts[1]),
         );
 
+        debugPrint('🔔 [SETTINGS] --- Заказ #${booking.id} ---');
+        debugPrint('🔔 [SETTINGS]   Время отправления: $departureDateTime');
+
         // Уведомление за 1 день (в 9:00 утра)
         final reminderDate = departureDateTime.subtract(
           const Duration(days: 1),
@@ -81,18 +88,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
           9, // 9:00 утра
           0,
         );
-        if (notification24h.isAfter(now.subtract(const Duration(days: 7)))) {
+
+        // ✅ ИСПРАВЛЕНО: Проверяем, что уведомление в БУДУЩЕМ
+        if (notification24h.isAfter(now)) {
           count++;
+          debugPrint(
+            '🔔 [SETTINGS]   ✅ Уведомление за 1 день: $notification24h (БУДУЩЕЕ)',
+          );
+        } else {
+          debugPrint(
+            '🔔 [SETTINGS]   ⏱️ Уведомление за 1 день: $notification24h (ПРОШЛОЕ - не считаем)',
+          );
         }
 
         // Уведомление за 1 час
         final notification1h = departureDateTime.subtract(
           const Duration(hours: 1),
         );
-        if (notification1h.isAfter(now.subtract(const Duration(days: 7)))) {
+
+        // ✅ ИСПРАВЛЕНО: Проверяем, что уведомление в БУДУЩЕМ
+        if (notification1h.isAfter(now)) {
           count++;
+          debugPrint(
+            '🔔 [SETTINGS]   ✅ Уведомление за 1 час: $notification1h (БУДУЩЕЕ)',
+          );
+        } else {
+          debugPrint(
+            '🔔 [SETTINGS]   ⏱️ Уведомление за 1 час: $notification1h (ПРОШЛОЕ - не считаем)',
+          );
         }
       }
+
+      debugPrint('🔔 [SETTINGS] ========================================');
+      debugPrint('🔔 [SETTINGS] ИТОГО: $count действующих уведомлений');
+      debugPrint('🔔 [SETTINGS] ========================================');
 
       return count;
     } catch (e) {
