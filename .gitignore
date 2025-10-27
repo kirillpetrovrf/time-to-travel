@@ -100,3 +100,21 @@ lib/generated_plugin_registrant.dart
 
 # Ignore auto-generated empty logo.svg file
 assets/images/logo.svg
+
+# Ignore test/demo projects
+mapkit-flutter-demo-master/
+
+# Ignore zip archives
+*.zip
+
+# Ignore build folders everywhere
+**/build/
+**/.gradle/
+**/.kotlin/
+
+# Ignore test logs
+*.log
+*.txt
+test_*.sh
+capture_*.sh
+check_*.sh

@@ -53,11 +53,11 @@ dependencies:
   # Для HTTP запросов
   http: ^1.1.2
   
-  # Yandex MapKit ПОЛНАЯ версия (с Search, Suggest, Routing)
-  # ПРОБЛЕМА: Suggest API в beta версиях имеет баг - callback не вызывается
-  # РЕШЕНИЕ: Временно используем локальную базу адресов
+  # Yandex MapKit НОВАЯ версия (с Search, Suggest, Routing)
+  # ✅ ПРАВИЛЬНОЕ РЕШЕНИЕ: используем yandex_maps_mapkit с SearchManager
   # Документация: https://yandex.ru/dev/mapkit/doc/ru/flutter/
-  yandex_mapkit: ^4.1.0
+  # Эта версия поддерживает SearchManager для автодополнения
+  yandex_maps_mapkit: ^4.17.2
   
   # Для геолокации
   geolocator: ^10.1.0

@@ -3,7 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // TODO: Раскомментировать при подключении реального Firebase проекта
 // import 'package:firebase_core/firebase_core.dart';
 // import 'firebase_options.dart';
-import 'package:yandex_mapkit/yandex_mapkit.dart';
+import 'package:yandex_maps_mapkit/init.dart' as mapkit_init;
 import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'services/auth_service.dart';
@@ -38,8 +38,17 @@ void main() async {
     );
   }
 
-  // ✅ Yandex MapKit инициализируется автоматически в MainApplication (Android)
-  // Не требуется инициализация в Flutter коде
+  // ✅ КРИТИЧЕСКИ ВАЖНО: Инициализация Yandex MapKit через Flutter Plugin API
+  // Нативная инициализация в MainApplication.kt закомментирована,
+  // т.к. она несовместима с Flutter Plugin и вызывает SIGSEGV
+  try {
+    await mapkit_init.initMapkit(
+      apiKey: "2f1d6a75-b751-4077-b305-c6abaea0b542",
+    );
+    print('✅ Yandex MapKit инициализирован через Flutter Plugin API');
+  } catch (e) {
+    print('❌ Ошибка инициализации MapKit: $e');
+  }
 
   runApp(const TimeToTravelApp());
 }
