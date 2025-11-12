@@ -53,11 +53,11 @@ dependencies:
   # Для HTTP запросов
   http: ^1.1.2
   
-  # Yandex MapKit НОВАЯ версия (с Search, Suggest, Routing)
-  # ✅ ПРАВИЛЬНОЕ РЕШЕНИЕ: используем yandex_maps_mapkit с SearchManager
+  # Yandex MapKit РАБОЧАЯ версия (с Search, Suggest, Routing)
+  # ✅ ИСПОЛЬЗУЕМ ТОЛЬКО 4.25.0-beta - проверенная рабочая версия из taxi_route_calculator
   # Документация: https://yandex.ru/dev/mapkit/doc/ru/flutter/
-  # Эта версия поддерживает SearchManager для автодополнения
-  yandex_maps_mapkit: ^4.17.2
+  # Версия 4.8.1 и 4.17.2 НЕ РАБОТАЮТ!
+  yandex_maps_mapkit: 4.25.0-beta
   
   # Для геолокации
   geolocator: ^10.1.0
@@ -72,6 +72,12 @@ dependencies:
   
   # Для управления состоянием
   provider: ^6.1.1
+  
+  # Для reactive streams (используется в поиске адресов)
+  rxdart: ^0.27.7
+  
+  # Утилиты коллекций
+  collection: ^1.18.0
   
   # Для работы с URL ссылками
   url_launcher: ^6.3.2
