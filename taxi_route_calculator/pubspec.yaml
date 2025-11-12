@@ -1,0 +1,34 @@
+name: taxi_route_calculator
+description: "Taxi Route Calculator with Yandex MapKit"
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  yandex_maps_mapkit: 4.25.0-beta
+  flutter_animate: ^4.5.0
+  geolocator: ^10.1.0
+  permission_handler: ^11.0.1
+  shared_preferences: ^2.2.2
+  rxdart: ^0.27.7
+  collection: ^1.18.0
+  common:
+    path: ./common
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/
+    - assets/icons/

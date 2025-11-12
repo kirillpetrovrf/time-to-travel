@@ -1,0 +1,256 @@
+import 'dart:collection';
+
+import '../../../utils/extensions.dart';
+import '../state/map_search_state.dart';
+import '../state/search_state.dart' as search_model;
+import '../state/suggest_state.dart' as suggest_model;
+import '../widgets/utils.dart';
+import 'package:rxdart/rxdart.dart';
+import 'package:yandex_maps_mapkit/mapkit.dart';
+import 'package:yandex_maps_mapkit/search.dart';
+
+final class MapSearchManager {
+  static const suggestNumberLimit = 20;
+  static SuggestOptions defaultSuggestOptions = SuggestOptions(
+    suggestTypes: SuggestType(
+      SuggestType.Geo.value | SuggestType.Biz.value | SuggestType.Transit.value,
+    ),
+  );
+
+  // 🆕 Callback для интеграции с системой маршрутизации
+  void Function(Point point, String address)? onAddressSelected;
+
+  final _searchManager =
+      SearchFactory.instance.createSearchManager(SearchManagerType.Combined);
+
+  final _visibleRegion = BehaviorSubject<VisibleRegion?>()..add(null);
+  final _searchQuery = BehaviorSubject<String>()..add("");
+  final _searchState = BehaviorSubject<search_model.SearchState>()
+    ..add(search_model.SearchOff.instance);
+  final _suggestState = BehaviorSubject<suggest_model.SuggestState>()
+    ..add(suggest_model.SuggestOff.instance);
+
+  late final _throttledVisibleRegion =
+      _visibleRegion.debounceTime(const Duration(seconds: 1));
+  late final _suggestSession = _searchManager.createSuggestSession();
+
+  late final _mapSearchState = Rx.combineLatest3(
+    _searchQuery,
+    _searchState,
+    _suggestState,
+    (searchQuery, searchState, suggestState) {
+      return MapSearchState(searchQuery, searchState, suggestState);
+    },
+  ).shareValue();
+
+  late final _searchSessionListener = SearchSessionSearchListener(
+    onSearchResponse: (response) {
+      print('✅ Search response: ${response.collection.children.length} items');
+      final items = response.collection.children
+          .map((geoObjectItem) {
+            final point =
+                geoObjectItem.asGeoObject()?.geometry.firstOrNull?.asPoint();
+
+            return point?.let(
+              (it) => search_model.SearchResponseItem(
+                point,
+                geoObjectItem.asGeoObject(),
+              ),
+            );
+          })
+          .whereType<search_model.SearchResponseItem>()
+          .toList();
+
+      final boundingBox = response.metadata.boundingBox;
+      if (boundingBox == null) {
+        return;
+      }
+
+      _searchState.add(
+        search_model.SearchSuccess(
+          items,
+          {for (final item in items) item.point: item.geoObject},
+          _shouldZoomToSearchResult,
+          boundingBox,
+        ),
+      );
+
+      // 🆕 Уведомляем интеграцию о найденных координатах
+      if (items.isNotEmpty && onAddressSelected != null) {
+        final firstItem = items.first;
+        final address = firstItem.geoObject?.name ?? _searchQuery.value;
+        print("📍 Notifying integration: ${firstItem.point.latitude}, ${firstItem.point.longitude} → '$address'");
+        onAddressSelected!(firstItem.point, address);
+      }
+    },
+    onSearchError: (error) {
+      print('❌ Search error: $error');
+      _searchState.add(search_model.SearchError.instance);
+    },
+  );
+
+  late final _suggestSessionListener = SearchSuggestSessionSuggestListener(
+    onResponse: (response) {
+      print('✅✅✅ CALLBACK FIRED! Got ${response.items.length} suggest items');
+      final suggestItems = response.items.take(suggestNumberLimit).map(
+        (item) {
+          return suggest_model.SuggestItem(
+            title: item.title,
+            subtitle: item.subtitle,
+            onTap: () {
+              setQueryText(item.displayText ?? "");
+
+              if (item.action == SuggestItemAction.Search) {
+                final uri = item.uri;
+                if (uri != null) {
+                  // Search by URI if exists
+                  _submitUriSearch(uri);
+                } else {
+                  // Otherwise, search by searchText
+                  startSearch(item.searchText);
+                }
+              }
+            },
+          );
+        },
+      ).toList();
+      _suggestState.add(suggest_model.SuggestSuccess(suggestItems));
+    },
+    onError: (error) {
+      print('❌❌❌ ERROR CALLBACK FIRED! Suggest error: $error');
+      _suggestState.add(suggest_model.SuggestError.instance);
+    },
+  )..let((it) {
+    print('✅ SuggestSessionListener created: $it');
+    print('   onResponse callback is: ${it.hashCode}');
+  });
+
+  SearchSession? _searchSession;
+  bool _shouldZoomToSearchResult = false;
+
+  ValueStream<MapSearchState> get mapSearchState => _mapSearchState;
+
+  void setQueryText(String query) {
+    print('🔎 setQueryText: "$query"');
+    _searchQuery.add(query);
+  }
+
+  void setVisibleRegion(VisibleRegion region) {
+    print('🗺️ setVisibleRegion: SW(${region.bottomLeft.latitude},${region.bottomLeft.longitude}) NE(${region.topRight.latitude},${region.topRight.longitude})');
+    _visibleRegion.add(region);
+  }
+
+  void startSearch([String? query]) {
+    print('🚀 startSearch with query: "${query ?? _searchQuery.value}"');
+    final region = _visibleRegion.value;
+    if (region == null) {
+      print('❌ No visible region available');
+      return;
+    }
+
+    final polygonRegion = VisibleRegionUtils.toPolygon(region);
+    _submitSearch(query ?? _searchQuery.value, polygonRegion);
+  }
+
+  void reset() {
+    _searchSession?.cancel();
+    _searchSession = null;
+    _searchState.add(search_model.SearchOff.instance);
+    _resetSuggest();
+    _searchQuery.add("");
+  }
+
+  /// Performs the search again when the map position changes
+  Stream<void> subscribeForSearch() {
+    return _throttledVisibleRegion
+        .whereType<VisibleRegion>()
+        .where((_) =>
+          _searchState.value is search_model.SearchSuccess ||
+          _searchState.value is search_model.SearchError
+        )
+        .map(
+          (region) => _searchSession?.let((it) {
+            it.setSearchArea(VisibleRegionUtils.toPolygon(region));
+            it.resubmit(_searchSessionListener);
+            _searchState.add(search_model.SearchLoading.instance);
+            _shouldZoomToSearchResult = false;
+          }),
+        );
+  }
+
+  /// Resubmitting suggests when query, region or searchState changes
+  Stream<void> subscribeForSuggest() {
+    return Rx.combineLatest2(
+      _searchQuery,
+      _throttledVisibleRegion,
+      (searchQuery, region) {
+        if (searchQuery.isNotEmpty && region != null) {
+          _submitSuggest(searchQuery, region.toBoundingBox());
+        } else {
+          _resetSuggest();
+        }
+      },
+    );
+  }
+
+  void dispose() {
+    _visibleRegion.close();
+    _searchQuery.close();
+    _searchState.close();
+    _suggestState.close();
+  }
+
+  void _submitUriSearch(String uri) {
+    _searchSession?.cancel();
+    _searchSession = _searchManager.searchByURI(
+      SearchOptions(),
+      _searchSessionListener,
+      uri: uri,
+    );
+    _shouldZoomToSearchResult = true;
+  }
+
+  void _submitSearch(String query, Geometry geometry) {
+    _searchSession?.cancel();
+    _searchSession = _searchManager.submit(
+      geometry,
+      SearchOptions(resultPageSize: 32),
+      _searchSessionListener,
+      text: query,
+    );
+    _searchState.add(search_model.SearchLoading.instance);
+    _shouldZoomToSearchResult = true;
+  }
+
+  void _submitSuggest(
+    String query,
+    BoundingBox box, [
+    SuggestOptions? options,
+  ]) {
+    print('🌐 Submitting suggest for: "$query"');
+    print('   BoundingBox: SW(${box.southWest.latitude},${box.southWest.longitude}) NE(${box.northEast.latitude},${box.northEast.longitude})');
+    print('   Listener object: $_suggestSessionListener');
+    print('   Listener hashCode: ${_suggestSessionListener.hashCode}');
+    
+    try {
+      _suggestSession.suggest(
+        box,
+        options ?? defaultSuggestOptions,
+        _suggestSessionListener,
+        text: query,
+      );
+      print('✅ suggest() call completed successfully');
+    } catch (e, stackTrace) {
+      print('❌ Exception during suggest() call: $e');
+      print('   Stack trace: $stackTrace');
+    }
+    
+    _suggestState.add(suggest_model.SuggestLoading.instance);
+    print('📊 SuggestLoading state added to stream');
+  }
+
+  void _resetSuggest() {
+    _suggestSession.reset();
+    _suggestState.add(suggest_model.SuggestOff.instance);
+  }
+}

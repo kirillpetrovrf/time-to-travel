@@ -9,7 +9,7 @@ import '../../admin/screens/admin_panel_screen.dart';
 import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
-// import 'custom_route_with_map_screen.dart'; // Временно отключено
+import 'custom_route_with_map_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -143,29 +143,11 @@ class _BookingScreenState extends State<BookingScreen> {
 
   // Открыть экран свободного маршрута с калькулятором И КАРТОЙ
   void _navigateToCustomRoute() {
-    // Временно отключено - экран с картой в разработке
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('В разработке'),
-        content: const Text(
-          'Функция "Свободный маршрут с картой" временно недоступна. Используйте "Популярные маршруты".',
-        ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-    );
-    /* 
     Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (context) => const CustomRouteWithMapScreen(),
       ),
     );
-    */
   }
 
   // Метод для популярных маршрутов - сразу показываем выбор типа поездки

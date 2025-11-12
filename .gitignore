@@ -114,7 +114,10 @@ mapkit-flutter-demo-master/
 
 # Ignore test logs
 *.log
-*.txt
 test_*.sh
 capture_*.sh
 check_*.sh
+
+# Keep important documentation
+!YANDEX_MAP_INTEGRATION_GUIDE.md
+!*.md

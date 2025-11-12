@@ -5,7 +5,6 @@ import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../notifications/screens/notifications_screen.dart';
-import 'address_autocomplete_test_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Экран настроек приложения
@@ -207,15 +206,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _checkPermissions();
   }
 
-  /// Открыть тестовый экран автозаполнения адресов
-  Future<void> _openAutocompleteTestScreen() async {
-    await Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => const AddressAutocompleteTestScreen(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = CupertinoTheme.of(context);
@@ -281,18 +271,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Сейчас, через 5 и 10 секунд',
                     color: CupertinoColors.systemOrange,
                     onTap: () => _testAllNotifications(),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Секция: Разработка
-                  _buildSectionHeader('Разработка'),
-                  _buildActionTile(
-                    icon: CupertinoIcons.location_north_line_fill,
-                    title: 'Автозаполнение адресов',
-                    subtitle: 'Тестирование геосаджеста Яндекс.Карт',
-                    color: CupertinoColors.systemPurple,
-                    onTap: () => _openAutocompleteTestScreen(),
                   ),
 
                   const SizedBox(height: 20),
@@ -482,35 +460,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: theme.secondaryLabel.withOpacity(0.5),
         ),
         onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildThemeTile(ThemeManager themeManager) {
-    final theme = themeManager.currentTheme;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.secondarySystemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.separator.withOpacity(0.2)),
-      ),
-      child: CupertinoListTile(
-        leading: const Icon(
-          CupertinoIcons.moon_fill,
-          color: CupertinoColors.systemIndigo,
-          size: 28,
-        ),
-        title: Text('Темная тема', style: TextStyle(color: theme.label)),
-        subtitle: Text(
-          'Time to Travel Dark (по умолчанию)',
-          style: TextStyle(color: theme.secondaryLabel, fontSize: 13),
-        ),
-        trailing: CupertinoSwitch(
-          value: true, // Всегда темная тема
-          onChanged: null, // Отключаем переключение
-        ),
       ),
     );
   }
