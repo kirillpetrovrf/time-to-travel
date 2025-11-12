@@ -59,6 +59,10 @@ dependencies:
   # Версия 4.8.1 и 4.17.2 НЕ РАБОТАЮТ!
   yandex_maps_mapkit: 4.25.0-beta
   
+  # SQLite для локального хранения заказов (офлайн режим для тестирования)
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  
   # Для анимаций (используется в taxi_route_calculator)
   flutter_animate: ^4.5.0
   

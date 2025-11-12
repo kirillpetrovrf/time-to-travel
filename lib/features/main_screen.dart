@@ -15,6 +15,12 @@ import '../managers/route_points_manager.dart';
 import '../managers/search_routing_integration.dart';
 import '../permissions/permission_manager.dart';
 import '../services/reverse_geocoding_service.dart';
+import '../services/price_calculator_service.dart';
+import '../services/offline_orders_service.dart';
+import '../services/firebase_orders_service.dart';
+import '../models/price_calculation.dart';
+import '../models/taxi_order.dart';
+import 'package:uuid/uuid.dart';
 import '../utils/polyline_extensions.dart';
 import '../widgets_taxi/geolocation_button.dart';
 import '../widgets_taxi/search_fields_panel.dart';
@@ -22,7 +28,7 @@ import '../widgets_taxi/point_type_selector.dart';
 import 'package:yandex_maps_mapkit/directions.dart';
 import 'package:yandex_maps_mapkit/image.dart' as image_provider;
 import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
-import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon; // For Point, hide Icon to avoid conflict
+import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle; // Hide Icon and TextStyle to avoid conflict
 // import 'package:yandex_maps_mapkit/mapkit_factory.dart';
 import 'package:yandex_maps_mapkit/runtime.dart';
 
@@ -44,8 +50,13 @@ class _MainScreenState extends State<MainScreen> {
 
   final _mapManager = MapSearchManager();
   final _reverseGeocodingService = ReverseGeocodingService();
+  final _priceService = PriceCalculatorService.instance; // 🆕 Сервис расчёта цены
   late final RoutePointsManager _routePointsManager;
   SearchRoutingIntegration? _integration; // 🆕 Координатор интеграции (nullable until map is ready)
+
+  // 🆕 Состояние калькулятора
+  PriceCalculation? _calculation; // Результат расчёта
+  double? _distanceKm;            // Расстояние в км
 
   late final mapkit.MapObjectCollection _searchResultPlacemarksCollection;
 
@@ -242,6 +253,14 @@ class _MainScreenState extends State<MainScreen> {
         _drivingRoutes = newRoutes;
         _onDrivingRoutesUpdated();
       });
+      
+      // 🆕 Расчёт цены для первого маршрута
+      if (newRoutes.isNotEmpty) {
+        final route = newRoutes.first;
+        final distanceKm = route.metadata.weight.distance.value / 1000;
+        print('📏 [ROUTE] Расстояние маршрута: $distanceKm км');
+        _calculatePriceForDistance(distanceKm);
+      }
     },
     onDrivingRoutesError: (Error error) {
       print('❌❌❌ onDrivingRoutesError FIRED! Error: $error');
@@ -344,6 +363,119 @@ class _MainScreenState extends State<MainScreen> {
     _drivingRoutes.asMap().forEach((index, route) {
       _createPolylineWithStyle(index, route.geometry);
     });
+  }
+
+  // 🆕 Расчёт стоимости поездки
+  Future<void> _calculatePriceForDistance(double distanceKm) async {
+    try {
+      print('💰 [PRICE] Расчёт цены для расстояния: $distanceKm км');
+      final calculation = await _priceService.calculatePrice(distanceKm);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _distanceKm = distanceKm;
+        _calculation = calculation;
+      });
+      
+      print('💰 [PRICE] Стоимость: ${calculation.finalPrice}₽');
+    } catch (e) {
+      print('❌ [PRICE] Ошибка расчета: $e');
+    }
+  }
+
+  // 🆕 Обработчик нажатия кнопки "Заказать"
+  Future<void> _onOrderButtonPressed() async {
+    print('🚕 [ORDER] Кнопка "Заказать такси" нажата');
+    
+    // Проверяем наличие всех данных
+    if (_calculation == null || _distanceKm == null) {
+      print('❌ [ORDER] Нет данных для заказа');
+      showSnackBar(context, 'Ошибка: нет данных для заказа');
+      return;
+    }
+    
+    final fromPoint = _routePointsManager.fromPoint;
+    final toPoint = _routePointsManager.toPoint;
+    
+    if (fromPoint == null || toPoint == null) {
+      print('❌ [ORDER] Нет точек маршрута');
+      showSnackBar(context, 'Ошибка: не выбраны точки маршрута');
+      return;
+    }
+    
+    print('✅ [ORDER] Все данные есть, создаем заказ...');
+    print('   FROM: $fromPoint');
+    print('   TO: $toPoint');
+    print('   Distance: $_distanceKm км');
+    print('   Price: ${_calculation!.finalPrice}₽');
+    
+    // Генерируем уникальный ID заказа
+    final orderId = const Uuid().v4();
+    print('🆔 [ORDER] ID заказа: $orderId');
+    
+    // Получаем адреса точек маршрута
+    String fromAddress = 'Адрес не определен';
+    String toAddress = 'Адрес не определен';
+    
+    try {
+      final reverseGeoService = ReverseGeocodingService();
+      
+      print('📍 [ORDER] Получение адреса точки отправления...');
+      fromAddress = await reverseGeoService.getAddressFromPoint(fromPoint) ?? 'Адрес не определен';
+      print('   FROM Address: $fromAddress');
+      
+      print('📍 [ORDER] Получение адреса точки назначения...');
+      toAddress = await reverseGeoService.getAddressFromPoint(toPoint) ?? 'Адрес не определен';
+      print('   TO Address: $toAddress');
+    } catch (e) {
+      print('⚠️ [ORDER] Ошибка получения адресов: $e');
+      // Продолжаем создание заказа даже если не удалось получить адреса
+    }
+    
+    // Создаем объект заказа
+    final order = TaxiOrder(
+      orderId: orderId,
+      timestamp: DateTime.now(),
+      fromPoint: fromPoint,
+      toPoint: toPoint,
+      fromAddress: fromAddress,
+      toAddress: toAddress,
+      distanceKm: _distanceKm!,
+      rawPrice: _calculation!.rawPrice,
+      finalPrice: _calculation!.finalPrice,
+      baseCost: _calculation!.baseCost,
+      costPerKm: _calculation!.costPerKm,
+      status: 'pending',
+    );
+    
+    print('📦 [ORDER] Объект заказа создан:');
+    print(order.toString());
+    
+    // Сохраняем в SQLite (офлайн)
+    try {
+      print('💾 [ORDER] Сохранение в SQLite...');
+      await OfflineOrdersService.instance.saveOrder(order);
+      print('✅ [ORDER] Сохранено в SQLite');
+    } catch (e) {
+      print('❌ [ORDER] Ошибка сохранения в SQLite: $e');
+      showSnackBar(context, 'Ошибка сохранения заказа локально');
+      return;
+    }
+    
+    // Сохраняем в Firebase (онлайн)
+    try {
+      print('☁️ [ORDER] Сохранение в Firebase...');
+      await FirebaseOrdersService.instance.saveOrder(order);
+      print('✅ [ORDER] Сохранено в Firebase');
+    } catch (e) {
+      print('⚠️ [ORDER] Ошибка сохранения в Firebase: $e');
+      // Не прерываем процесс - заказ уже сохранен локально
+    }
+    
+    // Показываем успех
+    showSnackBar(context, '✅ Заказ создан! ID: ${orderId.substring(0, 8)}...');
+    print('🎉 [ORDER] Заказ успешно создан и сохранен!');
   }
 
   // REMOVED: _onPedestrianRoutesUpdated and _onPublicTransportRoutesUpdated - taxi app only needs driving routes
@@ -650,6 +782,112 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
+          
+          // 💰 ПАНЕЛЬ С ЦЕНОЙ И РАССТОЯНИЕМ (внизу экрана)
+          if (_calculation != null && _distanceKm != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 90, // Над кнопкой геолокации
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Расстояние и Цена
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Расстояние
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Расстояние',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_distanceKm!.toStringAsFixed(1)} км',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Цена
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Стоимость',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_calculation!.finalPrice.toInt()} ₽',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // 🆕 Кнопка "Заказать"
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _onOrderButtonPressed,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: const Text(
+                          'Заказать такси',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          
           // Кнопка геолокации
           Positioned(
             bottom: 16,
