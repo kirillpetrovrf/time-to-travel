@@ -154,6 +154,8 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     
     // Получаем адрес для UI
     _reverseGeocodingService.getAddressFromPoint(point).then((address) {
+      if (!mounted) return; // Проверка перед setState
+      
       final displayText = address ?? 
         "${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}";
       
@@ -203,6 +205,8 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     
     final listener = DrivingSessionRouteListener(
       onDrivingRoutes: (routes) {
+        if (!mounted) return; // Проверка перед setState
+        
         print('🎉 Получено ${routes.length} маршрутов');
         if (routes.isNotEmpty) {
           final route = routes.first;
@@ -214,6 +218,8 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
         }
       },
       onDrivingRoutesError: (error) {
+        if (!mounted) return; // Проверка перед setState
+        
         print('❌ Ошибка построения маршрута: $error');
         setState(() {
           _errorMessage = 'Не удалось построить маршрут';
@@ -234,6 +240,8 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     try {
       final calculation = await _priceService.calculatePrice(distanceKm);
       
+      if (!mounted) return; // Проверка перед setState
+      
       setState(() {
         _distanceKm = distanceKm;
         _calculation = calculation;
@@ -242,6 +250,8 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       
       print('💰 Стоимость: ${calculation.finalPrice}₽');
     } catch (e) {
+      if (!mounted) return; // Проверка перед setState
+      
       print('❌ Ошибка расчета: $e');
       setState(() {
         _errorMessage = 'Ошибка расчета стоимости';
