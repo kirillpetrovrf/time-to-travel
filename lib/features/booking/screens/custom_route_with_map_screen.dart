@@ -37,6 +37,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   late final RoutePointsManager _routePointsManager;
   late final DrivingRouter _drivingRouter;
   late final MapInputListenerImpl _inputListener;
+  late final DrivingSessionRouteListener _drivingRouteListener;
 
   // Yandex Map
   mapkit.MapWindow? _mapWindow;
@@ -67,6 +68,43 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       },
       onMapLongTapCallback: (map, point) {
         // Можно добавить сброс точек
+      },
+    );
+    
+    // Слушатель маршрутов (создаем ОДИН РАЗ!)
+    _drivingRouteListener = DrivingSessionRouteListener(
+      onDrivingRoutes: (routes) {
+        print('✅ onDrivingRoutes вызван! routes.length=${routes.length}');
+        if (!mounted) {
+          print('⚠️ Widget не mounted, прерываем');
+          return;
+        }
+        
+        print('🎉 Получено ${routes.length} маршрутов');
+        if (routes.isNotEmpty) {
+          final route = routes.first;
+          final distanceKm = route.metadata.weight.distance.value / 1000;
+          print('📏 Расстояние: $distanceKm км');
+          
+          _calculatePriceForDistance(distanceKm);
+          _drawRoute(route);
+        }
+      },
+      onDrivingRoutesError: (error) {
+        print('❌ onDrivingRoutesError вызван!');
+        print('❌ Error details: $error');
+        print('❌ Error type: ${error.runtimeType}');
+        
+        if (!mounted) {
+          print('⚠️ Widget не mounted, прерываем');
+          return;
+        }
+        
+        print('❌ Ошибка построения маршрута: $error');
+        setState(() {
+          _errorMessage = 'Не удалось построить маршрут';
+          _calculation = null;
+        });
       },
     );
   }
@@ -208,49 +246,14 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     ];
     
     print('📍 RequestPoints created: ${requestPoints.length}');
-    
-    final listener = DrivingSessionRouteListener(
-      onDrivingRoutes: (routes) {
-        print('✅ onDrivingRoutes вызван! routes.length=${routes.length}');
-        if (!mounted) {
-          print('⚠️ Widget не mounted, прерываем');
-          return;
-        }
-        
-        print('🎉 Получено ${routes.length} маршрутов');
-        if (routes.isNotEmpty) {
-          final route = routes.first;
-          final distanceKm = route.metadata.weight.distance.value / 1000;
-          print('📏 Расстояние: $distanceKm км');
-          
-          _calculatePriceForDistance(distanceKm);
-          _drawRoute(route);
-        }
-      },
-      onDrivingRoutesError: (error) {
-        print('❌ onDrivingRoutesError вызван!');
-        print('❌ Error details: $error');
-        print('❌ Error type: ${error.runtimeType}');
-        
-        if (!mounted) {
-          print('⚠️ Widget не mounted, прерываем');
-          return;
-        }
-        
-        print('❌ Ошибка построения маршрута: $error');
-        setState(() {
-          _errorMessage = 'Не удалось построить маршрут';
-          _calculation = null;
-        });
-      },
-    );
+    print('🎧 Using listener: ${_drivingRouteListener.hashCode}');
     
     print('🔄 Вызываем requestRoutes...');
     try {
       _drivingSession = _drivingRouter.requestRoutes(
         drivingOptions,
         vehicleOptions,
-        listener,
+        _drivingRouteListener, // Используем ЕДИНЫЙ listener!
         points: requestPoints,
       );
       print('✅ requestRoutes вызван, session: $_drivingSession');
