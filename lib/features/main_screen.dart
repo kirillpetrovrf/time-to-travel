@@ -391,7 +391,7 @@ class _MainScreenState extends State<MainScreen> {
     // Проверяем наличие всех данных
     if (_calculation == null || _distanceKm == null) {
       print('❌ [ORDER] Нет данных для заказа');
-      showSnackBar(context, 'Ошибка: нет данных для заказа');
+      _showOrderDialog('Ошибка', 'Нет данных для заказа', isError: true);
       return;
     }
     
@@ -400,7 +400,7 @@ class _MainScreenState extends State<MainScreen> {
     
     if (fromPoint == null || toPoint == null) {
       print('❌ [ORDER] Нет точек маршрута');
-      showSnackBar(context, 'Ошибка: не выбраны точки маршрута');
+      _showOrderDialog('Ошибка', 'Не выбраны точки маршрута', isError: true);
       return;
     }
     
@@ -459,23 +459,49 @@ class _MainScreenState extends State<MainScreen> {
       print('✅ [ORDER] Сохранено в SQLite');
     } catch (e) {
       print('❌ [ORDER] Ошибка сохранения в SQLite: $e');
-      showSnackBar(context, 'Ошибка сохранения заказа локально');
+      _showOrderDialog('Ошибка', 'Не удалось сохранить заказ локально', isError: true);
       return;
     }
     
-    // Сохраняем в Firebase (онлайн)
+    // Сохраняем в Firebase (онлайн) - необязательно, заказ уже в SQLite
     try {
       print('☁️ [ORDER] Сохранение в Firebase...');
       await FirebaseOrdersService.instance.saveOrder(order);
       print('✅ [ORDER] Сохранено в Firebase');
     } catch (e) {
       print('⚠️ [ORDER] Ошибка сохранения в Firebase: $e');
-      // Не прерываем процесс - заказ уже сохранен локально
+      // Не прерываем процесс - заказ уже сохранен локально в SQLite
     }
     
     // Показываем успех
-    showSnackBar(context, '✅ Заказ создан! ID: ${orderId.substring(0, 8)}...');
+    _showOrderDialog(
+      '✅ Заказ создан!', 
+      'ID: ${orderId.substring(0, 8)}...\n'
+      'От: $fromAddress\n'
+      'До: $toAddress\n'
+      'Расстояние: ${_distanceKm!.toStringAsFixed(1)} км\n'
+      'Стоимость: ${_calculation!.finalPrice.toStringAsFixed(0)}₽',
+      isError: false,
+    );
     print('🎉 [ORDER] Заказ успешно создан и сохранен!');
+  }
+
+  // Показать диалог с результатом заказа (Cupertino-стиль)
+  void _showOrderDialog(String title, String message, {required bool isError}) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
   }
 
   // REMOVED: _onPedestrianRoutesUpdated and _onPublicTransportRoutesUpdated - taxi app only needs driving routes
