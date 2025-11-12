@@ -164,12 +164,10 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   }
 
   void _onMapTap(mapkit.Point point) {
-    print("🗺️ [_onMapTap] Тап по карте: ${point.latitude}, ${point.longitude}");
-    print("🗺️ [_onMapTap] _isPointSelectionEnabled: $_isPointSelectionEnabled");
-    print("🗺️ [_onMapTap] _selectedPointType: $_selectedPointType");
+    print("🗺️ Тап по карте: ${point.latitude}, ${point.longitude}");
     
     if (!_isPointSelectionEnabled) {
-      print("🚫 [_onMapTap] Выбор точек отключен, маршрут завершен");
+      print("🚫 Выбор точек отключен, маршрут завершен");
       return;
     }
     

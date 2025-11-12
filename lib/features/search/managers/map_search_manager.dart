@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import '../../../utils/extensions.dart';
+import 'package:common/common.dart';
 import '../state/map_search_state.dart';
 import '../state/search_state.dart' as search_model;
 import '../state/suggest_state.dart' as suggest_model;

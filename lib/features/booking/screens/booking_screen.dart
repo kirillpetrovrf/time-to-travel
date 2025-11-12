@@ -9,7 +9,7 @@ import '../../admin/screens/admin_panel_screen.dart';
 import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
-import 'custom_route_with_map_screen.dart';
+import '../../main_screen.dart'; // 100% taxi_route_calculator код
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -145,7 +145,7 @@ class _BookingScreenState extends State<BookingScreen> {
   void _navigateToCustomRoute() {
     Navigator.of(context).push(
       CupertinoPageRoute(
-        builder: (context) => const CustomRouteWithMapScreen(),
+        builder: (context) => const MainScreen(), // 100% taxi_route_calculator
       ),
     );
   }

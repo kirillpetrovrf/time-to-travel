@@ -59,6 +59,9 @@ dependencies:
   # Версия 4.8.1 и 4.17.2 НЕ РАБОТАЮТ!
   yandex_maps_mapkit: 4.25.0-beta
   
+  # Для анимаций (используется в taxi_route_calculator)
+  flutter_animate: ^4.5.0
+  
   # Для геолокации
   geolocator: ^10.1.0
   permission_handler: ^11.0.1
@@ -78,6 +81,10 @@ dependencies:
   
   # Утилиты коллекций
   collection: ^1.18.0
+  
+  # Локальный пакет с общими компонентами из taxi_route_calculator
+  common:
+    path: ./common
   
   # Для работы с URL ссылками
   url_launcher: ^6.3.2
@@ -112,6 +119,7 @@ flutter:
 
   # Ресурсы приложения
   assets:
+    - assets/
     - assets/images/
     - assets/icons/
 

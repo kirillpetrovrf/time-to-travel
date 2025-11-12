@@ -1,5 +1,5 @@
-import '../state/search_state.dart';
-import '../state/suggest_state.dart';
+import 'search_state.dart';
+import 'suggest_state.dart';
 
 final class MapSearchState {
   final String searchQuery;

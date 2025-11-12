@@ -1,9 +1,8 @@
-import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/image.dart' as image_provider;
 import 'package:yandex_maps_mapkit/mapkit.dart';
-import '../widgets_taxi/point_type_selector.dart';
+
+enum RoutePointType { from, to }
 
 class RoutePointsManager {
   final MapObjectCollection mapObjects;
@@ -20,45 +19,13 @@ class RoutePointsManager {
   PlacemarkMapObject? _fromPlacemark;
   PlacemarkMapObject? _toPlacemark;
 
-  image_provider.ImageProvider? _fromIcon;
-  image_provider.ImageProvider? _toIcon;
+  late final _fromImageProvider = 
+      image_provider.ImageProvider.fromImageProvider(
+          const AssetImage("assets/ic_point.png"));
 
-  // Инициализация иконок
-  Future<void> init() async {
-    _fromIcon = await _createCircleIcon(Colors.red);
-    _toIcon = await _createCircleIcon(Colors.blue);
-  }
-
-  // Создание круглой иконки заданного цвета
-  Future<image_provider.ImageProvider> _createCircleIcon(Color color) async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final size = 256.0;  // Большой размер для видимости
-    final radius = size / 2;
-    
-    // Рисуем круг
-    canvas.drawCircle(Offset(radius, radius), radius, paint);
-    
-    // Белая обводка
-    final strokePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10.0;  // Толстая обводка
-    canvas.drawCircle(Offset(radius, radius), radius - 5.0, strokePaint);
-    
-    final picture = recorder.endRecording();
-    final img = await picture.toImage(size.toInt(), size.toInt());
-    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-    final bytes = byteData!.buffer.asUint8List();
-    
-    return image_provider.ImageProvider.fromImageProvider(
-      MemoryImage(bytes)
-    );
-  }
+  late final _toImageProvider = 
+      image_provider.ImageProvider.fromImageProvider(
+          const AssetImage("assets/ic_finish_point.png"));
 
   void setPoint(RoutePointType type, Point point) {
     print("🔧 Setting $type point to: ${point.latitude}, ${point.longitude}");
@@ -113,16 +80,8 @@ class RoutePointsManager {
         print("✅ Creating new FROM placemark");
         try {
           _fromPlacemark = mapObjects.addPlacemark();
-          if (_fromIcon != null) {
-            _fromPlacemark!.setIcon(_fromIcon!);
-            _fromPlacemark!.setIconStyle(
-              IconStyle(
-                anchor: math.Point(0.5, 0.5),
-                scale: 0.5,
-                zIndex: 20.0,
-              ),
-            );
-          }
+          _fromPlacemark!.setIcon(_fromImageProvider);
+          _fromPlacemark!.setIconStyle(const IconStyle(scale: 2.0, zIndex: 20.0));
           _fromPlacemark!.geometry = _fromPoint!;
           print("✅ FROM placemark created and added to map");
         } catch (e) {
@@ -156,16 +115,8 @@ class RoutePointsManager {
         print("✅ Creating new TO placemark");
         try {
           _toPlacemark = mapObjects.addPlacemark();
-          if (_toIcon != null) {
-            _toPlacemark!.setIcon(_toIcon!);
-            _toPlacemark!.setIconStyle(
-              IconStyle(
-                anchor: math.Point(0.5, 0.5),
-                scale: 0.5,
-                zIndex: 20.0,
-              ),
-            );
-          }
+          _toPlacemark!.setIcon(_toImageProvider);
+          _toPlacemark!.setIconStyle(const IconStyle(scale: 2.0, zIndex: 20.0));
           _toPlacemark!.geometry = _toPoint!;
           print("✅ TO placemark created and added to map");
         } catch (e) {
