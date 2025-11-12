@@ -189,9 +189,13 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   void _requestDrivingRoute() {
     final fromPoint = _routePointsManager.fromPoint;
     final toPoint = _routePointsManager.toPoint;
-    if (fromPoint == null || toPoint == null) return;
+    if (fromPoint == null || toPoint == null) {
+      print('⚠️ Невозможен запрос: from=$fromPoint, to=$toPoint');
+      return;
+    }
     
     print('🚗 Запрос маршрута: $fromPoint → $toPoint');
+    print('🔧 DrivingRouter: $_drivingRouter');
     
     _drivingSession?.cancel();
     
@@ -203,9 +207,15 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       mapkit.RequestPoint(toPoint, mapkit.RequestPointType.Waypoint, null, null, null),
     ];
     
+    print('📍 RequestPoints created: ${requestPoints.length}');
+    
     final listener = DrivingSessionRouteListener(
       onDrivingRoutes: (routes) {
-        if (!mounted) return; // Проверка перед setState
+        print('✅ onDrivingRoutes вызван! routes.length=${routes.length}');
+        if (!mounted) {
+          print('⚠️ Widget не mounted, прерываем');
+          return;
+        }
         
         print('🎉 Получено ${routes.length} маршрутов');
         if (routes.isNotEmpty) {
@@ -218,7 +228,14 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
         }
       },
       onDrivingRoutesError: (error) {
-        if (!mounted) return; // Проверка перед setState
+        print('❌ onDrivingRoutesError вызван!');
+        print('❌ Error details: $error');
+        print('❌ Error type: ${error.runtimeType}');
+        
+        if (!mounted) {
+          print('⚠️ Widget не mounted, прерываем');
+          return;
+        }
         
         print('❌ Ошибка построения маршрута: $error');
         setState(() {
@@ -228,12 +245,19 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       },
     );
     
-    _drivingSession = _drivingRouter.requestRoutes(
-      drivingOptions,
-      vehicleOptions,
-      listener,
-      points: requestPoints,
-    );
+    print('🔄 Вызываем requestRoutes...');
+    try {
+      _drivingSession = _drivingRouter.requestRoutes(
+        drivingOptions,
+        vehicleOptions,
+        listener,
+        points: requestPoints,
+      );
+      print('✅ requestRoutes вызван, session: $_drivingSession');
+    } catch (e, stackTrace) {
+      print('❌ EXCEPTION при requestRoutes: $e');
+      print('❌ StackTrace: $stackTrace');
+    }
   }
 
   Future<void> _calculatePriceForDistance(double distanceKm) async {
