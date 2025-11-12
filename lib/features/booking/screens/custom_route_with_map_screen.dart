@@ -100,7 +100,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       _routePointsManager = RoutePointsManager(
         mapObjects: routePointsCollection,
         onPointsChanged: (points) {
-          print('📍 Точки изменились: \${points.length}');
+          print('📍 Точки изменились: ${points.length}');
           _onRouteParametersUpdated();
         },
       );
@@ -121,12 +121,12 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
 
       print('🗺️ [MAP] ========== ✅ КАРТА ГОТОВА ==========');
     } catch (e, stackTrace) {
-      print('❌ Ошибка инициализации карты: \$e\n\$stackTrace');
+      print('❌ Ошибка инициализации карты: $e\n$stackTrace');
     }
   }
 
   void _onMapTap(mapkit.Point point) {
-    print("🗺️ Тап по карте: \${point.latitude}, \${point.longitude}");
+    print("🗺️ Тап по карте: ${point.latitude}, ${point.longitude}");
     
     if (!_isPointSelectionEnabled) {
       print("🚫 Выбор точек отключен, маршрут завершен");
@@ -135,7 +135,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     
     // Устанавливаем точку
     _routePointsManager.setPoint(_selectedPointType, point);
-    print("✅ Точка установлена: \$_selectedPointType");
+    print("✅ Точка установлена: $_selectedPointType");
     
     final pointTypeForThisTap = _selectedPointType;
     
@@ -155,7 +155,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     // Получаем адрес для UI
     _reverseGeocodingService.getAddressFromPoint(point).then((address) {
       final displayText = address ?? 
-        "\${point.latitude.toStringAsFixed(6)}, \${point.longitude.toStringAsFixed(6)}";
+        "${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}";
       
       setState(() {
         if (pointTypeForThisTap == RoutePointType.from) {
@@ -164,7 +164,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
           _toAddress = displayText;
         }
       });
-      print("📍 Адрес получен: \$displayText");
+      print("📍 Адрес получен: $displayText");
     });
   }
 
@@ -176,7 +176,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       print('✅ Обе точки установлены, строим маршрут');
       _requestDrivingRoute();
     } else {
-      print('⚠️ Не все точки: from=\${fromPoint != null}, to=\${toPoint != null}');
+      print('⚠️ Не все точки: from=${fromPoint != null}, to=${toPoint != null}');
       setState(() {
         _calculation = null;
         _distanceKm = null;
@@ -189,7 +189,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     final toPoint = _routePointsManager.toPoint;
     if (fromPoint == null || toPoint == null) return;
     
-    print('🚗 Запрос маршрута: \$fromPoint → \$toPoint');
+    print('🚗 Запрос маршрута: $fromPoint → $toPoint');
     
     _drivingSession?.cancel();
     
@@ -203,18 +203,18 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     
     final listener = DrivingSessionRouteListener(
       onDrivingRoutes: (routes) {
-        print('🎉 Получено \${routes.length} маршрутов');
+        print('🎉 Получено ${routes.length} маршрутов');
         if (routes.isNotEmpty) {
           final route = routes.first;
           final distanceKm = route.metadata.weight.distance.value / 1000;
-          print('📏 Расстояние: \$distanceKm км');
+          print('📏 Расстояние: $distanceKm км');
           
           _calculatePriceForDistance(distanceKm);
           _drawRoute(route);
         }
       },
       onDrivingRoutesError: (error) {
-        print('❌ Ошибка построения маршрута: \$error');
+        print('❌ Ошибка построения маршрута: $error');
         setState(() {
           _errorMessage = 'Не удалось построить маршрут';
           _calculation = null;
@@ -240,9 +240,9 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
         _errorMessage = null;
       });
       
-      print('💰 Стоимость: \${calculation.finalPrice}₽');
+      print('💰 Стоимость: ${calculation.finalPrice}₽');
     } catch (e) {
-      print('❌ Ошибка расчета: \$e');
+      print('❌ Ошибка расчета: $e');
       setState(() {
         _errorMessage = 'Ошибка расчета стоимости';
       });
@@ -496,7 +496,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '\${_distanceKm!.toStringAsFixed(1)} км',
+                  '${_distanceKm!.toStringAsFixed(1)} км',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -514,7 +514,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '\${calc.finalPrice} ₽',
+                  '${calc.finalPrice} ₽',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
