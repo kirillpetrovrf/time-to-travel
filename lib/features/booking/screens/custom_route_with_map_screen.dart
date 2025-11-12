@@ -1,13 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
-import 'package:yandex_maps_mapkit/mapkit.dart';
-import 'package:yandex_maps_mapkit/mapkit_factory.dart';
+import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
+import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle;
+import 'package:yandex_maps_mapkit/yandex_map.dart';
+import 'package:yandex_maps_mapkit/directions.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../services/yandex_maps_service.dart';
 import '../../../services/price_calculator_service.dart';
 import '../../../services/calculator_settings_service.dart';
+import '../../../services/reverse_geocoding_service.dart';
 import '../../../models/calculator_settings.dart';
 import '../../../models/price_calculation.dart';
+import '../../../models/route_point.dart';
+import '../../../managers/route_points_manager.dart';
+import '../../../managers/search_routing_integration.dart';
+import '../../../features/search/managers/map_search_manager.dart';
+import '../../../features/search/state/map_search_state.dart';
+import '../../../features/search/state/search_state.dart';
+import '../../../utils/extensions.dart';
+import '../../../listeners/map_input_listener.dart';
 
 /// Экран "Свободный маршрут" с картой как в Яндекс.Такси
 class CustomRouteWithMapScreen extends StatefulWidget {
@@ -33,8 +46,31 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   String? _errorMessage;
   CalculatorSettings? _settings;
 
-  // Yandex Map controller
-  YandexMapController? _mapController;
+  // 🆕 НОВАЯ АРХИТЕКТУРА: Менеджеры
+  final MapSearchManager _mapSearchManager = MapSearchManager();
+  final ReverseGeocodingService _reverseGeocodingService = ReverseGeocodingService();
+  late final RoutePointsManager _routePointsManager;
+  SearchRoutingIntegration? _integration;
+  
+  // Yandex Map - новый API
+  mapkit.MapWindow? _mapWindow;
+  
+  // 🆕 Routing для автоматического расчета
+  DrivingSession? _drivingSession;
+  late final DrivingRouter _drivingRouter;
+  var _drivingRoutes = <DrivingRoute>[];
+  late final mapkit.MapObjectCollection _routesCollection;
+
+  // 🆕 Input listener для тапов по карте
+  late final MapInputListenerImpl _inputListener;
+  
+  // 🆕 Состояние выбора точек
+  RoutePointType _selectedPointType = RoutePointType.from;
+  bool _isPointSelectionEnabled = true;
+  bool _routeCompleted = false;
+  
+  // Subscriptions
+  StreamSubscription<void>? _pointsChangedSubscription;
 
   // UI состояние
   bool _isMapReady = false;
@@ -43,6 +79,55 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    
+    print('🎯 CustomRouteWithMapScreen initState()');
+    
+    // Инициализируем MapInputListener для тапов по карте
+    _inputListener = MapInputListenerImpl(
+      onMapTapCallback: (map, point) {
+        print("🗺️ Тап по карте: ${point.latitude}, ${point.longitude}");
+        
+        if (!_isPointSelectionEnabled) {
+          print("🚫 Выбор точек отключен, маршрут завершен");
+          return;
+        }
+        
+        // Устанавливаем точку напрямую
+        _routePointsManager.setPoint(_selectedPointType, point);
+        print("✅ Точка установлена: $_selectedPointType");
+        
+        final pointTypeForThisTap = _selectedPointType;
+        
+        // Автоматически переключаемся на следующую точку
+        if (_selectedPointType == RoutePointType.from) {
+          setState(() {
+            _selectedPointType = RoutePointType.to;
+          });
+          print("🔄 Переключено на TO");
+        } else {
+          setState(() {
+            _isPointSelectionEnabled = false;
+            _routeCompleted = true;
+          });
+          print("✅ Маршрут завершен!");
+        }
+        
+        // Reverse geocoding для отображения адреса
+        _reverseGeocodingService.getAddressFromPoint(point).then((address) {
+          final displayText = address ?? "${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}";
+          setState(() {
+            if (pointTypeForThisTap == RoutePointType.from) {
+              _fromController.text = displayText;
+            } else {
+              _toController.text = displayText;
+            }
+          });
+        });
+      },
+      onMapLongTapCallback: (map, point) {
+        print("📍 Длинный тап по карте");
+      },
+    );
   }
 
   Future<void> _loadSettings() async {
@@ -63,28 +148,59 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   void dispose() {
     _fromController.dispose();
     _toController.dispose();
+    _pointsChangedSubscription?.cancel();
+    _mapSearchManager.dispose();
+    _reverseGeocodingService.dispose();
+    _integration?.dispose();
     super.dispose();
   }
 
-  void _onMapCreated(YandexMapController controller) {
-    _mapController = controller;
+  void _onMapCreated(mapkit.MapWindow mapWindow) async {
+    _mapWindow = mapWindow;
 
     print('🗺️ [MAP] ========== ИНИЦИАЛИЗАЦИЯ КАРТЫ ==========');
-    print('🗺️ [MAP] YandexMapController создан: ${_mapController != null}');
+    print('🗺️ [MAP] MapWindow создан: ${_mapWindow != null}');
 
     try {
-      print('🗺️ [MAP] ✅ Map контроллер доступен');
+      print('🗺️ [MAP] ✅ Map доступна');
 
       // Устанавливаем начальную позицию на Пермь
-      final permPoint = const Point(latitude: 58.0105, longitude: 56.2502);
+      final permPoint = mapkit.Point(latitude: 58.0105, longitude: 56.2502);
       print('🗺️ [MAP] Перемещаем камеру на: $permPoint');
 
-      _mapController!.moveCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: permPoint, zoom: 11.0),
+      _mapWindow!.map.move(
+        mapkit.CameraPosition(
+          permPoint,
+          zoom: 11.0,
+          azimuth: 0,
+          tilt: 0,
         ),
       );
       print('🗺️ [MAP] ✅ Камера перемещена');
+
+      // 🆕 Инициализация коллекций и менеджеров
+      final routePointsCollection = mapWindow.map.mapObjects.addCollection();
+      _routesCollection = mapWindow.map.mapObjects.addCollection();
+      
+      print('🔧 Инициализация RoutePointsManager...');
+      _routePointsManager = RoutePointsManager(
+        mapObjects: routePointsCollection,
+        onPointsChanged: (points) {
+          print('📍 Точки изменились: ${points.length} точек');
+          _onRouteParametersUpdated();
+        },
+      );
+      await _routePointsManager.init();
+      print('✅ RoutePointsManager инициализирован');
+      
+      // Инициализация роутера
+      _drivingRouter = DirectionsFactory.instance.createDrivingRouter(DrivingRouterType.Combined);
+      print('✅ DrivingRouter инициализирован');
+      
+      // Добавляем input listener для тапов
+      print('🎯 Добавление MapInputListener...');
+      mapWindow.map.addInputListener(_inputListener);
+      print('✅ MapInputListener добавлен');
 
       setState(() {
         _isMapReady = true;
@@ -96,6 +212,109 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       print('🗺️ [MAP] Ошибка: $e');
       print('🗺️ [MAP] StackTrace: $stackTrace');
     }
+  }
+  
+  // 🆕 Обработчик изменения точек маршрута
+  void _onRouteParametersUpdated() {
+    print('🔄 Обновление параметров маршрута...');
+    final fromPoint = _routePointsManager.fromPoint;
+    final toPoint = _routePointsManager.toPoint;
+    
+    if (fromPoint != null && toPoint != null) {
+      print('✅ Обе точки установлены, строим маршрут');
+      _requestDrivingRoute();
+    } else {
+      print('⚠️ Не все точки установлены: from=${fromPoint != null}, to=${toPoint != null}');
+      setState(() {
+        _calculation = null;
+        _distanceKm = null;
+      });
+    }
+  }
+  
+  // 🆕 Запрос маршрута через Yandex Driving Router
+  void _requestDrivingRoute() {
+    final fromPoint = _routePointsManager.fromPoint;
+    final toPoint = _routePointsManager.toPoint;
+    if (fromPoint == null || toPoint == null) return;
+    
+    print('🚗 Запрос маршрута: $fromPoint → $toPoint');
+    
+    _drivingSession?.cancel();
+    
+    const drivingOptions = DrivingOptions(routesCount: 1);
+    const vehicleOptions = DrivingVehicleOptions();
+    
+    final requestPoints = [
+      mapkit.RequestPoint(fromPoint, mapkit.RequestPointType.Waypoint, null, null, null),
+      mapkit.RequestPoint(toPoint, mapkit.RequestPointType.Waypoint, null, null, null),
+    ];
+    
+    final listener = DrivingSessionRouteListener(
+      onDrivingRoutes: (routes) {
+        print('🎉 Получено ${routes.length} маршрутов');
+        if (routes.isNotEmpty) {
+          final route = routes.first;
+          final distanceKm = route.metadata.weight.distance.value / 1000;
+          print('📏 Расстояние: $distanceKm км');
+          
+          setState(() {
+            _drivingRoutes = routes;
+          });
+          
+          _calculatePriceForDistance(distanceKm);
+          _drawRoute(route);
+        }
+      },
+      onDrivingRoutesError: (error) {
+        print('❌ Ошибка построения маршрута: $error');
+        setState(() {
+          _errorMessage = 'Не удалось построить маршрут';
+          _calculation = null;
+        });
+      },
+    );
+    
+    _drivingSession = _drivingRouter.requestRoutes(
+      drivingOptions,
+      vehicleOptions,
+      listener,
+      points: requestPoints,
+    );
+  }
+  
+  // 🆕 Расчет стоимости для известного расстояния
+  Future<void> _calculatePriceForDistance(double distanceKm) async {
+    try {
+      final calculation = await _priceService.calculatePrice(distanceKm);
+      
+      setState(() {
+        _distanceKm = distanceKm;
+        _calculation = calculation;
+        _errorMessage = null;
+      });
+      
+      print('💰 Стоимость рассчитана: ${calculation.finalPrice}₽');
+    } catch (e) {
+      print('❌ Ошибка расчета стоимости: $e');
+      setState(() {
+        _errorMessage = 'Ошибка расчета стоимости';
+      });
+    }
+  }
+  
+  // 🆕 Отрисовка маршрута на карте
+  void _drawRoute(DrivingRoute route) {
+    _routesCollection.clear();
+    
+    final polyline = _routesCollection.addPolylineWithGeometry(route.geometry);
+    
+    polyline.setStrokeColor(const Color.fromARGB(255, 0, 122, 255));
+    polyline.strokeWidth = 5.0;
+    polyline.outlineColor = const Color.fromARGB(128, 255, 255, 255);
+    polyline.outlineWidth = 1.0;
+    
+    print('✅ Маршрут отрисован на карте');
   }
 
   Future<void> _calculateRoute() async {
@@ -172,8 +391,10 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       ),
       child: Stack(
         children: [
-          // Карта на весь экран
-          YandexMap(onMapCreated: _onMapCreated, mapObjects: const []),
+          // Карта на весь экран - новый API
+          YandexMap(
+            onMapCreated: _onMapCreated,
+          ),
 
           // Оверлей с полями ввода
           SafeArea(
