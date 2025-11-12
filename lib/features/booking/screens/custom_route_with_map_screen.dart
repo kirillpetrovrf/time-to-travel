@@ -7,22 +7,19 @@ import 'package:yandex_maps_mapkit/yandex_map.dart';
 import 'package:yandex_maps_mapkit/directions.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
-import '../../../services/yandex_maps_service.dart';
 import '../../../services/price_calculator_service.dart';
-import '../../../services/calculator_settings_service.dart';
 import '../../../services/reverse_geocoding_service.dart';
-import '../../../models/calculator_settings.dart';
 import '../../../models/price_calculation.dart';
 import '../../../models/route_point.dart';
 import '../../../managers/route_points_manager.dart';
-import '../../../managers/search_routing_integration.dart';
-import '../../../features/search/managers/map_search_manager.dart';
-import '../../../features/search/state/map_search_state.dart';
-import '../../../features/search/state/search_state.dart';
-import '../../../utils/extensions.dart';
 import '../../../listeners/map_input_listener.dart';
 
-/// Экран "Свободный маршрут" с картой как в Яндекс.Такси
+/// Экран "Свободный маршрут" — карта на весь экран (как Yandex.Taxi)
+/// 
+/// 🎯 КАК ПОЛЬЗОВАТЬСЯ:
+/// 1. Тапните по карте → появится красная точка (ОТКУДА)
+/// 2. Тапните еще раз → появится синяя точка (КУДА)
+/// 3. Автоматически построится маршрут и рассчитается стоимость
 class CustomRouteWithMapScreen extends StatefulWidget {
   const CustomRouteWithMapScreen({super.key});
 
@@ -32,126 +29,52 @@ class CustomRouteWithMapScreen extends StatefulWidget {
 }
 
 class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
-  final TextEditingController _fromController = TextEditingController();
-  final TextEditingController _toController = TextEditingController();
-
-  final YandexMapsService _mapsService = YandexMapsService.instance;
+  // Сервисы
   final PriceCalculatorService _priceService = PriceCalculatorService.instance;
-  final CalculatorSettingsService _settingsService =
-      CalculatorSettingsService.instance;
+  final ReverseGeocodingService _reverseGeocodingService = ReverseGeocodingService();
 
-  bool _isCalculating = false;
+  // Менеджеры
+  late final RoutePointsManager _routePointsManager;
+  late final DrivingRouter _drivingRouter;
+  late final MapInputListenerImpl _inputListener;
+
+  // Yandex Map
+  mapkit.MapWindow? _mapWindow;
+  late final mapkit.MapObjectCollection _routesCollection;
+  
+  // Состояние
+  DrivingSession? _drivingSession;
+  RoutePointType _selectedPointType = RoutePointType.from;
+  bool _isPointSelectionEnabled = true;
+  bool _isMapReady = false;
+  
+  // Результаты
+  String? _fromAddress;
+  String? _toAddress;
   PriceCalculation? _calculation;
   double? _distanceKm;
   String? _errorMessage;
-  CalculatorSettings? _settings;
-
-  // 🆕 НОВАЯ АРХИТЕКТУРА: Менеджеры
-  final MapSearchManager _mapSearchManager = MapSearchManager();
-  final ReverseGeocodingService _reverseGeocodingService = ReverseGeocodingService();
-  late final RoutePointsManager _routePointsManager;
-  SearchRoutingIntegration? _integration;
-  
-  // Yandex Map - новый API
-  mapkit.MapWindow? _mapWindow;
-  
-  // 🆕 Routing для автоматического расчета
-  DrivingSession? _drivingSession;
-  late final DrivingRouter _drivingRouter;
-  var _drivingRoutes = <DrivingRoute>[];
-  late final mapkit.MapObjectCollection _routesCollection;
-
-  // 🆕 Input listener для тапов по карте
-  late final MapInputListenerImpl _inputListener;
-  
-  // 🆕 Состояние выбора точек
-  RoutePointType _selectedPointType = RoutePointType.from;
-  bool _isPointSelectionEnabled = true;
-  bool _routeCompleted = false;
-  
-  // Subscriptions
-  StreamSubscription<void>? _pointsChangedSubscription;
-
-  // UI состояние
-  bool _isMapReady = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
-    
     print('🎯 CustomRouteWithMapScreen initState()');
     
-    // Инициализируем MapInputListener для тапов по карте
+    // Слушатель тапов по карте
     _inputListener = MapInputListenerImpl(
       onMapTapCallback: (map, point) {
-        print("🗺️ Тап по карте: ${point.latitude}, ${point.longitude}");
-        
-        if (!_isPointSelectionEnabled) {
-          print("🚫 Выбор точек отключен, маршрут завершен");
-          return;
-        }
-        
-        // Устанавливаем точку напрямую
-        _routePointsManager.setPoint(_selectedPointType, point);
-        print("✅ Точка установлена: $_selectedPointType");
-        
-        final pointTypeForThisTap = _selectedPointType;
-        
-        // Автоматически переключаемся на следующую точку
-        if (_selectedPointType == RoutePointType.from) {
-          setState(() {
-            _selectedPointType = RoutePointType.to;
-          });
-          print("🔄 Переключено на TO");
-        } else {
-          setState(() {
-            _isPointSelectionEnabled = false;
-            _routeCompleted = true;
-          });
-          print("✅ Маршрут завершен!");
-        }
-        
-        // Reverse geocoding для отображения адреса
-        _reverseGeocodingService.getAddressFromPoint(point).then((address) {
-          final displayText = address ?? "${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}";
-          setState(() {
-            if (pointTypeForThisTap == RoutePointType.from) {
-              _fromController.text = displayText;
-            } else {
-              _toController.text = displayText;
-            }
-          });
-        });
+        _onMapTap(point);
       },
       onMapLongTapCallback: (map, point) {
-        print("📍 Длинный тап по карте");
+        // Можно добавить сброс точек
       },
     );
   }
 
-  Future<void> _loadSettings() async {
-    try {
-      final settings = await _settingsService.getSettings();
-      setState(() {
-        _settings = settings;
-      });
-    } catch (e) {
-      print('❌ Ошибка загрузки настроек: $e');
-      setState(() {
-        _settings = CalculatorSettings.defaultSettings;
-      });
-    }
-  }
-
   @override
   void dispose() {
-    _fromController.dispose();
-    _toController.dispose();
-    _pointsChangedSubscription?.cancel();
-    _mapSearchManager.dispose();
+    _drivingSession?.cancel();
     _reverseGeocodingService.dispose();
-    _integration?.dispose();
     super.dispose();
   }
 
@@ -159,46 +82,36 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     _mapWindow = mapWindow;
 
     print('🗺️ [MAP] ========== ИНИЦИАЛИЗАЦИЯ КАРТЫ ==========');
-    print('🗺️ [MAP] MapWindow создан: ${_mapWindow != null}');
 
     try {
-      print('🗺️ [MAP] ✅ Map доступна');
-
-      // Устанавливаем начальную позицию на Пермь
+      // Пермь — начальная позиция
       final permPoint = mapkit.Point(latitude: 58.0105, longitude: 56.2502);
-      print('🗺️ [MAP] Перемещаем камеру на: $permPoint');
-
       _mapWindow!.map.move(
-        mapkit.CameraPosition(
-          permPoint,
-          zoom: 11.0,
-          azimuth: 0,
-          tilt: 0,
-        ),
+        mapkit.CameraPosition(permPoint, zoom: 11.0, azimuth: 0, tilt: 0),
       );
-      print('🗺️ [MAP] ✅ Камера перемещена');
+      print('🗺️ [MAP] ✅ Камера на Пермь');
 
-      // 🆕 Инициализация коллекций и менеджеров
+      // Коллекции для маркеров и маршрутов
       final routePointsCollection = mapWindow.map.mapObjects.addCollection();
       _routesCollection = mapWindow.map.mapObjects.addCollection();
       
+      // Инициализация RoutePointsManager
       print('🔧 Инициализация RoutePointsManager...');
       _routePointsManager = RoutePointsManager(
         mapObjects: routePointsCollection,
         onPointsChanged: (points) {
-          print('📍 Точки изменились: ${points.length} точек');
+          print('📍 Точки изменились: \${points.length}');
           _onRouteParametersUpdated();
         },
       );
       await _routePointsManager.init();
       print('✅ RoutePointsManager инициализирован');
       
-      // Инициализация роутера
+      // Инициализация DrivingRouter
       _drivingRouter = DirectionsFactory.instance.createDrivingRouter(DrivingRouterType.Combined);
       print('✅ DrivingRouter инициализирован');
       
-      // Добавляем input listener для тапов
-      print('🎯 Добавление MapInputListener...');
+      // Добавляем слушатель тапов
       mapWindow.map.addInputListener(_inputListener);
       print('✅ MapInputListener добавлен');
 
@@ -206,17 +119,56 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
         _isMapReady = true;
       });
 
-      print('🗺️ [MAP] ========== ✅ КАРТА ГОТОВА К РАБОТЕ ==========');
+      print('🗺️ [MAP] ========== ✅ КАРТА ГОТОВА ==========');
     } catch (e, stackTrace) {
-      print('🗺️ [MAP] ❌ ОШИБКА при инициализации карты:');
-      print('🗺️ [MAP] Ошибка: $e');
-      print('🗺️ [MAP] StackTrace: $stackTrace');
+      print('❌ Ошибка инициализации карты: \$e\n\$stackTrace');
     }
   }
-  
-  // 🆕 Обработчик изменения точек маршрута
+
+  void _onMapTap(mapkit.Point point) {
+    print("🗺️ Тап по карте: \${point.latitude}, \${point.longitude}");
+    
+    if (!_isPointSelectionEnabled) {
+      print("🚫 Выбор точек отключен, маршрут завершен");
+      return;
+    }
+    
+    // Устанавливаем точку
+    _routePointsManager.setPoint(_selectedPointType, point);
+    print("✅ Точка установлена: \$_selectedPointType");
+    
+    final pointTypeForThisTap = _selectedPointType;
+    
+    // Переключаем на следующую точку
+    if (_selectedPointType == RoutePointType.from) {
+      setState(() {
+        _selectedPointType = RoutePointType.to;
+      });
+      print("🔄 Переключено на TO");
+    } else {
+      setState(() {
+        _isPointSelectionEnabled = false;
+      });
+      print("✅ Обе точки установлены!");
+    }
+    
+    // Получаем адрес для UI
+    _reverseGeocodingService.getAddressFromPoint(point).then((address) {
+      final displayText = address ?? 
+        "\${point.latitude.toStringAsFixed(6)}, \${point.longitude.toStringAsFixed(6)}";
+      
+      setState(() {
+        if (pointTypeForThisTap == RoutePointType.from) {
+          _fromAddress = displayText;
+        } else {
+          _toAddress = displayText;
+        }
+      });
+      print("📍 Адрес получен: \$displayText");
+    });
+  }
+
   void _onRouteParametersUpdated() {
-    print('🔄 Обновление параметров маршрута...');
     final fromPoint = _routePointsManager.fromPoint;
     final toPoint = _routePointsManager.toPoint;
     
@@ -224,21 +176,20 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       print('✅ Обе точки установлены, строим маршрут');
       _requestDrivingRoute();
     } else {
-      print('⚠️ Не все точки установлены: from=${fromPoint != null}, to=${toPoint != null}');
+      print('⚠️ Не все точки: from=\${fromPoint != null}, to=\${toPoint != null}');
       setState(() {
         _calculation = null;
         _distanceKm = null;
       });
     }
   }
-  
-  // 🆕 Запрос маршрута через Yandex Driving Router
+
   void _requestDrivingRoute() {
     final fromPoint = _routePointsManager.fromPoint;
     final toPoint = _routePointsManager.toPoint;
     if (fromPoint == null || toPoint == null) return;
     
-    print('🚗 Запрос маршрута: $fromPoint → $toPoint');
+    print('🚗 Запрос маршрута: \$fromPoint → \$toPoint');
     
     _drivingSession?.cancel();
     
@@ -252,22 +203,18 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     
     final listener = DrivingSessionRouteListener(
       onDrivingRoutes: (routes) {
-        print('🎉 Получено ${routes.length} маршрутов');
+        print('🎉 Получено \${routes.length} маршрутов');
         if (routes.isNotEmpty) {
           final route = routes.first;
           final distanceKm = route.metadata.weight.distance.value / 1000;
-          print('📏 Расстояние: $distanceKm км');
-          
-          setState(() {
-            _drivingRoutes = routes;
-          });
+          print('📏 Расстояние: \$distanceKm км');
           
           _calculatePriceForDistance(distanceKm);
           _drawRoute(route);
         }
       },
       onDrivingRoutesError: (error) {
-        print('❌ Ошибка построения маршрута: $error');
+        print('❌ Ошибка построения маршрута: \$error');
         setState(() {
           _errorMessage = 'Не удалось построить маршрут';
           _calculation = null;
@@ -282,8 +229,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
       points: requestPoints,
     );
   }
-  
-  // 🆕 Расчет стоимости для известного расстояния
+
   Future<void> _calculatePriceForDistance(double distanceKm) async {
     try {
       final calculation = await _priceService.calculatePrice(distanceKm);
@@ -294,16 +240,15 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
         _errorMessage = null;
       });
       
-      print('💰 Стоимость рассчитана: ${calculation.finalPrice}₽');
+      print('💰 Стоимость: \${calculation.finalPrice}₽');
     } catch (e) {
-      print('❌ Ошибка расчета стоимости: $e');
+      print('❌ Ошибка расчета: \$e');
       setState(() {
         _errorMessage = 'Ошибка расчета стоимости';
       });
     }
   }
-  
-  // 🆕 Отрисовка маршрута на карте
+
   void _drawRoute(DrivingRoute route) {
     _routesCollection.clear();
     
@@ -314,60 +259,26 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
     polyline.outlineColor = const Color.fromARGB(128, 255, 255, 255);
     polyline.outlineWidth = 1.0;
     
-    print('✅ Маршрут отрисован на карте');
+    print('✅ Маршрут отрисован');
   }
 
-  Future<void> _calculateRoute() async {
-    final from = _fromController.text.trim();
-    final to = _toController.text.trim();
-
-    if (from.isEmpty || to.isEmpty) {
-      setState(() {
-        _errorMessage = 'Введите адреса отправления и назначения';
-        _calculation = null;
-      });
-      return;
-    }
-
+  void _clearRoute() {
+    _routePointsManager.removePoint(RoutePointType.from);
+    _routePointsManager.removePoint(RoutePointType.to);
+    _routesCollection.clear();
+    _drivingSession?.cancel();
+    
     setState(() {
-      _isCalculating = true;
-      _errorMessage = null;
+      _fromAddress = null;
+      _toAddress = null;
       _calculation = null;
+      _distanceKm = null;
+      _errorMessage = null;
+      _selectedPointType = RoutePointType.from;
+      _isPointSelectionEnabled = true;
     });
-
-    try {
-      print('🗺️ Начинаем расчет маршрута...');
-      print('🗺️ Откуда: $from');
-      print('🗺️ Куда: $to');
-
-      // 1. Получаем маршрут через Yandex API
-      final routeInfo = await _mapsService.calculateRoute(from, to);
-
-      if (routeInfo == null) {
-        throw Exception('Не удалось построить маршрут');
-      }
-
-      print('✅ Маршрут получен: ${routeInfo.distance} км');
-
-      // 2. Рассчитываем стоимость
-      final calculation = await _priceService.calculatePrice(
-        routeInfo.distance,
-      );
-
-      print('💰 Стоимость: ${calculation.finalPrice}₽');
-
-      setState(() {
-        _calculation = calculation;
-        _distanceKm = routeInfo.distance;
-        _isCalculating = false;
-      });
-    } catch (e) {
-      print('❌ Ошибка: $e');
-      setState(() {
-        _errorMessage = 'Не удалось построить маршрут: ${e.toString()}';
-        _isCalculating = false;
-      });
-    }
+    
+    print('🗑️ Маршрут очищен');
   }
 
   @override
@@ -377,154 +288,156 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        middle: Text(
-          'Свободный маршрут',
-          style: const TextStyle(color: CupertinoColors.label),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.info_circle),
-          onPressed: () => _showInfoDialog(theme),
-        ),
-      ),
       child: Stack(
         children: [
-          // Карта на весь экран - новый API
+          // 🗺️ КАРТА НА ВЕСЬ ЭКРАН
           YandexMap(
             onMapCreated: _onMapCreated,
           ),
 
-          // Оверлей с полями ввода
+          // 🔙 Кнопка "Назад" (верхний левый угол)
           SafeArea(
-            child: SizedBox.expand(
-              child: Column(
-                children: [
-                  // Верхняя панель с полями ввода
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.systemBackground.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: CupertinoColors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Поле "Откуда"
-                        Container(
-                          decoration: BoxDecoration(
-                            color: theme.secondarySystemBackground,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: CupertinoTextField(
-                            controller: _fromController,
-                            placeholder: 'Откуда (город, улица, дом)',
-                            padding: const EdgeInsets.all(16),
-                            decoration: null,
-                            style: TextStyle(color: theme.label),
-                            placeholderStyle: TextStyle(
-                              color: theme.secondaryLabel.withOpacity(0.5),
-                            ),
-                            prefix: Padding(
-                              padding: const EdgeInsets.only(left: 16),
-                              child: Icon(
-                                CupertinoIcons.location,
-                                color: theme.primary,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // Поле "Куда"
-                        Container(
-                          decoration: BoxDecoration(
-                            color: theme.secondarySystemBackground,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: CupertinoTextField(
-                            controller: _toController,
-                            placeholder: 'Куда (город, улица, дом)',
-                            padding: const EdgeInsets.all(16),
-                            decoration: null,
-                            style: TextStyle(color: theme.label),
-                            placeholderStyle: TextStyle(
-                              color: theme.secondaryLabel.withOpacity(0.5),
-                            ),
-                            prefix: Padding(
-                              padding: const EdgeInsets.only(left: 16),
-                              child: Icon(
-                                CupertinoIcons.location_solid,
-                                color: theme.primary,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Кнопка расчета
-                        CupertinoButton.filled(
-                          onPressed: _isCalculating ? null : _calculateRoute,
-                          child: _isCalculating
-                              ? const CupertinoActivityIndicator(
-                                  color: CupertinoColors.white,
-                                )
-                              : const Text(
-                                  'Рассчитать стоимость',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Гибкое пространство между панелями
-                  const Spacer(),
-
-                  // Нижняя панель с результатом (гибкая для клавиатуры)
-                  if (_calculation != null || _errorMessage != null)
-                    Flexible(
-                      child: Container(
-                        margin: const EdgeInsets.all(16),
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: theme.systemBackground.withOpacity(0.95),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: CupertinoColors.black.withOpacity(0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, -2),
-                            ),
-                          ],
-                        ),
-                        child: _errorMessage != null
-                            ? _buildErrorContent(theme)
-                            : _buildResultContent(theme),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => Navigator.pop(context),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: theme.systemBackground.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CupertinoColors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                ],
+                    ],
+                  ),
+                  child: Icon(
+                    CupertinoIcons.back,
+                    color: theme.label,
+                    size: 24,
+                  ),
+                ),
               ),
             ),
           ),
 
-          // Индикатор загрузки карты
+          // 📍 ПАНЕЛЬ С АДРЕСАМИ (сверху справа)
+          if (_fromAddress != null || _toAddress != null)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: SafeArea(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 250),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.systemBackground.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CupertinoColors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_fromAddress != null) ...[
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: CupertinoColors.systemRed,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _fromAddress!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: theme.label,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (_toAddress != null) ...[
+                        if (_fromAddress != null) const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: CupertinoColors.systemBlue,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _toAddress!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: theme.label,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // 💰 НИЖНЯЯ ПАНЕЛЬ С РЕЗУЛЬТАТОМ
+          if (_calculation != null || _errorMessage != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: theme.systemBackground.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CupertinoColors.black.withOpacity(0.2),
+                        blurRadius: 20,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: _errorMessage != null
+                      ? _buildErrorContent(theme)
+                      : _buildResultContent(theme),
+                ),
+              ),
+            ),
+
+          // ⏳ ИНДИКАТОР ЗАГРУЗКИ КАРТЫ
           if (!_isMapReady)
             Container(
               color: theme.systemBackground.withOpacity(0.9),
@@ -566,90 +479,95 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
   Widget _buildResultContent(CustomTheme theme) {
     final calc = _calculation!;
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Расстояние и формула
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Расстояние',
-                    style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Расстояние и цена
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Расстояние',
+                  style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '\${_distanceKm!.toStringAsFixed(1)} км',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: theme.label,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_distanceKm!.toStringAsFixed(1)} км',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: theme.label,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Стоимость',
-                    style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${calc.finalPrice} ₽',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: theme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Кнопка бронирования
-          CupertinoButton.filled(
-            onPressed: () => _bookTrip(),
-            child: const Text(
-              'Забронировать',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInfoDialog(CustomTheme theme) {
-    final settings = _settings ?? CalculatorSettings.defaultSettings;
-
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Как работает калькулятор?'),
-        content: Text(
-          '\nФормула расчета:\n\n'
-          '${settings.baseCost}₽ (базовая стоимость)\n+ '
-          '${settings.costPerKm}₽ × расстояние (км)\n\n'
-          'Минимальная стоимость: ${settings.minPrice}₽\n\n'
-          '${settings.roundToThousands ? "Округление до тысяч вверх" : "Без округления"}',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Стоимость',
+                  style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '\${calc.finalPrice} ₽',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: theme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('Понятно'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
+
+        const SizedBox(height: 16),
+
+        // Кнопки
+        Row(
+          children: [
+            // Кнопка "Очистить"
+            Expanded(
+              child: CupertinoButton(
+                padding: const EdgeInsets.all(14),
+                color: theme.secondarySystemBackground,
+                onPressed: _clearRoute,
+                child: Text(
+                  'Очистить',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: theme.label,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Кнопка "Забронировать"
+            Expanded(
+              flex: 2,
+              child: CupertinoButton.filled(
+                padding: const EdgeInsets.all(14),
+                onPressed: () => _bookTrip(),
+                child: const Text(
+                  'Забронировать',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
