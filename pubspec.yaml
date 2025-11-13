@@ -63,6 +63,9 @@ dependencies:
   sqflite: ^2.3.0
   path: ^1.8.3
   
+  # Для мониторинга интернет-соединения (автосинхронизация)
+  connectivity_plus: ^6.0.3
+  
   # Для анимаций (используется в taxi_route_calculator)
   flutter_animate: ^4.5.0
   

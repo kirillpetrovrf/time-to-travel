@@ -1,13 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-// TODO: Раскомментировать при подключении реального Firebase проекта
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'package:yandex_maps_mapkit/init.dart' as mapkit_init;
 import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
+import 'services/orders_sync_service.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/splash/splash_screen.dart';
@@ -20,15 +20,17 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ УСЛОВНАЯ ИНИЦИАЛИЗАЦИЯ Firebase (для совместимости с китайскими телефонами)
-  // Попытка инициализировать Firebase, если доступен Google Play Services
+  // ✅ ИНИЦИАЛИЗАЦИЯ Firebase (для синхронизации заказов с сервером)
   try {
-    // TODO: Раскомментировать при подключении реального Firebase проекта
-    // await Firebase.initializeApp(
-    //   options: DefaultFirebaseOptions.currentPlatform,
-    // );
-    // print('✅ Firebase успешно инициализирован');
-    print('ℹ️ Firebase отключен в коде (раскомментируйте для активации)');
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase успешно инициализирован');
+    
+    // ✅ Запуск автоматической синхронизации заказов (SQLite → Firebase)
+    // Как только появится интернет, несинхронизированные заказы автоматически загрузятся
+    OrdersSyncService.instance.startAutoSync();
+    print('✅ Автосинхронизация заказов запущена');
   } catch (e) {
     // ⚠️ Firebase недоступен (китайские телефоны без Google Services)
     // Приложение продолжит работать в OFFLINE режиме на SQLite

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:common/common.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'package:geolocator/geolocator.dart' as geolocator;
 // import 'package:taxi_route_calculator/camera/camera_manager.dart';
@@ -15,11 +16,19 @@ import '../managers/route_points_manager.dart';
 import '../managers/search_routing_integration.dart';
 import '../permissions/permission_manager.dart';
 import '../services/reverse_geocoding_service.dart';
+import '../services/auth_service.dart';
+import 'home/screens/home_screen.dart';
+import '../models/user.dart';
 import '../services/price_calculator_service.dart';
 import '../services/offline_orders_service.dart';
 import '../services/firebase_orders_service.dart';
 import '../models/price_calculation.dart';
 import '../models/taxi_order.dart';
+import '../models/booking.dart';
+import '../models/route_stop.dart';
+import '../models/trip_type.dart' as trip_type;
+import '../models/passenger_info.dart';
+import 'orders/screens/booking_detail_screen.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/polyline_extensions.dart';
 import '../widgets_taxi/geolocation_button.dart';
@@ -247,7 +256,24 @@ class _MainScreenState extends State<MainScreen> {
     onDrivingRoutes: (newRoutes) {
       print('🎉🎉🎉 onDrivingRoutes FIRED! Got ${newRoutes.length} routes');
       if (newRoutes.isEmpty) {
-        showSnackBar(context, "Can't build a route");
+        // Показываем диалог вместо SnackBar
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('Маршрут не найден'),
+              content: const Text('Не удалось построить маршрут по выбранным точкам'),
+              actions: [
+                CupertinoDialogAction(
+                  isDefaultAction: true,
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          );
+        });
       }
       setState(() {
         _drivingRoutes = newRoutes;
@@ -264,15 +290,33 @@ class _MainScreenState extends State<MainScreen> {
     },
     onDrivingRoutesError: (Error error) {
       print('❌❌❌ onDrivingRoutesError FIRED! Error: $error');
-      switch (error) {
-        case final NetworkError _:
-          showSnackBar(
-            context,
-            "Driving routes request error due network issue",
-          );
-        default:
-          showSnackBar(context, "Driving routes request unknown error");
-      }
+      // Показываем диалог вместо SnackBar (совместимость с CupertinoApp)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        
+        String errorMessage;
+        switch (error) {
+          case final NetworkError _:
+            errorMessage = "Ошибка сети при построении маршрута.\nПроверьте интернет-соединение.";
+          default:
+            errorMessage = "Не удалось построить маршрут.\nПопробуйте уменьшить расстояние.";
+        }
+        
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Ошибка маршрута'),
+            content: Text(errorMessage),
+            actions: [
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      });
     },
   );
 
@@ -404,15 +448,11 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     
-    print('✅ [ORDER] Все данные есть, создаем заказ...');
+    print('✅ [ORDER] Все данные есть, получаем адреса...');
     print('   FROM: $fromPoint');
     print('   TO: $toPoint');
     print('   Distance: $_distanceKm км');
     print('   Price: ${_calculation!.finalPrice}₽');
-    
-    // Генерируем уникальный ID заказа
-    final orderId = const Uuid().v4();
-    print('🆔 [ORDER] ID заказа: $orderId');
     
     // Получаем адреса точек маршрута
     String fromAddress = 'Адрес не определен';
@@ -432,6 +472,33 @@ class _MainScreenState extends State<MainScreen> {
       print('⚠️ [ORDER] Ошибка получения адресов: $e');
       // Продолжаем создание заказа даже если не удалось получить адреса
     }
+    
+    print('💬 [ORDER] Показываем диалог подтверждения...');
+    print('   FROM: $fromAddress');
+    print('   TO: $toAddress');
+    print('   Distance: ${_distanceKm!.toStringAsFixed(1)} км');
+    print('   Price: ${_calculation!.finalPrice.toStringAsFixed(0)}₽');
+    
+    // 🆕 Показываем диалог ПОДТВЕРЖДЕНИЯ перед созданием заказа
+    final confirmed = await _showOrderConfirmationDialog(
+      fromAddress: fromAddress,
+      toAddress: toAddress,
+      distance: _distanceKm!,
+      price: _calculation!.finalPrice,
+    );
+    
+    print('✅ [ORDER] Результат диалога подтверждения: $confirmed');
+    
+    if (confirmed != true) {
+      print('❌ [ORDER] Пользователь отменил создание заказа');
+      return;
+    }
+    
+    print('✅ [ORDER] Пользователь подтвердил создание заказа, продолжаем...');
+    
+    // Генерируем уникальный ID заказа
+    final orderId = const Uuid().v4();
+    print('🆔 [ORDER] ID заказа: $orderId');
     
     // Создаем объект заказа
     final order = TaxiOrder(
@@ -466,24 +533,288 @@ class _MainScreenState extends State<MainScreen> {
     // Сохраняем в Firebase (онлайн) - необязательно, заказ уже в SQLite
     try {
       print('☁️ [ORDER] Сохранение в Firebase...');
-      await FirebaseOrdersService.instance.saveOrder(order);
+      await FirebaseOrdersService.instance.saveOrder(order).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('⏱️ [ORDER] Firebase timeout - продолжаем без синхронизации');
+          throw TimeoutException('Firebase save timeout');
+        },
+      );
       print('✅ [ORDER] Сохранено в Firebase');
     } catch (e) {
       print('⚠️ [ORDER] Ошибка сохранения в Firebase: $e');
       // Не прерываем процесс - заказ уже сохранен локально в SQLite
     }
     
-    // Показываем успех
-    _showOrderDialog(
-      '✅ Заказ создан!', 
-      'ID: ${orderId.substring(0, 8)}...\n'
-      'От: $fromAddress\n'
-      'До: $toAddress\n'
-      'Расстояние: ${_distanceKm!.toStringAsFixed(1)} км\n'
-      'Стоимость: ${_calculation!.finalPrice.toStringAsFixed(0)}₽',
-      isError: false,
-    );
     print('🎉 [ORDER] Заказ успешно создан и сохранен!');
+    
+    // Показываем успех
+    print('📱 [ORDER] Вызов success dialog...');
+    _showOrderSuccessDialog(
+      orderId: orderId,
+      fromAddress: fromAddress,
+      toAddress: toAddress,
+      distance: _distanceKm!,
+      price: _calculation!.finalPrice,
+    );
+  }
+
+  // Переключение на вкладку "Мои заказы"
+  Future<void> _navigateToOrders() async {
+    // DEPRECATED: Этот метод больше не используется
+    // Теперь используем _openTaxiOrderDetails() для открытия экрана деталей
+    try {
+      print('📤 [NAV] Запуск переключения на вкладку Заказы...');
+      final userType = await AuthService.instance.getUserType();
+      final ordersIndex = userType == UserType.dispatcher ? 2 : 1;
+      print('📤 [NAV] Тип пользователя: $userType, индекс вкладки: $ordersIndex');
+      
+      // Используем addPostFrameCallback для безопасного переключения после закрытия диалога
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          final currentState = HomeScreen.homeScreenKey.currentState;
+          final currentIndex = currentState?.currentIndex ?? 0;
+          
+          print('📤 [NAV] Текущая вкладка: $currentIndex, целевая: $ordersIndex');
+          
+          // Если уже на нужной вкладке, сначала переключимся на карту (индекс 0), затем обратно
+          if (currentIndex == ordersIndex) {
+            print('⚠️ [NAV] Уже на вкладке $ordersIndex, делаем промежуточное переключение');
+            currentState?.switchToTabSilently(0); // Переключаемся на карту
+            
+            // Через короткую задержку переключаемся на Orders
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted) {
+                print('📤 [NAV] Возвращаемся на вкладку Заказы');
+                HomeScreen.homeScreenKey.currentState?.switchToTabSilently(ordersIndex);
+              }
+            });
+          } else {
+            print('📤 [NAV] Переключение на вкладку Заказы, индекс: $ordersIndex');
+            currentState?.switchToTabSilently(ordersIndex);
+          }
+        } else {
+          print('⚠️ [NAV] Widget не mounted, переключение отменено');
+        }
+      });
+    } catch (e) {
+      print('⚠️ [NAV] Ошибка при переключении на вкладку Заказы: $e');
+    }
+  }
+
+  /// Открывает экран деталей taxi order (конвертируя TaxiOrder → Booking)
+  Future<void> _openTaxiOrderDetails(String orderId) async {
+    try {
+      print('🚀 [TAXI] Открытие деталей заказа: $orderId');
+      
+      // 1. Загружаем TaxiOrder из SQLite
+      final taxiOrder = await OfflineOrdersService.instance.getOrderById(orderId);
+      if (taxiOrder == null) {
+        print('❌ [TAXI] Заказ не найден: $orderId');
+        return;
+      }
+      print('✅ [TAXI] Заказ загружен из SQLite');
+      
+      // 2. Получаем текущего пользователя (для clientId)
+      final currentUser = await AuthService.instance.getCurrentUser();
+      final clientId = currentUser?.id ?? 'offline_user_demo';
+      
+      // 3. Конвертируем TaxiOrder → Booking (используем логику из BookingService)
+      // Создаём RouteStop объекты из адресов для корректного отображения
+      final fromStop = RouteStop(
+        id: 'taxi_from_${taxiOrder.orderId}',
+        name: taxiOrder.fromAddress,
+        order: 0,
+        latitude: taxiOrder.fromPoint.latitude,
+        longitude: taxiOrder.fromPoint.longitude,
+        priceFromStart: 0,
+        isPopular: false,
+      );
+      
+      final toStop = RouteStop(
+        id: 'taxi_to_${taxiOrder.orderId}',
+        name: taxiOrder.toAddress,
+        order: 1,
+        latitude: taxiOrder.toPoint.latitude,
+        longitude: taxiOrder.toPoint.longitude,
+        priceFromStart: taxiOrder.finalPrice.round(),
+        isPopular: false,
+      );
+      
+      final booking = Booking(
+        id: taxiOrder.orderId,
+        clientId: clientId,
+        tripType: trip_type.TripType.customRoute, // ✅ Свободный маршрут (такси)
+        direction: trip_type.Direction.donetskToRostov, // Для customRoute не используется
+        departureDate: taxiOrder.timestamp,
+        departureTime: DateFormat('HH:mm').format(taxiOrder.timestamp),
+        passengerCount: 1,
+        pickupAddress: taxiOrder.fromAddress,
+        dropoffAddress: taxiOrder.toAddress,
+        fromStop: fromStop, // ✅ Теперь передаём остановки
+        toStop: toStop,     // ✅ Для правильного отображения маршрута
+        totalPrice: taxiOrder.finalPrice.round(), // Конвертируем double → int
+        status: _convertTaxiStatusToBookingStatus(taxiOrder.status),
+        createdAt: taxiOrder.timestamp,
+        baggage: [],
+        pets: [],
+        passengers: [
+          PassengerInfo(
+            type: PassengerType.adult,
+            seatType: null,
+            useOwnSeat: false,
+            ageMonths: null,
+          ),
+        ],
+      );
+      print('✅ [TAXI] TaxiOrder конвертирован в Booking');
+      
+      // 4. ВАЖНО: Возвращаемся на главный экран (закрываем success dialog)
+      // Точно как в individual_booking_screen.dart
+      print('⬅️ [TAXI] Возвращаемся на главный экран (popUntil)...');
+      Navigator.popUntil(context, (route) => route.isFirst);
+      
+      // 5. Небольшая задержка для корректной навигации (как в individual bookings)
+      await Future.delayed(const Duration(milliseconds: 150));
+      
+      // 6. Открываем экран деталей
+      if (!mounted) return;
+      
+      print('� [TAXI] Открытие BookingDetailScreen...');
+      final result = await Navigator.push<String>(
+        context,
+        CupertinoPageRoute(
+          builder: (context) => BookingDetailScreen(booking: booking),
+        ),
+      );
+      
+      // 7. После возврата из экрана деталей переключаемся на "Мои заказы"
+      if (mounted && result == 'switch_to_orders') {
+        print('🔄 [TAXI] Переключаемся на вкладку "Мои заказы"');
+        final userType = await AuthService.instance.getUserType();
+        final ordersIndex = userType == UserType.dispatcher ? 2 : 1;
+        HomeScreen.homeScreenKey.currentState?.switchToTab(ordersIndex);
+        await AuthService.instance.saveLastScreen('/orders');
+        print('✅ [TAXI] Вкладка /orders сохранена');
+      }
+      
+    } catch (e, stackTrace) {
+      print('❌ [TAXI] Ошибка при открытии деталей: $e');
+      print('📚 [TAXI] Stack trace: $stackTrace');
+    }
+  }
+
+  /// Конвертация статуса TaxiOrder → BookingStatus
+  BookingStatus _convertTaxiStatusToBookingStatus(String taxiStatus) {
+    switch (taxiStatus) {
+      case 'pending':
+        return BookingStatus.pending;
+      case 'accepted':
+        return BookingStatus.confirmed;
+      case 'in_progress':
+        return BookingStatus.confirmed;
+      case 'completed':
+        return BookingStatus.completed;
+      case 'cancelled':
+        return BookingStatus.cancelled;
+      default:
+        return BookingStatus.pending;
+    }
+  }
+
+  // Показать диалог подтверждения перед созданием заказа
+  Future<bool?> _showOrderConfirmationDialog({
+    required String fromAddress,
+    required String toAddress,
+    required double distance,
+    required double price,
+  }) async {
+    return await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Подтверждение заказа'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Text('Откуда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(fromAddress, style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 8),
+            Text('Куда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(toAddress, style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 8),
+            Text('Расстояние: ${distance.toStringAsFixed(1)} км', style: TextStyle(fontSize: 14)),
+            Text('Стоимость: ${price.toStringAsFixed(0)} ₽', 
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.activeBlue)),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Отмена'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Заказать'),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Показать диалог успешного создания заказа
+  void _showOrderSuccessDialog({
+    required String orderId,
+    required String fromAddress,
+    required String toAddress,
+    required double distance,
+    required double price,
+  }) {
+    print('🎯 [DIALOG] _showOrderSuccessDialog вызван');
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('✅ Заказ создан!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Text('ID: ${orderId.substring(0, 8)}...', 
+              style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+            const SizedBox(height: 8),
+            Text('Откуда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(fromAddress, style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 8),
+            Text('Куда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(toAddress, style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 8),
+            Text('Расстояние: ${distance.toStringAsFixed(1)} км', style: TextStyle(fontSize: 14)),
+            Text('Стоимость: ${price.toStringAsFixed(0)} ₽', 
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.activeGreen)),
+            const SizedBox(height: 12),
+            const Text('Заказ сохранен в раздел "Мои заказы"', 
+              style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Посмотреть заказ'),
+            onPressed: () async {
+              print('✅ [DIALOG] "Посмотреть заказ" button pressed');
+              Navigator.of(context).pop(); // Закрываем диалог
+              
+              // Открываем экран деталей заказа (как в individual/group bookings)
+              await _openTaxiOrderDetails(orderId);
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   // Показать диалог с результатом заказа (Cupertino-стиль)

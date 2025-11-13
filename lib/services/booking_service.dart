@@ -2,8 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/booking.dart';
+import '../models/trip_type.dart';
+import '../models/route_stop.dart';
 import 'auth_service.dart';
 import 'notification_service.dart';
+import 'offline_orders_service.dart';
 
 /// ⚠️ ВАЖНО: Сейчас используется только SQLite/SharedPreferences
 /// TODO: Интеграция с Firebase - реализуется позже
@@ -150,35 +153,92 @@ class BookingService {
   }
 
   /// Получение всех бронирований клиента (локально)
-  /// TODO: Интеграция с Firebase - реализуется позже
+  /// Загружает заказы такси из SQLite (TaxiOrder) и конвертирует в Booking для отображения
   Future<List<Booking>> getClientBookings(String clientId) async {
     debugPrint(
-      'ℹ️ Получение бронирований клиента локально (Firebase не подключен)',
+      'ℹ️ Получение бронирований клиента из SQLite (TaxiOrder)',
     );
-    return _getOfflineClientBookings(clientId);
+    return _getTaxiOrdersAsBookings(clientId);
   }
 
-  /// Получение локальных бронирований клиента
-  Future<List<Booking>> _getOfflineClientBookings(String clientId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final bookingsJson = prefs.getString(_offlineBookingsKey);
+  /// Конвертация TaxiOrder из SQLite в Booking для отображения
+  Future<List<Booking>> _getTaxiOrdersAsBookings(String clientId) async {
+    try {
+      // Загружаем все заказы из SQLite
+      final taxiOrders = await OfflineOrdersService.instance.getAllOrders();
+      debugPrint('📦 [BOOKING] Загружено ${taxiOrders.length} заказов из SQLite');
 
-    if (bookingsJson == null) return [];
+      // Конвертируем TaxiOrder → Booking
+      final bookings = taxiOrders.map((order) {
+        // Создаём RouteStop объекты из координат и адресов TaxiOrder
+        final fromStop = RouteStop(
+          id: 'taxi_from_${order.orderId}',
+          name: order.fromAddress,
+          order: 0,
+          latitude: order.fromPoint.latitude,
+          longitude: order.fromPoint.longitude,
+          priceFromStart: 0,
+        );
+        
+        final toStop = RouteStop(
+          id: 'taxi_to_${order.orderId}',
+          name: order.toAddress,
+          order: 1,
+          latitude: order.toPoint.latitude,
+          longitude: order.toPoint.longitude,
+          priceFromStart: order.finalPrice.round(),
+        );
+        
+        return Booking(
+          id: order.orderId,
+          clientId: clientId,
+          tripType: TripType.customRoute, // ✅ Свободный маршрут (такси)
+          direction: Direction.donetskToRostov, // Для customRoute не используется
+          departureDate: order.timestamp, // Уже DateTime
+          departureTime: 
+              '${order.timestamp.hour.toString().padLeft(2, '0')}:${order.timestamp.minute.toString().padLeft(2, '0')}',
+          passengerCount: 1, // TaxiOrder не хранит пассажиров, используем 1
+          pickupAddress: order.fromAddress,
+          dropoffAddress: order.toAddress,
+          totalPrice: order.finalPrice.round(), // Округляем до int для Booking
+          status: _convertOrderStatusToBookingStatus(order.status),
+          createdAt: order.timestamp, // Уже DateTime
+          baggage: [],
+          pets: [],
+          passengers: [],
+          pickupPoint: null,
+          fromStop: fromStop,  // ✅ Добавляем fromStop с адресом
+          toStop: toStop,      // ✅ Добавляем toStop с адресом
+        );
+      }).toList();
 
-    final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
-    final clientBookings = <Booking>[];
-
-    for (final bookingData in bookingsList) {
-      final booking = Booking.fromJson(bookingData as Map<String, dynamic>);
-      if (booking.clientId == clientId) {
-        clientBookings.add(booking);
-      }
+      // Сортируем по дате (новые сначала)
+      bookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      debugPrint('✅ [BOOKING] Конвертировано в ${bookings.length} Booking объектов');
+      return bookings;
+    } catch (e) {
+      debugPrint('❌ [BOOKING] Ошибка загрузки заказов: $e');
+      return [];
     }
+  }
 
-    // Сортируем по дате создания (самые новые сначала)
-    clientBookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    return clientBookings;
+  /// Конвертация статуса TaxiOrder → BookingStatus
+  BookingStatus _convertOrderStatusToBookingStatus(String orderStatus) {
+    switch (orderStatus.toLowerCase()) {
+      case 'pending':
+        return BookingStatus.pending;
+      case 'confirmed':
+        return BookingStatus.confirmed;
+      case 'in_progress':
+        return BookingStatus.inProgress;
+      case 'completed':
+        return BookingStatus.completed;
+      case 'cancelled':
+        return BookingStatus.cancelled;
+      default:
+        return BookingStatus.pending;
+    }
   }
 
   /// Получение всех активных бронирований (локально)

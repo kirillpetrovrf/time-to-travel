@@ -1,6 +1,7 @@
 enum TripType {
   group, // Групповая поездка
   individual, // Индивидуальный трансфер
+  customRoute, // Свободный маршрут (такси)
 }
 
 enum Direction {

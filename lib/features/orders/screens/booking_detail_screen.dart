@@ -206,16 +206,29 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _buildTripTypeInfo(theme) {
-    final tripTypeText = _currentBooking.tripType == TripType.individual
-        ? 'Индивидуальная поездка'
-        : 'Групповая поездка';
+    // Определяем текст и иконку в зависимости от типа поездки
+    String tripTypeText;
+    IconData icon;
+    
+    switch (_currentBooking.tripType) {
+      case TripType.customRoute:
+        tripTypeText = 'Свободный маршрут (такси)';
+        icon = CupertinoIcons.location;
+        break;
+      case TripType.individual:
+        tripTypeText = 'Индивидуальная поездка';
+        icon = CupertinoIcons.car;
+        break;
+      case TripType.group:
+        tripTypeText = 'Групповая поездка';
+        icon = CupertinoIcons.group;
+        break;
+    }
 
     return Row(
       children: [
         Icon(
-          _currentBooking.tripType == TripType.individual
-              ? CupertinoIcons.car
-              : CupertinoIcons.group,
+          icon,
           color: theme.primary,
           size: 16,
         ),

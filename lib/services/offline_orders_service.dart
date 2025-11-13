@@ -27,7 +27,7 @@ class OfflineOrdersService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,  // Увеличили версию для миграции
       onCreate: (db, version) async {
         print('📦 [SQLITE] Создание таблицы orders...');
         
@@ -47,12 +47,22 @@ class OfflineOrdersService {
             baseCost REAL NOT NULL,
             costPerKm REAL NOT NULL,
             status TEXT NOT NULL,
+            isSynced INTEGER NOT NULL DEFAULT 0,
             clientName TEXT,
             clientPhone TEXT
           )
         ''');
         
         print('✅ [SQLITE] Таблица orders создана');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        print('🔄 [SQLITE] Обновление БД с версии $oldVersion на $newVersion');
+        
+        if (oldVersion < 2) {
+          // Добавляем колонку isSynced для существующих таблиц
+          await db.execute('ALTER TABLE orders ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 0');
+          print('✅ [SQLITE] Добавлена колонка isSynced');
+        }
       },
     );
   }
@@ -185,6 +195,66 @@ class OfflineOrdersService {
       return count;
     } catch (e) {
       print('❌ [SQLITE] Ошибка подсчета заказов: $e');
+      return 0;
+    }
+  }
+
+  /// Получение несинхронизированных заказов (для отправки в Firebase)
+  Future<List<TaxiOrder>> getUnsyncedOrders() async {
+    print('🔄 [SQLITE] Загрузка несинхронизированных заказов...');
+    
+    try {
+      final db = await database;
+      final maps = await db.query(
+        'orders',
+        where: 'isSynced = ?',
+        whereArgs: [0],
+        orderBy: 'timestamp ASC',
+      );
+      
+      final orders = maps.map((map) => TaxiOrder.fromMap(map)).toList();
+      
+      print('✅ [SQLITE] Найдено ${orders.length} несинхронизированных заказов');
+      return orders;
+    } catch (e) {
+      print('❌ [SQLITE] Ошибка загрузки несинхронизированных заказов: $e');
+      return [];
+    }
+  }
+
+  /// Пометить заказ как синхронизированный
+  Future<void> markAsSynced(String orderId) async {
+    print('✅ [SQLITE] Помечаем заказ как синхронизированный: $orderId');
+    
+    try {
+      final db = await database;
+      await db.update(
+        'orders',
+        {'isSynced': 1},
+        where: 'orderId = ?',
+        whereArgs: [orderId],
+      );
+      
+      print('✅ [SQLITE] Заказ $orderId помечен как синхронизированный');
+    } catch (e) {
+      print('❌ [SQLITE] Ошибка обновления флага синхронизации: $e');
+      rethrow;
+    }
+  }
+
+  /// Получить количество несинхронизированных заказов
+  Future<int> getUnsyncedCount() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) FROM orders WHERE isSynced = 0'
+      );
+      final count = Sqflite.firstIntValue(result) ?? 0;
+      
+      print('📊 [SQLITE] Несинхронизированных заказов: $count');
+      return count;
+    } catch (e) {
+      print('❌ [SQLITE] Ошибка подсчета несинхронизированных заказов: $e');
       return 0;
     }
   }

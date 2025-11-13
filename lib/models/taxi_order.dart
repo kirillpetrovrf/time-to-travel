@@ -21,6 +21,9 @@ class TaxiOrder {
   // Статус
   final String status;           // 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'
   
+  // Синхронизация
+  final bool isSynced;           // true = синхронизировано с Firebase, false = только в SQLite
+  
   // Клиент (опционально для будущего)
   final String? clientName;
   final String? clientPhone;
@@ -38,6 +41,7 @@ class TaxiOrder {
     required this.baseCost,
     required this.costPerKm,
     required this.status,
+    this.isSynced = false,         // По умолчанию не синхронизировано
     this.clientName,
     this.clientPhone,
   });
@@ -59,6 +63,7 @@ class TaxiOrder {
       'baseCost': baseCost,
       'costPerKm': costPerKm,
       'status': status,
+      'isSynced': isSynced ? 1 : 0,  // SQLite boolean as integer
       'clientName': clientName,
       'clientPhone': clientPhone,
     };
@@ -85,6 +90,7 @@ class TaxiOrder {
       baseCost: map['baseCost'] as double,
       costPerKm: map['costPerKm'] as double,
       status: map['status'] as String,
+      isSynced: (map['isSynced'] ?? 0) == 1,  // SQLite integer to boolean
       clientName: map['clientName'] as String?,
       clientPhone: map['clientPhone'] as String?,
     );
@@ -104,6 +110,7 @@ class TaxiOrder {
     double? baseCost,
     double? costPerKm,
     String? status,
+    bool? isSynced,
     String? clientName,
     String? clientPhone,
   }) {
@@ -120,6 +127,7 @@ class TaxiOrder {
       baseCost: baseCost ?? this.baseCost,
       costPerKm: costPerKm ?? this.costPerKm,
       status: status ?? this.status,
+      isSynced: isSynced ?? this.isSynced,
       clientName: clientName ?? this.clientName,
       clientPhone: clientPhone ?? this.clientPhone,
     );
