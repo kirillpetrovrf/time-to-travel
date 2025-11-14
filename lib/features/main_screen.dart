@@ -746,7 +746,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 8),
             Text('Расстояние: ${distance.toStringAsFixed(1)} км', style: TextStyle(fontSize: 14)),
             Text('Стоимость: ${price.toStringAsFixed(0)} ₽', 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.activeBlue)),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.systemRed)),
           ],
         ),
         actions: [
@@ -777,7 +777,7 @@ class _MainScreenState extends State<MainScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('✅ Заказ создан!'),
+        title: const Text('Заказ создан!'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -794,7 +794,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 8),
             Text('Расстояние: ${distance.toStringAsFixed(1)} км', style: TextStyle(fontSize: 14)),
             Text('Стоимость: ${price.toStringAsFixed(0)} ₽', 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.activeGreen)),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.systemRed)),
             const SizedBox(height: 12),
             const Text('Заказ сохранен в раздел "Мои заказы"', 
               style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
@@ -1207,7 +1207,7 @@ class _MainScreenState extends State<MainScreen> {
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+                                color: CupertinoColors.systemRed,
                               ),
                             ),
                           ],
@@ -1223,7 +1223,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: ElevatedButton(
                         onPressed: _onOrderButtonPressed,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: CupertinoColors.systemRed,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(

@@ -557,7 +557,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: theme.primary,
+                    color: theme.systemRed,
                   ),
                 ),
               ],
@@ -592,14 +592,16 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
             // Кнопка "Забронировать"
             Expanded(
               flex: 2,
-              child: CupertinoButton.filled(
+              child: CupertinoButton(
                 padding: const EdgeInsets.all(14),
+                color: theme.systemRed,
                 onPressed: () => _bookTrip(),
                 child: const Text(
                   'Забронировать',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    color: CupertinoColors.white,
                   ),
                 ),
               ),
