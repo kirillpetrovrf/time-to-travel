@@ -177,13 +177,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           : 'Ростов-на-Дону → Донецк';
     }
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
+        Row(
+          children: [
+            Expanded(
+              child: Text(
                 directionText,
                 style: TextStyle(
                   fontSize: 16,
@@ -191,16 +191,72 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   color: theme.label,
                 ),
               ),
-              if (_currentBooking.pickupPoint != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Место посадки: ${_currentBooking.pickupPoint}',
-                  style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
+            ),
+          ],
+        ),
+        
+        // Показываем точные адреса для индивидуальных трансферов и такси
+        if (_currentBooking.tripType == TripType.individual ||
+            _currentBooking.tripType == TripType.customRoute) ...[
+          if (_currentBooking.pickupAddress != null &&
+              _currentBooking.pickupAddress!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  CupertinoIcons.location_solid,
+                  color: theme.primary,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Откуда: ${_currentBooking.pickupAddress}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.secondaryLabel,
+                    ),
+                  ),
                 ),
               ],
-            ],
+            ),
+          ],
+          if (_currentBooking.dropoffAddress != null &&
+              _currentBooking.dropoffAddress!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  CupertinoIcons.placemark_fill,
+                  color: theme.primary,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Куда: ${_currentBooking.dropoffAddress}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.secondaryLabel,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+        
+        // Для групповых трансферов показываем точку посадки
+        if (_currentBooking.tripType == TripType.group &&
+            _currentBooking.pickupPoint != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Место посадки: ${_currentBooking.pickupPoint}',
+            style: TextStyle(fontSize: 14, color: theme.secondaryLabel),
           ),
-        ),
+        ],
       ],
     );
   }

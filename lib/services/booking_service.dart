@@ -153,12 +153,44 @@ class BookingService {
   }
 
   /// Получение всех бронирований клиента (локально)
-  /// Загружает заказы такси из SQLite (TaxiOrder) и конвертирует в Booking для отображения
+  /// Загружает:
+  /// 1. Индивидуальные трансферы из SharedPreferences (Booking)
+  /// 2. Заказы такси из SQLite (TaxiOrder → конвертирует в Booking)
   Future<List<Booking>> getClientBookings(String clientId) async {
     debugPrint(
-      'ℹ️ Получение бронирований клиента из SQLite (TaxiOrder)',
+      'ℹ️ Получение бронирований клиента из SharedPreferences + SQLite',
     );
-    return _getTaxiOrdersAsBookings(clientId);
+    
+    try {
+      // 1. Загружаем индивидуальные трансферы из SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final bookingsJson = prefs.getString(_offlineBookingsKey);
+      List<Booking> individualBookings = [];
+      
+      if (bookingsJson != null) {
+        final decoded = jsonDecode(bookingsJson) as List<dynamic>;
+        individualBookings = decoded
+            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+            .toList();
+        debugPrint('📦 [BOOKING] Загружено ${individualBookings.length} индивидуальных трансферов из SharedPreferences');
+      }
+      
+      // 2. Загружаем заказы такси из SQLite (TaxiOrder)
+      final taxiBookings = await _getTaxiOrdersAsBookings(clientId);
+      debugPrint('📦 [BOOKING] Загружено ${taxiBookings.length} заказов такси из SQLite');
+      
+      // 3. Объединяем оба списка
+      final allBookings = [...individualBookings, ...taxiBookings];
+      
+      // 4. Сортируем по дате (новые сначала)
+      allBookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      debugPrint('✅ [BOOKING] Всего загружено ${allBookings.length} бронирований (${individualBookings.length} индивидуальных + ${taxiBookings.length} такси)');
+      return allBookings;
+    } catch (e) {
+      debugPrint('❌ [BOOKING] Ошибка загрузки бронирований: $e');
+      return [];
+    }
   }
 
   /// Конвертация TaxiOrder из SQLite в Booking для отображения

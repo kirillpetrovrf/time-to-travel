@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle, Direction;
 import '../../../models/route_stop.dart';
 import '../../../models/trip_type.dart';
 import '../../../models/booking.dart';
@@ -11,6 +12,7 @@ import '../../../services/booking_service.dart';
 import '../../../services/route_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/address_autocomplete_field.dart';
 import '../../home/screens/home_screen.dart';
 import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
@@ -35,8 +37,11 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   List<PassengerInfo> _passengers = []; // Изменено с int на List<PassengerInfo>
   bool _isLoading = false;
 
-  final TextEditingController _pickupController = TextEditingController();
-  final TextEditingController _dropoffController = TextEditingController();
+  // Адреса и координаты (вместо TextEditingController)
+  String? _pickupAddress;
+  Point? _pickupCoordinates;
+  String? _dropoffAddress;
+  Point? _dropoffCoordinates;
 
   // Для прокрутки и фокусировки на полях адресов
   final ScrollController _scrollController = ScrollController();
@@ -99,8 +104,6 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   @override
   void dispose() {
-    _pickupController.dispose();
-    _dropoffController.dispose();
     _scrollController.dispose();
     _pickupFocusNode.dispose();
     _dropoffFocusNode.dispose();
@@ -359,8 +362,10 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       }
 
       // Сбрасываем адреса при смене направления
-      _pickupController.clear();
-      _dropoffController.clear();
+      _pickupAddress = null;
+      _pickupCoordinates = null;
+      _dropoffAddress = null;
+      _dropoffCoordinates = null;
     });
   }
 
@@ -424,8 +429,10 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     }
 
                     // Сбрасываем адреса
-                    _pickupController.clear();
-                    _dropoffController.clear();
+                    _pickupAddress = null;
+                    _pickupCoordinates = null;
+                    _dropoffAddress = null;
+                    _dropoffCoordinates = null;
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -504,8 +511,10 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     _selectedToStop = _availableStops[index];
 
                     // Сбрасываем адреса при смене направления
-                    _pickupController.clear();
-                    _dropoffController.clear();
+                    _pickupAddress = null;
+                    _pickupCoordinates = null;
+                    _dropoffAddress = null;
+                    _dropoffCoordinates = null;
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -534,67 +543,103 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   Widget _buildAddressFields(theme) {
     return Column(
       children: [
-        // Откуда
-        Container(
-          decoration: BoxDecoration(
-            color: theme.secondarySystemBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.separator.withOpacity(0.2)),
-          ),
-          child: CupertinoTextField(
-            controller: _pickupController,
-            focusNode: _pickupFocusNode,
-            placeholder: _selectedFromStop != null
-                ? 'Адрес в ${_selectedFromStop!.name}'
-                : 'Адрес отправления',
-            padding: const EdgeInsets.all(16),
-            decoration: null,
-            style: TextStyle(color: theme.label),
-            placeholderStyle: TextStyle(
-              color: theme.secondaryLabel.withOpacity(0.5),
-            ),
-            prefix: Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Icon(
-                CupertinoIcons.location,
-                color: theme.primary,
-                size: 20,
+        // Откуда - с автозаполнением
+        if (_selectedFromStop != null)
+          Container(
+            decoration: BoxDecoration(
+              color: theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _pickupAddress != null && _pickupAddress!.isNotEmpty
+                    ? theme.separator.withOpacity(0.2)
+                    : theme.systemRed,
               ),
             ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Куда
-        Container(
-          decoration: BoxDecoration(
-            color: theme.secondarySystemBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.separator.withOpacity(0.2)),
-          ),
-          child: CupertinoTextField(
-            controller: _dropoffController,
-            focusNode: _dropoffFocusNode,
-            placeholder: _selectedDirection == Direction.donetskToRostov
-                ? 'Адрес в Ростове-на-Дону'
-                : 'Адрес в Донецке',
             padding: const EdgeInsets.all(16),
-            decoration: null,
-            style: TextStyle(color: theme.label),
-            placeholderStyle: TextStyle(
-              color: theme.secondaryLabel.withOpacity(0.5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(CupertinoIcons.location_solid, color: theme.primary, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Адрес отправления',
+                      style: TextStyle(
+                        color: theme.secondaryLabel,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                AddressAutocompleteField(
+                  label: '',
+                  cityContext: _selectedFromStop!.name,
+                  focusNode: _pickupFocusNode,
+                  initialValue: _pickupAddress,
+                  onAddressSelected: (address, coordinates) {
+                    setState(() {
+                      _pickupAddress = address;
+                      _pickupCoordinates = coordinates;
+                    });
+                    debugPrint('📍 [INDIVIDUAL] Адрес отправления: $address');
+                  },
+                ),
+              ],
             ),
-            prefix: Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Icon(
-                CupertinoIcons.location_solid,
-                color: theme.primary,
-                size: 20,
+          ),
+
+        const SizedBox(height: 16),
+
+        // Куда - с автозаполнением
+        if (_selectedToStop != null)
+          Container(
+            decoration: BoxDecoration(
+              color: theme.secondarySystemBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _dropoffAddress != null && _dropoffAddress!.isNotEmpty
+                    ? theme.separator.withOpacity(0.2)
+                    : theme.systemRed,
               ),
             ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(CupertinoIcons.placemark_fill, color: theme.primary, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Адрес назначения',
+                      style: TextStyle(
+                        color: theme.secondaryLabel,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                AddressAutocompleteField(
+                  label: '',
+                  cityContext: _selectedToStop!.name,
+                  focusNode: _dropoffFocusNode,
+                  initialValue: _dropoffAddress,
+                  onAddressSelected: (address, coordinates) {
+                    setState(() {
+                      _dropoffAddress = address;
+                      _dropoffCoordinates = coordinates;
+                    });
+                    debugPrint('📍 [INDIVIDUAL] Адрес назначения: $address');
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -1403,8 +1448,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  /// Прокручивает экран к секции адресов и фокусируется на первом пустом поле
-  void _scrollToAddressFields() {
+  /// Прокручивает экран к адресу отправления и фокусируется на нём
+  void _scrollToPickupAddress() {
+    // Снимаем все фокусы
+    _pickupFocusNode.unfocus();
+    _dropoffFocusNode.unfocus();
+    
     // Получаем контекст секции адресов
     final RenderBox? renderBox =
         _addressSectionKey.currentContext?.findRenderObject() as RenderBox?;
@@ -1420,17 +1469,39 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         scrollPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
-      );
+      ).then((_) {
+        // После прокрутки НЕ устанавливаем фокус - пользователь сам начнёт ввод
+        // Это предотвращает автоматическое открытие клавиатуры
+      });
     }
+  }
 
-    // Фокусируемся на первом пустом поле через небольшую задержку
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (_pickupController.text.trim().isEmpty) {
-        _pickupFocusNode.requestFocus();
-      } else if (_dropoffController.text.trim().isEmpty) {
-        _dropoffFocusNode.requestFocus();
-      }
-    });
+  /// Прокручивает экран к адресу назначения и фокусируется на нём
+  void _scrollToDropoffAddress() {
+    // Снимаем все фокусы
+    _pickupFocusNode.unfocus();
+    _dropoffFocusNode.unfocus();
+    
+    // Получаем контекст секции адресов
+    final RenderBox? renderBox =
+        _addressSectionKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox != null) {
+      // Вычисляем позицию секции адресов
+      final position = renderBox.localToGlobal(Offset.zero).dy;
+      final scrollPosition =
+          _scrollController.offset + position - 100; // -100 для отступа сверху
+
+      // Плавно прокручиваем к секции адресов
+      _scrollController.animateTo(
+        scrollPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      ).then((_) {
+        // После прокрутки НЕ устанавливаем фокус - пользователь сам начнёт ввод
+        // Это предотвращает автоматическое открытие клавиатуры
+      });
+    }
   }
 
   void _showDatePicker() {
@@ -1468,10 +1539,17 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: () {
-                      setState(() {
-                        _selectedDate = tempSelectedDate;
-                      });
                       Navigator.of(context).pop();
+                      
+                      // ✅ КРИТИЧНО: Снимаем фокус И делаем setState ПОСЛЕ закрытия модального окна
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        _pickupFocusNode.unfocus();
+                        _dropoffFocusNode.unfocus();
+                        
+                        setState(() {
+                          _selectedDate = tempSelectedDate;
+                        });
+                      });
                     },
                     child: Text(
                       'Выбрать',
@@ -1561,12 +1639,18 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                           '${tempSelectedTime.hour.toString().padLeft(2, '0')}:'
                           '${tempSelectedTime.minute.toString().padLeft(2, '0')}';
 
-                      setState(() {
-                        _selectedTime = formattedTime;
-                      });
-
                       print('⏰ Выбрано время: $formattedTime');
                       Navigator.of(context).pop();
+                      
+                      // ✅ КРИТИЧНО: Снимаем фокус И делаем setState ПОСЛЕ закрытия модального окна
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        _pickupFocusNode.unfocus();
+                        _dropoffFocusNode.unfocus();
+                        
+                        setState(() {
+                          _selectedTime = formattedTime;
+                        });
+                      });
                     },
                     child: Text(
                       'Выбрать',
@@ -1622,12 +1706,20 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       return;
     }
 
-    // Валидация адресов
-    if (_pickupController.text.trim().isEmpty ||
-        _dropoffController.text.trim().isEmpty) {
+    // Валидация адреса отправления
+    if (_pickupAddress == null || _pickupAddress!.isEmpty) {
       _showError(
-        'Пожалуйста, укажите адреса отправления и назначения',
-        onOkPressed: () => _scrollToAddressFields(),
+        'Пожалуйста, укажите адрес отправления',
+        onOkPressed: () => _scrollToPickupAddress(),
+      );
+      return;
+    }
+
+    // Валидация адреса назначения
+    if (_dropoffAddress == null || _dropoffAddress!.isEmpty) {
+      _showError(
+        'Пожалуйста, укажите адрес назначения',
+        onOkPressed: () => _scrollToDropoffAddress(),
       );
       return;
     }
@@ -1655,6 +1747,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       print('📅 [INDIVIDUAL]   Время: $_selectedTime');
       print('📅 [INDIVIDUAL]   От: ${_selectedFromStop!.name}');
       print('📅 [INDIVIDUAL]   До: ${_selectedToStop!.name}');
+      print('📍 [INDIVIDUAL]   Адрес откуда: $_pickupAddress');
+      print('📍 [INDIVIDUAL]   Адрес куда: $_dropoffAddress');
 
       final booking = Booking(
         id: '', // Будет установлен при создании
@@ -1664,8 +1758,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         departureDate: _selectedDate!, // DateTime для SQLite
         departureTime: _selectedTime, // String для SQLite
         passengerCount: _passengers.length,
-        pickupAddress: _pickupController.text.trim(),
-        dropoffAddress: _dropoffController.text.trim(),
+        pickupAddress: _pickupAddress!,
+        dropoffAddress: _dropoffAddress!,
         fromStop: _selectedFromStop, // Добавляем остановку отправления
         toStop: _selectedToStop, // Добавляем остановку назначения
         totalPrice: _calculatePrice(),
