@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:common/common.dart';
+import 'package:common/common.dart'; // Нужен для extension методов (let, castOrNull) и Impl классов
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -123,9 +123,9 @@ class _MainScreenState extends State<MainScreen> {
             print('✅ Route completed! Point selection disabled.');
           }
           
-          showSnackBar(context, "Установлено: ${address}");
+          print("📱 Установлено: ${address}");
         } else {
-          showSnackBar(context, "Выбрано: ${tappedGeoObject.name ?? 'Неизвестно'}");
+          print("📱 Выбрано: ${tappedGeoObject.name ?? 'Неизвестно'}");
         }
       }
       return true;
@@ -993,6 +993,10 @@ class _MainScreenState extends State<MainScreen> {
       _isPointSelectionEnabled = true;
       _routeCompleted = false;
       
+      // 🆕 Закрываем окно стоимости (чтобы не мешало при построении нового маршрута)
+      _calculation = null;
+      _distanceKm = null;
+      
       // Очищаем маршруты
       _drivingRoutes = [];
       _routesCollection.clear();
@@ -1123,7 +1127,7 @@ class _MainScreenState extends State<MainScreen> {
                         _isPointSelectionEnabled = true;
                         _activeField = ActiveField.none; // Закрываем поиск
                       });
-                      showSnackBar(context, "Выберите точку ОТКУДА на карте 🟢");
+                      print("📱 Выберите точку ОТКУДА на карте 🟢");
                     },
                     onToMapButtonTapped: () {
                       print('🗺️ TO map button tapped - enabling point selection');
@@ -1132,7 +1136,7 @@ class _MainScreenState extends State<MainScreen> {
                         _isPointSelectionEnabled = true;
                         _activeField = ActiveField.none; // Закрываем поиск
                       });
-                      showSnackBar(context, "Выберите точку КУДА на карте 🔴");
+                      print("📱 Выберите точку КУДА на карте 🔴");
                     },
                   );
                 },
@@ -1149,11 +1153,11 @@ class _MainScreenState extends State<MainScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFF2D2D2D),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withOpacity(0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -1175,7 +1179,7 @@ class _MainScreenState extends State<MainScreen> {
                               'Расстояние',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey[600],
+                                color: Colors.grey[400],
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1184,7 +1188,7 @@ class _MainScreenState extends State<MainScreen> {
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.black,
+                                color: Colors.white,
                               ),
                             ),
                           ],
@@ -1198,7 +1202,7 @@ class _MainScreenState extends State<MainScreen> {
                               'Стоимость',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey[600],
+                                color: Colors.grey[400],
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1253,48 +1257,57 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: _moveToUserLocation,
             ),
           ),
-          // Кнопки зума
+          // Кнопки зума - вертикально справа по центру экрана
           Positioned(
-            bottom: 80,
+            top: 0,
+            bottom: 0,
             right: 16,
-            child: Column(
-              children: [
-                FloatingActionButton(
-                  heroTag: "zoom_in",
-                  mini: true,
-                  backgroundColor: Colors.white,
-                  onPressed: _zoomIn,
-                  child: const Icon(
-                    Icons.add,
-                    color: Colors.black54,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton(
+                    heroTag: "zoom_in",
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    onPressed: _zoomIn,
+                    child: const Icon(
+                      Icons.add,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton(
-                  heroTag: "zoom_out",
-                  mini: true,
-                  backgroundColor: Colors.white,
-                  onPressed: _zoomOut,
-                  child: const Icon(
-                    Icons.remove,
-                    color: Colors.black54,
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
+                    heroTag: "zoom_out",
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    onPressed: _zoomOut,
+                    child: const Icon(
+                      Icons.remove,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          // Кнопка меню в левом нижнем углу
+          // Кнопка сброса маршрута в левом нижнем углу
           Positioned(
             bottom: 16,
             left: 16,
             child: FloatingActionButton(
-              heroTag: "menu_button",
+              heroTag: "reset_route_button",
               mini: true,
               backgroundColor: Colors.white,
-              onPressed: () => _showMenuBottomSheet(context),
+              onPressed: () {
+                // Выполняем оба сброса сразу
+                _forceResetAllFields();
+                _routePointsManager.forceTripleClear();
+                print("📱 Маршрут полностью удалён! 🗑️");
+              },
               child: const Icon(
-                Icons.more_vert,
-                color: Colors.black54,
+                Icons.delete_outline,
+                color: Colors.red,
               ),
             ),
           ),
@@ -1406,7 +1419,7 @@ class _MainScreenState extends State<MainScreen> {
     print('📡 Subscribing to search and suggest streams...');
     _mapSearchSubscription = _mapManager.mapSearchState.listen((uiState) {
       if (uiState.suggestState is SuggestError) {
-        showSnackBar(context, "Ошибка предложений, проверьте подключение к интернету");
+        print("📱 Ошибка предложений, проверьте подключение к интернету");
       }
 
       final searchState = uiState.searchState;
@@ -1455,7 +1468,7 @@ class _MainScreenState extends State<MainScreen> {
       } else if (searchState is SearchOff) {
         _searchResultPlacemarksCollection.clear();
       } else if (searchState is SearchError) {
-        showSnackBar(context, "Ошибка поиска, проверьте подключение к интернету");
+        print("📱 Ошибка поиска, проверьте подключение к интернету");
       }
     });
 
@@ -1516,56 +1529,6 @@ class _MainScreenState extends State<MainScreen> {
   // }
 
   // Показать меню с опциями сброса
-  void _showMenuBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Заголовок
-              Text(
-                'Сброс данных',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Кнопка полного сброса
-              ListTile(
-                leading: const Icon(Icons.refresh, color: Colors.orange),
-                title: const Text('Полный сброс'),
-                subtitle: const Text('Очистить все поля и состояние'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _forceResetAllFields();
-                  showSnackBar(context, "Выполнен полный сброс! 🔄");
-                },
-              ),
-              const Divider(),
-              // Кнопка тройного сброса
-              ListTile(
-                leading: const Icon(Icons.clear_all_outlined, color: Colors.red),
-                title: const Text('Тройной сброс'),
-                subtitle: const Text('Принудительная очистка точек (3x)'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _routePointsManager.forceTripleClear();
-                  showSnackBar(context, "Тройной сброс выполнен! 🔥🔥🔥");
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   // Метод для перемещения к местоположению пользователя
   Future<void> _moveToUserLocation() async {
@@ -1578,14 +1541,14 @@ class _MainScreenState extends State<MainScreen> {
         permission = await geolocator.Geolocator.requestPermission();
         if (permission == geolocator.LocationPermission.denied) {
           print('❌ Геолокация: Разрешение отклонено');
-          showSnackBar(context, 'Необходимо разрешение на использование геолокации');
+          print('📱 Необходимо разрешение на использование геолокации');
           return;
         }
       }
 
       if (permission == geolocator.LocationPermission.deniedForever) {
         print('❌ Геолокация: Разрешение отклонено навсегда');
-        showSnackBar(context, 'Разрешение на геолокацию заблокировано. Включите в настройках.');
+        print('📱 Разрешение на геолокацию заблокировано. Включите в настройках.');
         return;
       }
 
@@ -1600,7 +1563,7 @@ class _MainScreenState extends State<MainScreen> {
       if (position.latitude < -90 || position.latitude > 90 || 
           position.longitude < -180 || position.longitude > 180) {
         print('❌ Некорректные координаты: ${position.latitude}, ${position.longitude}');
-        showSnackBar(context, 'Получены некорректные координаты');
+        print('📱 Получены некорректные координаты');
         return;
       }
 
@@ -1626,10 +1589,10 @@ class _MainScreenState extends State<MainScreen> {
           await _addUserLocationMarker(point);
           
           print('✅ Камера перемещена успешно');
-          showSnackBar(context, 'Перемещено к вашему местоположению');
+          print('📱 Перемещено к вашему местоположению');
         } else {
           print('❌ MapWindow не инициализирован');
-          showSnackBar(context, 'Карта не готова');
+          print('📱 Карта не готова');
         }
       } catch (cameraError) {
         print('❌ Ошибка перемещения камеры: $cameraError');

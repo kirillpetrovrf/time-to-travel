@@ -459,7 +459,7 @@ class _CustomRouteWithMapScreenState extends State<CustomRouteWithMapScreen> {
                   margin: const EdgeInsets.all(16),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: theme.systemBackground.withOpacity(0.95),
+                    color: theme.secondarySystemBackground,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
