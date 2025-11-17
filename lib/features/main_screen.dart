@@ -147,6 +147,9 @@ class _MainScreenState extends State<MainScreen> {
   
   // Флаг того, что пользователь выбрал адрес из саджеста (не просто печатает)
   bool _waitingForSuggestionResult = false;
+  
+  // Флаг программной установки текста (чтобы не триггерить suggest)
+  bool _isSettingTextProgrammatically = false;
 
   // Тип точки, выбранный пользователем для установки на карту
   RoutePointType _selectedPointType = RoutePointType.from;
@@ -1070,6 +1073,9 @@ class _MainScreenState extends State<MainScreen> {
                       print('📝 Current TO field text: "${_textFieldControllerTo.text}"');
                     },
                     onFromTextChanged: (text) {
+                      // Игнорируем изменения при программной установке текста
+                      if (_isSettingTextProgrammatically) return;
+                      
                       if (_activeField == ActiveField.from) {
                         // 🆕 Убеждаемся что тип поля правильный при вводе текста
                         _lastSearchFieldType = RoutePointType.from;
@@ -1077,6 +1083,9 @@ class _MainScreenState extends State<MainScreen> {
                       }
                     },
                     onToTextChanged: (text) {
+                      // Игнорируем изменения при программной установке текста
+                      if (_isSettingTextProgrammatically) return;
+                      
                       if (_activeField == ActiveField.to) {
                         // 🆕 Убеждаемся что тип поля правильный при вводе текста
                         _lastSearchFieldType = RoutePointType.to;
@@ -1092,7 +1101,10 @@ class _MainScreenState extends State<MainScreen> {
                       _waitingForSuggestionResult = true; // Ждем результат выбора из саджеста
                       
                       setState(() {
+                        // Устанавливаем флаг перед программной установкой текста
+                        _isSettingTextProgrammatically = true;
                         _textFieldControllerFrom.text = address;
+                        _isSettingTextProgrammatically = false;
                         _activeField = ActiveField.none;
                       });
                       print('✅ FROM controller text is now: ${_textFieldControllerFrom.text}');
@@ -1110,11 +1122,14 @@ class _MainScreenState extends State<MainScreen> {
                       _waitingForSuggestionResult = true; // Ждем результат выбора из саджеста
                       
                       setState(() {
+                        // Устанавливаем флаг перед программной установкой текста
+                        _isSettingTextProgrammatically = true;
                         _textFieldControllerTo.text = address;
+                        _isSettingTextProgrammatically = false;
                         _activeField = ActiveField.none;
                       });
-                  print('✅ TO controller text is now: ${_textFieldControllerTo.text}');
-                  
+                      print('✅ TO controller text is now: ${_textFieldControllerTo.text}');
+                      
                       // Запускаем поиск - результат будет обработан через onAddressSelected callback
                       print('🔗 Starting search for TO address');
                       _mapManager.startSearch(address);
@@ -1430,36 +1445,21 @@ class _MainScreenState extends State<MainScreen> {
 
         _updateSearchResponsePlacemarks(searchItems);
 
-        // Если ждем результат выбора из саджеста - устанавливаем точку маршрута
-        if (_waitingForSuggestionResult && searchItems.isNotEmpty && _lastSearchFieldType != null && _isPointSelectionEnabled) {
-          final firstItem = searchItems.first;
-          print('🎯 Auto-selecting first search result from suggestion: ${firstItem.geoObject?.name ?? 'Unknown'}');
-          
-          // Устанавливаем точку маршрута
-          _routePointsManager.setPoint(_lastSearchFieldType!, firstItem.point);
-          
-          // Переключаем тип точки
-          if (_lastSearchFieldType == RoutePointType.from) {
-            setState(() {
-              _selectedPointType = RoutePointType.to;
-            });
-            print('🔄 Auto-switched to TO after FROM selection from search');
-          } else {
-            setState(() {
-              _isPointSelectionEnabled = false;
-              _routeCompleted = true;
-            });
-            print('✅ Route completed! Point selection disabled after TO selection from search.');
-          }
-          
-          // Сбрасываем флаг ожидания
-          _waitingForSuggestionResult = false;
-          
-          // Очищаем результаты поиска после выбора
-          _searchResultPlacemarksCollection.clear();
-        } 
-        // Показываем результаты поиска на карте без автовыбора
-        else if (searchState.shouldZoomToItems) {
+        // ❌ УДАЛЕНО: автоматическая установка точки из результатов поиска
+        // Теперь точка устанавливается ТОЛЬКО через onAddressSelected callback
+        // который вызывается в MapSearchManager после успешного поиска
+        
+        // Старый код (УДАЛЁН, так как дублировал onAddressSelected):
+        // if (_waitingForSuggestionResult && searchItems.isNotEmpty && _lastSearchFieldType != null && _isPointSelectionEnabled) {
+        //   final firstItem = searchItems.first;
+        //   _routePointsManager.setPoint(_lastSearchFieldType!, firstItem.point);
+        //   ... переключение типа точки ...
+        //   _waitingForSuggestionResult = false;
+        //   _searchResultPlacemarksCollection.clear();
+        // }
+        
+        // Показываем результаты поиска на карте
+        if (searchState.shouldZoomToItems) {
           _focusCamera(
             searchItems.map((it) => it.point),
             searchState.itemsBoundingBox,
@@ -1567,9 +1567,16 @@ class _MainScreenState extends State<MainScreen> {
         return;
       }
 
+      // 📍 КЛЮЧЕВОЙ МОМЕНТ: Устанавливаем позицию пользователя для приоритета саджестов
+      final point = Point(latitude: position.latitude, longitude: position.longitude);
+      print('🔥🔥🔥 CALLING setUserPosition from _moveToUserLocation');
+      print('   Position: ${position.latitude}, ${position.longitude}');
+      print('   MapManager: $_mapManager');
+      _mapManager.setUserPosition(point);
+      print('✅ GPS-позиция установлена в MapSearchManager для приоритета саджестов');
+
       // Перемещаем камеру к местоположению пользователя
       try {
-        final point = Point(latitude: position.latitude, longitude: position.longitude);
         final newCameraPosition = CameraPosition(
           point, 
           zoom: 15.0,
@@ -1722,6 +1729,14 @@ class _MainScreenState extends State<MainScreen> {
 
       // Устанавливаем позицию пользователя
       final userPoint = Point(latitude: position.latitude, longitude: position.longitude);
+      
+      // 📍 КЛЮЧЕВОЙ МОМЕНТ: Устанавливаем GPS-позицию в MapSearchManager для приоритета саджестов
+      print('🔥🔥🔥 CALLING setUserPosition from _initializeUserLocation');
+      print('   Position: ${position.latitude}, ${position.longitude}');
+      print('   MapManager: $_mapManager');
+      _mapManager.setUserPosition(userPoint);
+      print('✅ GPS-позиция установлена в MapSearchManager при инициализации');
+      
       final userCameraPosition = CameraPosition(
         userPoint, 
         zoom: 13.0,

@@ -31,14 +31,18 @@ final class SuggestItem {
   final SpannableString title;
   final SpannableString? subtitle;
   final VoidCallback onTap;
+  final String searchText; // Полный адрес для поиска (с городом и краем)
+  final String displayText; // Текст для отображения в поле
 
   const SuggestItem({
     required this.title,
     required this.subtitle,
     required this.onTap,
+    required this.searchText,
+    required this.displayText,
   });
 
   @override
   String toString() =>
-      "SuggestItem(title: ${title.text}, subtitle: ${subtitle?.text})";
+      "SuggestItem(title: ${title.text}, subtitle: ${subtitle?.text}, searchText: $searchText)";
 }

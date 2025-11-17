@@ -43,6 +43,7 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
   late GlobalKey _fieldKey;
+  bool _isSettingTextProgrammatically = false;
 
   @override
   void initState() {
@@ -158,13 +159,21 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
   Widget _buildSuggestionItem(SuggestItem suggestion) {
     return InkWell(
       onTap: () {
-        // Сначала устанавливаем текст в контроллер
-        widget.controller.text = suggestion.title.text;
+        // Устанавливаем флаг перед программной установкой текста
+        _isSettingTextProgrammatically = true;
+        
+        // Сначала устанавливаем displayText в контроллер (короткий, красивый)
+        widget.controller.text = suggestion.displayText;
+        
+        // Сбрасываем флаг после установки
+        _isSettingTextProgrammatically = false;
+        
         // Затем скрываем overlay и убираем фокус
         _focusNode.unfocus();
         _hideOverlay();
-        // И только потом вызываем callback
-        widget.onSuggestionSelected?.call(suggestion.title.text);
+        
+        // И вызываем callback с ПОЛНЫМ searchText (для правильного поиска)
+        widget.onSuggestionSelected?.call(suggestion.searchText);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -270,7 +279,12 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                onChanged: widget.onTextChanged,
+                onChanged: (value) {
+                  // Игнорируем изменения когда текст устанавливается программно
+                  if (!_isSettingTextProgrammatically) {
+                    widget.onTextChanged?.call(value);
+                  }
+                },
               ),
             ),
             if (widget.controller.text.isNotEmpty)
