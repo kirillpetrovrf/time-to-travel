@@ -10,8 +10,10 @@ class SearchFieldsPanel extends StatelessWidget {
   final List<SuggestItem> toSuggestions;
   final ValueChanged<String>? onFromTextChanged;
   final ValueChanged<String>? onToTextChanged;
-  final ValueChanged<String>? onFromSuggestionSelected;
-  final ValueChanged<String>? onToSuggestionSelected;
+  final ValueChanged<SuggestItem>? onFromSuggestionSelected;
+  final ValueChanged<SuggestItem>? onToSuggestionSelected;
+  final ValueChanged<String>? onFromSubmitted;  // 🆕 Когда нажали "Найти" в FROM
+  final ValueChanged<String>? onToSubmitted;    // 🆕 Когда нажали "Найти" в TO
   final VoidCallback? onFromFieldTapped;
   final VoidCallback? onToFieldTapped;
   final VoidCallback? onFromMapButtonTapped;
@@ -33,6 +35,8 @@ class SearchFieldsPanel extends StatelessWidget {
     this.onToTextChanged,
     this.onFromSuggestionSelected,
     this.onToSuggestionSelected,
+    this.onFromSubmitted,  // 🆕
+    this.onToSubmitted,    // 🆕
     this.onFromFieldTapped,
     this.onToFieldTapped,
     this.onFromMapButtonTapped,
@@ -64,6 +68,7 @@ class SearchFieldsPanel extends StatelessWidget {
             showSuggestions: showFromSuggestions,
             onTextChanged: onFromTextChanged,
             onSuggestionSelected: onFromSuggestionSelected,
+            onSubmitted: onFromSubmitted,  // 🆕
             onFieldTapped: onFromFieldTapped,
             onMapButtonTapped: onFromMapButtonTapped,
           ),
@@ -80,6 +85,7 @@ class SearchFieldsPanel extends StatelessWidget {
             showSuggestions: showToSuggestions,
             onTextChanged: onToTextChanged,
             onSuggestionSelected: onToSuggestionSelected,
+            onSubmitted: onToSubmitted,  // 🆕
             onFieldTapped: onToFieldTapped,
             onMapButtonTapped: onToMapButtonTapped,
           ),

@@ -12,7 +12,8 @@ class SearchFieldWithSuggestions extends StatefulWidget {
   final String mapButtonText;
   final List<SuggestItem> suggestions;
   final ValueChanged<String>? onTextChanged;
-  final ValueChanged<String>? onSuggestionSelected;
+  final ValueChanged<SuggestItem>? onSuggestionSelected;
+  final ValueChanged<String>? onSubmitted;  // 🆕 Когда нажали "Найти" на клавиатуре
   final VoidCallback? onFieldTapped;
   final VoidCallback? onMapButtonTapped;
   final bool isActive;
@@ -28,6 +29,7 @@ class SearchFieldWithSuggestions extends StatefulWidget {
     this.suggestions = const [],
     this.onTextChanged,
     this.onSuggestionSelected,
+    this.onSubmitted,  // 🆕
     this.onFieldTapped,
     this.onMapButtonTapped,
     this.isActive = false,
@@ -172,8 +174,8 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
         _focusNode.unfocus();
         _hideOverlay();
         
-        // И вызываем callback с ПОЛНЫМ searchText (для правильного поиска)
-        widget.onSuggestionSelected?.call(suggestion.searchText);
+        // И вызываем callback с полным suggestion объектом
+        widget.onSuggestionSelected?.call(suggestion);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -283,6 +285,14 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
                   // Игнорируем изменения когда текст устанавливается программно
                   if (!_isSettingTextProgrammatically) {
                     widget.onTextChanged?.call(value);
+                  }
+                },
+                onSubmitted: (value) {
+                  // 🆕 Когда пользователь нажимает "Найти" на клавиатуре
+                  if (value.isNotEmpty) {
+                    // Убираем фокус, чтобы скрыть клавиатуру и остановить автопоиск
+                    _focusNode.unfocus();
+                    widget.onSubmitted?.call(value);
                   }
                 },
               ),

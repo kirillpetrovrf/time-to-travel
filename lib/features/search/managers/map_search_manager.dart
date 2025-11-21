@@ -124,6 +124,42 @@ final class MapSearchManager {
           } else {
             print('⚠️ Москва NOT found in results! Using first item: ${mskItem.geoObject?.descriptionText}');
           }
+        } else if (query.contains('донецк')) {
+          // 🎯 Приоритизация правильного Донецка (ДНР) над Донецком Ростовской области
+          final donetskDNR = items.firstWhere(
+            (item) {
+              // Донецк ДНР имеет координаты около 48.0159°, 37.8031°
+              final lat = item.point.latitude;
+              final lng = item.point.longitude;
+              final name = item.geoObject?.name?.toLowerCase() ?? '';
+              final desc = item.geoObject?.descriptionText?.toLowerCase() ?? '';
+              
+              // Проверяем координаты (с погрешностью 0.5°) и отсутствие "ростовская область"
+              final isDonetskDNR = (lat - 48.0159).abs() < 0.5 && 
+                                   (lng - 37.8031).abs() < 0.5 && 
+                                   !desc.contains('ростовская');
+              
+              print('   🔍 Checking item: $name ($desc)');
+              print('     Coords: $lat, $lng');
+              print('     Is Donetsk DNR: $isDonetskDNR');
+              
+              return isDonetskDNR;
+            },
+            orElse: () => items.first,
+          );
+          bestItem = donetskDNR;
+          
+          final lat = donetskDNR.point.latitude;
+          final lng = donetskDNR.point.longitude;
+          final isActuallyDNR = (lat - 48.0159).abs() < 0.5 && (lng - 37.8031).abs() < 0.5;
+          
+          if (isActuallyDNR) {
+            print('🎯✅ PRIORITIZED Донецк ДНР: ${donetskDNR.geoObject?.descriptionText}');
+            print('     Coordinates: $lat, $lng');
+          } else {
+            print('⚠️ Донецк ДНР NOT found in results! Using first item: ${donetskDNR.geoObject?.descriptionText}');
+            print('     Coordinates: $lat, $lng');
+          }
         }
         
         final address = bestItem.geoObject?.name ?? _searchQuery.value;
@@ -178,7 +214,46 @@ final class MapSearchManager {
         print('       searchText: "${item.searchText}"');
       }
       
-      final suggestItems = response.items.take(suggestNumberLimit).map(
+      // 🎯 Приоритизация Донецка ДНР в suggest results
+      var itemsList = response.items.toList();
+      final query = _searchQuery.value.toLowerCase();
+      
+      if (query.contains('донецк')) {
+        print('🔄 Prioritizing Донецк ДНР in suggest results...');
+        
+        // Ищем правильный Донецк (без "Ростовская область")
+        final donetskDNRIndex = itemsList.indexWhere((item) {
+          final title = item.title.text.toLowerCase();
+          final subtitle = item.subtitle?.text.toLowerCase() ?? '';
+          final displayText = item.displayText?.toLowerCase() ?? '';
+          
+          // Проверяем что это именно "Донецк" (не другие города с "донецк" в названии)
+          // и НЕ содержит "ростовская область"
+          final isDonetskCity = title == 'донецк';
+          final isNotRostovRegion = !subtitle.contains('ростовская область') && 
+                                   !displayText.contains('ростовская область');
+          
+          print('   🔍 Suggest item: "$title" / "$subtitle"');
+          print('     isDonetskCity: $isDonetskCity, isNotRostovRegion: $isNotRostovRegion');
+          
+          return isDonetskCity && isNotRostovRegion;
+        });
+        
+        // Если нашли правильный Донецк и он не на первом месте - перемещаем его
+        if (donetskDNRIndex > 0) {
+          final donetskDNRItem = itemsList.removeAt(donetskDNRIndex);
+          itemsList.insert(0, donetskDNRItem);
+          print('🎯✅ MOVED Донецк ДНР from position $donetskDNRIndex to position 0');
+          print('     Title: "${donetskDNRItem.title.text}"');
+          print('     Subtitle: "${donetskDNRItem.subtitle?.text ?? "null"}"');
+        } else if (donetskDNRIndex == 0) {
+          print('✅ Донецк ДНР already at position 0 - no reordering needed');
+        } else {
+          print('⚠️ Донецк ДНР not found in suggest results');
+        }
+      }
+
+      final suggestItems = itemsList.take(suggestNumberLimit).map(
         (item) {
           return suggest_model.SuggestItem(
             title: item.title,

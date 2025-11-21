@@ -1164,6 +1164,11 @@ class _MainScreenState extends State<MainScreen> {
 
       // Устанавливаем позицию пользователя
       final userPoint = Point(latitude: position.latitude, longitude: position.longitude);
+      
+      // 📍 КЛЮЧЕВОЙ МОМЕНТ: Устанавливаем GPS-позицию в MapSearchManager для приоритета саджестов
+      _mapManager.setUserPosition(userPoint);
+      print('✅ GPS-позиция установлена в MapSearchManager при инициализации');
+      
       final userCameraPosition = CameraPosition(
         userPoint, 
         zoom: 13.0,

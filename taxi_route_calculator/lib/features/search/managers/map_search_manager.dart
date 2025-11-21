@@ -24,6 +24,12 @@ final class MapSearchManager {
 
   final _searchManager =
       SearchFactory.instance.createSearchManager(SearchManagerType.Combined);
+  
+  // 📍 Текущая GPS-позиция пользователя для приоритета саджестов
+  Point? _userPosition;
+  
+  // 🆕 Сохраняем последний запрос с городом для правильного поиска
+  String? _lastFullQuery;
 
   final _visibleRegion = BehaviorSubject<VisibleRegion?>()..add(null);
   final _searchQuery = BehaviorSubject<String>()..add("");
@@ -100,17 +106,28 @@ final class MapSearchManager {
             title: item.title,
             subtitle: item.subtitle,
             onTap: () {
+              print('🎯 Suggest item tapped:');
+              print('   title: ${item.title}');
+              print('   searchText: ${item.searchText}');
+              print('   displayText: ${item.displayText}');
+              print('   uri: ${item.uri}');
+              print('   action: ${item.action}');
+              
               setQueryText(item.displayText ?? "");
 
               if (item.action == SuggestItemAction.Search) {
                 final uri = item.uri;
                 if (uri != null) {
-                  // Search by URI if exists
+                  // Search by URI if exists - ГЛОБАЛЬНЫЙ ПОИСК!
+                  print('✅ Using URI search (global): $uri');
                   _submitUriSearch(uri);
                 } else {
-                  // Otherwise, search by searchText
+                  // Otherwise, search by searchText - локальный поиск
+                  print('⚠️ Using text search (local): ${item.searchText}');
                   startSearch(item.searchText);
                 }
+              } else {
+                print('ℹ️ Action is not Search: ${item.action}');
               }
             },
           );
@@ -135,6 +152,16 @@ final class MapSearchManager {
   void setQueryText(String query) {
     print('🔎 setQueryText: "$query"');
     _searchQuery.add(query);
+    
+    // 🆕 Сохраняем полный запрос ТОЛЬКО если он содержит город
+    if (_queryContainsCity(query)) {
+      _lastFullQuery = query;
+      print('💾 Saved full query with city: "$query"');
+    } else {
+      // 🧹 Очищаем сохранённый запрос, если новый запрос без города
+      // (пользователь начал вводить новый адрес)
+      _lastFullQuery = null;
+    }
   }
 
   void setVisibleRegion(VisibleRegion region) {
@@ -143,15 +170,64 @@ final class MapSearchManager {
   }
 
   void startSearch([String? query]) {
-    print('🚀 startSearch with query: "${query ?? _searchQuery.value}"');
+    var searchQuery = query ?? _searchQuery.value;
+    print('🚀 startSearch with query: "$searchQuery"');
+    
+    // 🆕 Если запрос не содержит город, но у нас есть сохранённый запрос с городом,
+    // используем сохранённый полный запрос (так как адрес из саджеста теряет город)
+    if (!_queryContainsCity(searchQuery) && _lastFullQuery != null) {
+      print('🔄 Query has no city, but we have saved full query: "$_lastFullQuery"');
+      print('   Using saved full query for search');
+      searchQuery = _lastFullQuery!;
+    }
+    
     final region = _visibleRegion.value;
     if (region == null) {
       print('❌ No visible region available');
       return;
     }
 
-    final polygonRegion = VisibleRegionUtils.toPolygon(region);
-    _submitSearch(query ?? _searchQuery.value, polygonRegion);
+    // 🎯 Определяем область поиска в зависимости от наличия города в запросе
+    Geometry searchGeometry;
+    final hasExplicitCity = _queryContainsCity(searchQuery);
+    
+    if (hasExplicitCity) {
+      // Если указан город → создаём большой полигон для всей России
+      final russiaPolygon = Polygon(
+        LinearRing([
+          const Point(latitude: 41.0, longitude: 19.0),   // Юго-запад
+          const Point(latitude: 41.0, longitude: 180.0),  // Юго-восток
+          const Point(latitude: 82.0, longitude: 180.0),  // Северо-восток
+          const Point(latitude: 82.0, longitude: 19.0),   // Северо-запад
+          const Point(latitude: 41.0, longitude: 19.0),   // Замыкаем полигон
+        ]),
+        [],
+      );
+      searchGeometry = Geometry.fromPolygon(russiaPolygon);
+      print('🌐 Query contains city "$searchQuery" → using wide search area (all Russia)');
+    } else if (_userPosition != null) {
+      // Если НЕТ города И есть GPS → маленький полигон вокруг пользователя
+      const delta = 0.2;
+      final localPolygon = Polygon(
+        LinearRing([
+          Point(latitude: _userPosition!.latitude - delta, longitude: _userPosition!.longitude - delta),
+          Point(latitude: _userPosition!.latitude - delta, longitude: _userPosition!.longitude + delta),
+          Point(latitude: _userPosition!.latitude + delta, longitude: _userPosition!.longitude + delta),
+          Point(latitude: _userPosition!.latitude + delta, longitude: _userPosition!.longitude - delta),
+          Point(latitude: _userPosition!.latitude - delta, longitude: _userPosition!.longitude - delta),
+        ]),
+        [],
+      );
+      searchGeometry = Geometry.fromPolygon(localPolygon);
+      print('📍 No city in query → using local search area around user position');
+      print('   User position: (${_userPosition!.latitude}, ${_userPosition!.longitude})');
+    } else {
+      // Fallback: используем видимую область карты
+      searchGeometry = VisibleRegionUtils.toPolygon(region);
+      print('🗺️ Using visible region for search (no city, no GPS)');
+    }
+
+    _submitSearch(searchQuery, searchGeometry);
   }
 
   void reset() {
@@ -202,13 +278,46 @@ final class MapSearchManager {
     _suggestState.close();
   }
 
+  /// Устанавливает текущую GPS-позицию пользователя
+  /// Вызывается при получении геолокации
+  void setUserPosition(Point position) {
+    _userPosition = position;
+    print('📍 User position updated: (${position.latitude}, ${position.longitude})');
+  }
+
+  /// Проверяет, содержит ли запрос название города
+  /// Список из 60+ крупных городов России
+  bool _queryContainsCity(String query) {
+    final lowerQuery = query.toLowerCase();
+    
+    // Список крупных городов России для быстрой проверки
+    const cities = [
+      'москва', 'санкт-петербург', 'питер', 'екатеринбург', 'екб',
+      'новосибирск', 'казань', 'нижний новгород', 'челябинск',
+      'самара', 'омск', 'ростов-на-дону', 'ростов', 'уфа', 'красноярск',
+      'воронеж', 'пермь', 'волгоград', 'краснодар', 'саратов',
+      'тюмень', 'тольятти', 'ижевск', 'барнаул', 'ульяновск',
+      'иркутск', 'хабаровск', 'ярославль', 'владивосток', 'махачкала',
+      'томск', 'оренбург', 'кемерово', 'новокузнецк', 'рязань',
+      'набережные челны', 'астрахань', 'пенза', 'липецк', 'киров',
+      'чебоксары', 'калининград', 'тула', 'курск', 'сочи',
+      'ставрополь', 'улан-удэ', 'магнитогорск', 'иваново', 'брянск',
+      'белгород', 'сургут', 'владимир', 'архангельск', 'чита',
+      'нижний тагил', 'калуга', 'смоленск', 'волжский', 'курган'
+    ];
+    
+    return cities.any((city) => lowerQuery.contains(city));
+  }
+
   void _submitUriSearch(String uri) {
+    print('🌍 _submitUriSearch called with URI: $uri');
     _searchSession?.cancel();
     _searchSession = _searchManager.searchByURI(
       SearchOptions(),
       _searchSessionListener,
       uri: uri,
     );
+    print('✅ URI search session created');
     _shouldZoomToSearchResult = true;
   }
 
@@ -229,14 +338,50 @@ final class MapSearchManager {
     BoundingBox box, [
     SuggestOptions? options,
   ]) {
+    BoundingBox effectiveBox;
+    
+    // 🎯 Определяем, указал ли пользователь город в запросе
+    final hasExplicitCity = _queryContainsCity(query);
+    
+    if (hasExplicitCity) {
+      // Если указан конкретный город → используем широкий bbox (вся Россия)
+      effectiveBox = BoundingBox(
+        const Point(latitude: 41.0, longitude: 19.0),  // Юго-запад России
+        const Point(latitude: 82.0, longitude: 180.0), // Северо-восток России
+      );
+      print('🌐 Query contains city name → using wide BoundingBox (all Russia)');
+      print('   Query: "$query"');
+    } else if (_userPosition != null) {
+      // Если НЕТ города в запросе И есть GPS → маленький bbox вокруг пользователя
+      // Создаём BoundingBox ~22км вокруг текущей позиции (≈0.2 градуса)
+      const latDelta = 0.2;
+      const lonDelta = 0.2;
+      effectiveBox = BoundingBox(
+        Point(
+          latitude: _userPosition!.latitude - latDelta,
+          longitude: _userPosition!.longitude - lonDelta,
+        ),
+        Point(
+          latitude: _userPosition!.latitude + latDelta,
+          longitude: _userPosition!.longitude + lonDelta,
+        ),
+      );
+      print('📍 No city in query → using local BoundingBox around user position');
+      print('   User position: (${_userPosition!.latitude}, ${_userPosition!.longitude})');
+      print('   BoundingBox: SW(${effectiveBox.southWest.latitude},${effectiveBox.southWest.longitude}) NE(${effectiveBox.northEast.latitude},${effectiveBox.northEast.longitude})');
+    } else {
+      // Fallback: если нет ни города, ни GPS → используем bbox видимой области карты
+      effectiveBox = box;
+      print('🗺️ Using visible region BoundingBox (no city, no GPS)');
+    }
+    
     print('🌐 Submitting suggest for: "$query"');
-    print('   BoundingBox: SW(${box.southWest.latitude},${box.southWest.longitude}) NE(${box.northEast.latitude},${box.northEast.longitude})');
     print('   Listener object: $_suggestSessionListener');
     print('   Listener hashCode: ${_suggestSessionListener.hashCode}');
     
     try {
       _suggestSession.suggest(
-        box,
+        effectiveBox,
         options ?? defaultSuggestOptions,
         _suggestSessionListener,
         text: query,

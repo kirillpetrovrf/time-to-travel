@@ -866,11 +866,15 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     print('✅ Have ${routePoints.length} points, building driving route...');
+    
+    // ✅ Исключаем запрещенные КПП (но не добавляем автоматически новые точки)
+    final modifiedRoutePoints = _excludeForbiddenCheckpoints(routePoints);
+    
     final requestPoints = [
-      mapkit.RequestPoint(routePoints.first, mapkit.RequestPointType.Waypoint, null, null, null),
-      ...(routePoints.sublist(1, routePoints.length - 1).map(
+      mapkit.RequestPoint(modifiedRoutePoints.first, mapkit.RequestPointType.Waypoint, null, null, null),
+      ...(modifiedRoutePoints.sublist(1, modifiedRoutePoints.length - 1).map(
           (it) => mapkit.RequestPoint(it, mapkit.RequestPointType.Viapoint, null, null, null))),
-      mapkit.RequestPoint(routePoints.last, mapkit.RequestPointType.Waypoint, null, null, null)
+      mapkit.RequestPoint(modifiedRoutePoints.last, mapkit.RequestPointType.Waypoint, null, null, null)
     ];
 
     print('🚗 Requesting driving route with ${requestPoints.length} request points');
@@ -880,8 +884,24 @@ class _MainScreenState extends State<MainScreen> {
   // Routing request methods from map_routing (lines 538-576)
   void _requestDrivingRoutes(List<mapkit.RequestPoint> points) {
     print('🚗🚗 _requestDrivingRoutes called with ${points.length} points');
+    
+    // 🔍 ПОДРОБНЫЙ ЛОГ ВСЕХ ТОЧЕК ЗАПРОСА
+    print('📍📍📍 ДЕТАЛЬНЫЙ ЛОГ ТОЧЕК ЗАПРОСА:');
+    for (int i = 0; i < points.length; i++) {
+      final point = points[i];
+      final typeStr = point.type == mapkit.RequestPointType.Waypoint ? 'Waypoint' : 'Viapoint';
+      print('   [$i] $typeStr → ${point.point.latitude}, ${point.point.longitude}');
+    }
+    print('📍📍📍 КОНЕЦ ЛОГА ТОЧЕК');
+    
     print('🎧 Listener: ${_drivingRouteListener.hashCode}');
-    const drivingOptions = DrivingOptions(routesCount: 3);
+    
+    // Используем стандартные настройки маршрутизации  
+    // Настройки маршрутизации для точного прохождения через КПП
+    const drivingOptions = DrivingOptions(
+      routesCount: 1, // Только один маршрут для точного прохождения
+    );
+    
     const vehicleOptions = DrivingVehicleOptions();
 
     _drivingSession = _drivingRouter.requestRoutes(
@@ -1092,9 +1112,28 @@ class _MainScreenState extends State<MainScreen> {
                         _mapManager.setQueryText(text);
                       }
                     },
-                    onFromSuggestionSelected: (address) {
-                      print('📍 Selected FROM address: $address');
-                      print('🔧 Setting FROM controller text to: $address');
+                    // 🆕 Обработчики для кнопки "Найти" на клавиатуре
+                    onFromSubmitted: (text) {
+                      print('⌨️ FROM field submitted with text: "$text"');
+                      if (text.isNotEmpty) {
+                        _lastSearchFieldType = RoutePointType.from;
+                        _waitingForSuggestionResult = true;  // Ждем результат поиска
+                        print('🔍 Starting search via keyboard for FROM: $text');
+                        _mapManager.startSearch(text);
+                      }
+                    },
+                    onToSubmitted: (text) {
+                      print('⌨️ TO field submitted with text: "$text"');
+                      if (text.isNotEmpty) {
+                        _lastSearchFieldType = RoutePointType.to;
+                        _waitingForSuggestionResult = true;  // Ждем результат поиска
+                        print('🔍 Starting search via keyboard for TO: $text');
+                        _mapManager.startSearch(text);
+                      }
+                    },
+                    onFromSuggestionSelected: (suggestion) {
+                      print('📍 Selected FROM suggestion: ${suggestion.displayText}');
+                      print('🔧 Setting FROM controller text to: ${suggestion.displayText}');
                       
                       // Запоминаем что это FROM поле перед поиском
                       _lastSearchFieldType = RoutePointType.from;
@@ -1103,19 +1142,19 @@ class _MainScreenState extends State<MainScreen> {
                       setState(() {
                         // Устанавливаем флаг перед программной установкой текста
                         _isSettingTextProgrammatically = true;
-                        _textFieldControllerFrom.text = address;
+                        _textFieldControllerFrom.text = suggestion.displayText; // ✅ Красивое название
                         _isSettingTextProgrammatically = false;
                         _activeField = ActiveField.none;
                       });
                       print('✅ FROM controller text is now: ${_textFieldControllerFrom.text}');
                       
                       // Запускаем поиск - результат будет обработан через onAddressSelected callback
-                      print('🔗 Starting search for FROM address');
-                      _mapManager.startSearch(address);
+                      print('🔗 Starting search for FROM address using searchText: ${suggestion.searchText}');
+                      _mapManager.startSearch(suggestion.searchText); // ✅ Поиск по JSON
                     },
-                    onToSuggestionSelected: (address) {
-                      print('📍 Selected TO address: $address');
-                      print('🔧 Setting TO controller text to: $address');
+                    onToSuggestionSelected: (suggestion) {
+                      print('📍 Selected TO suggestion: ${suggestion.displayText}');
+                      print('🔧 Setting TO controller text to: ${suggestion.displayText}');
                       
                       // Запоминаем что это TO поле перед поиском
                       _lastSearchFieldType = RoutePointType.to;
@@ -1124,15 +1163,15 @@ class _MainScreenState extends State<MainScreen> {
                       setState(() {
                         // Устанавливаем флаг перед программной установкой текста
                         _isSettingTextProgrammatically = true;
-                        _textFieldControllerTo.text = address;
+                        _textFieldControllerTo.text = suggestion.displayText; // ✅ Красивое название
                         _isSettingTextProgrammatically = false;
                         _activeField = ActiveField.none;
                       });
                       print('✅ TO controller text is now: ${_textFieldControllerTo.text}');
                       
                       // Запускаем поиск - результат будет обработан через onAddressSelected callback
-                      print('🔗 Starting search for TO address');
-                      _mapManager.startSearch(address);
+                      print('🔗 Starting search for TO address using searchText: ${suggestion.searchText}');
+                      _mapManager.startSearch(suggestion.searchText); // ✅ Поиск по JSON
                     },
                     // Новые callback'и для кнопок карты
                     onFromMapButtonTapped: () {
@@ -1781,4 +1820,69 @@ class _MainScreenState extends State<MainScreen> {
     
     print('✅ Fallback позиция установлена');
   }
+
+
+
+  /// 🚫 Исключает запрещённые КПП из маршрута
+  /// КПП Куйбышевский и другие запрещённые КПП для грузового транспорта
+  List<Point> _excludeForbiddenCheckpoints(List<Point> routePoints) {
+    print('🔍 Проверяем ${routePoints.length} точек на предмет запрещённых КПП');
+    
+    const double exclusionRadius = 0.05; // 5км радиус исключения (увеличен для большей надежности)
+
+    // Запрещённые КПП и населенные пункты с их координатами
+    const kuybyshevskiyLat = 47.337126;
+    const kuybyshevskiyLng = 39.944856;
+    const uspenkaVillageLat = 47.655000;
+    const uspenkaVillageLng = 38.695000;
+    const kalinovayaLat = 47.740000;
+    const kalinovayaLng = 38.820000;
+
+    List<Point> cleanedPoints = [];
+    int excludedCount = 0;
+
+    for (final point in routePoints) {
+      bool shouldExclude = false;
+      
+      // Проверяем КПП Куйбышевский
+      double latDiff = (point.latitude - kuybyshevskiyLat).abs();
+      double lngDiff = (point.longitude - kuybyshevskiyLng).abs();
+      if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+        print('🚫 Исключаем точку рядом с КПП Куйбышевский: ${point.latitude}, ${point.longitude}');
+        shouldExclude = true;
+      }
+      
+      // Проверяем село Успенка
+      if (!shouldExclude) {
+        latDiff = (point.latitude - uspenkaVillageLat).abs();
+        lngDiff = (point.longitude - uspenkaVillageLng).abs();
+        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+          print('🚫 Исключаем точку рядом с село Успенка: ${point.latitude}, ${point.longitude}');
+          shouldExclude = true;
+        }
+      }
+      
+      // Проверяем село Калиновая
+      if (!shouldExclude) {
+        latDiff = (point.latitude - kalinovayaLat).abs();
+        lngDiff = (point.longitude - kalinovayaLng).abs();
+        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+          print('🚫 Исключаем точку рядом с село Калиновая: ${point.latitude}, ${point.longitude}');
+          shouldExclude = true;
+        }
+      }
+      
+      if (!shouldExclude) {
+        cleanedPoints.add(point);
+      } else {
+        excludedCount++;
+      }
+    }
+    
+    print('✅ Исключено $excludedCount точек из ${routePoints.length}. Осталось: ${cleanedPoints.length}');
+
+    return cleanedPoints;
+  }
+
+
 }
