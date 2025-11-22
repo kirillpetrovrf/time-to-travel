@@ -5,6 +5,7 @@ class CalculatorSettings {
   final double costPerKm; // Стоимость за километр (₽/км)
   final double minPrice; // Минимальная цена поездки (₽)
   final bool roundToThousands; // Округлять до тысяч вверх
+  final double? pricePerKmBeyondRostov; // Цена за км дальше Ростова (₽/км) для маршрута Донецк-Ростов
   final DateTime updatedAt; // Когда обновлено
   final String updatedBy; // Кто обновил (ID админа)
 
@@ -13,6 +14,7 @@ class CalculatorSettings {
     required this.costPerKm,
     required this.minPrice,
     required this.roundToThousands,
+    this.pricePerKmBeyondRostov,
     required this.updatedAt,
     required this.updatedBy,
   });
@@ -24,6 +26,9 @@ class CalculatorSettings {
       costPerKm: (json['costPerKm'] as num).toDouble(),
       minPrice: (json['minPrice'] as num).toDouble(),
       roundToThousands: json['roundToThousands'] as bool,
+      pricePerKmBeyondRostov: json['pricePerKmBeyondRostov'] != null 
+          ? (json['pricePerKmBeyondRostov'] as num).toDouble() 
+          : null,
       updatedAt: (json['updatedAt'] as dynamic).toDate(),
       updatedBy: json['updatedBy'] as String,
     );
@@ -36,6 +41,7 @@ class CalculatorSettings {
       'costPerKm': costPerKm,
       'minPrice': minPrice,
       'roundToThousands': roundToThousands,
+      'pricePerKmBeyondRostov': pricePerKmBeyondRostov,
       'updatedAt': updatedAt,
       'updatedBy': updatedBy,
     };
@@ -48,6 +54,7 @@ class CalculatorSettings {
       costPerKm: 15,
       minPrice: 1000,
       roundToThousands: true,
+      pricePerKmBeyondRostov: 60.0, // По умолчанию 60₽ за км дальше Ростова
       updatedAt: DateTime.now(),
       updatedBy: 'system',
     );

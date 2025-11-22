@@ -7,6 +7,7 @@ class PriceCalculation {
   final double costPerKm; // Стоимость за км
   final bool roundedUp; // Было ли округление
   final bool appliedMinPrice; // Применена ли минимальная цена
+  final bool isSpecialRoute; // Специальный маршрут (фиксированная цена)
 
   PriceCalculation({
     required this.rawPrice,
@@ -16,10 +17,17 @@ class PriceCalculation {
     required this.costPerKm,
     required this.roundedUp,
     required this.appliedMinPrice,
+    this.isSpecialRoute = false,
   });
 
   /// Форматированное объяснение расчёта для UI
   String get explanation {
+    if (isSpecialRoute) {
+      return 'Специальный маршрут: Донецк ↔ Ростов-на-Дону\n'
+             'Фиксированная стоимость: ${finalPrice.toInt()} ₽\n'
+             '${finalPrice == 8000 ? 'Дневной тариф (до 22:00)' : 'Ночной тариф (после 22:00)'}';
+    }
+
     String result = 'Базовая стоимость: ${baseCost.toInt()} ₽\n';
     result +=
         'Расстояние: ${distance.toInt()} км × ${costPerKm.toInt()} ₽ = ${(distance * costPerKm).toInt()} ₽\n';
@@ -36,6 +44,11 @@ class PriceCalculation {
 
   /// Короткое объяснение для UI
   String get shortExplanation {
+    if (isSpecialRoute) {
+      return finalPrice == 8000 
+          ? 'Спец. тариф Донецк-Ростов (дневной)'
+          : 'Спец. тариф Донецк-Ростов (ночной)';
+    }
     if (appliedMinPrice) {
       return 'Применена минимальная цена';
     } else if (roundedUp) {

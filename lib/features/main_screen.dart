@@ -416,7 +416,54 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _calculatePriceForDistance(double distanceKm) async {
     try {
       print('💰 [PRICE] Расчёт цены для расстояния: $distanceKm км');
-      final calculation = await _priceService.calculatePrice(distanceKm);
+      
+      // Получаем города из текстовых полей
+      String fromCity = _textFieldControllerFrom.text.trim();
+      String toCity = _textFieldControllerTo.text.trim();
+      String departureTime = DateFormat('HH:mm').format(DateTime.now());
+      
+      // 🎯 Извлекаем промежуточные города из всех точек маршрута
+      List<String> intermediateCities = [];
+      final allPoints = _routePointsManager.points;
+      
+      // 🌍 Получаем координаты начальной и конечной точки
+      final fromPoint = _routePointsManager.fromPoint;
+      final toPoint = _routePointsManager.toPoint;
+      
+      double? fromLat, fromLng, toLat, toLng;
+      
+      if (fromPoint != null) {
+        fromLat = fromPoint.latitude;
+        fromLng = fromPoint.longitude;
+      }
+      
+      if (toPoint != null) {
+        toLat = toPoint.latitude;
+        toLng = toPoint.longitude;
+      }
+      
+      if (allPoints.length > 2) {
+        // Если есть промежуточные точки
+        for (int i = 1; i < allPoints.length - 1; i++) {
+          intermediateCities.add('Промежуточная_точка_${i}');
+        }
+      }
+      
+      print('💰 [PRICE] Маршрут: $fromCity -> $toCity, время: $departureTime');
+      print('💰 [PRICE] 📍 Координаты: ($fromLat, $fromLng) → ($toLat, $toLng)');
+      print('💰 [PRICE] Промежуточные города: ${intermediateCities.join(", ")}');
+      
+      final calculation = await _priceService.calculatePrice(
+        distanceKm,
+        fromCity: fromCity,
+        toCity: toCity,
+        departureTime: departureTime,
+        intermediateCities: intermediateCities,
+        fromLat: fromLat,
+        fromLng: fromLng,
+        toLat: toLat,
+        toLng: toLng,
+      );
       
       if (!mounted) return;
       
@@ -425,7 +472,7 @@ class _MainScreenState extends State<MainScreen> {
         _calculation = calculation;
       });
       
-      print('💰 [PRICE] Стоимость: ${calculation.finalPrice}₽');
+      print('💰 [PRICE] Стоимость: ${calculation.finalPrice}₽ ${calculation.isSpecialRoute ? "(спец. маршрут)" : ""}');
     } catch (e) {
       print('❌ [PRICE] Ошибка расчета: $e');
     }
@@ -869,6 +916,30 @@ class _MainScreenState extends State<MainScreen> {
     
     // ✅ Исключаем запрещенные КПП (но не добавляем автоматически новые точки)
     final modifiedRoutePoints = _excludeForbiddenCheckpoints(routePoints);
+    
+    // Проверяем, что после фильтрации осталось минимум 2 точки
+    if (modifiedRoutePoints.length < 2) {
+      print('⚠️ После исключения запрещённых КПП осталось меньше 2 точек (${modifiedRoutePoints.length})');
+      print('❌ Невозможно построить маршрут. Выберите другие точки, не попадающие в запрещённые зоны.');
+      
+      // Показываем предупреждение пользователю через Cupertino диалог
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('⚠️ Запрещённая зона'),
+            content: const Text('Выбранная точка находится в запрещённой зоне (КПП). Выберите другую точку.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
     
     final requestPoints = [
       mapkit.RequestPoint(modifiedRoutePoints.first, mapkit.RequestPointType.Waypoint, null, null, null),
@@ -1833,8 +1904,6 @@ class _MainScreenState extends State<MainScreen> {
     // Запрещённые КПП и населенные пункты с их координатами
     const kuybyshevskiyLat = 47.337126;
     const kuybyshevskiyLng = 39.944856;
-    const uspenkaVillageLat = 47.655000;
-    const uspenkaVillageLng = 38.695000;
     const kalinovayaLat = 47.740000;
     const kalinovayaLng = 38.820000;
 
@@ -1843,23 +1912,13 @@ class _MainScreenState extends State<MainScreen> {
 
     for (final point in routePoints) {
       bool shouldExclude = false;
-      
+
       // Проверяем КПП Куйбышевский
       double latDiff = (point.latitude - kuybyshevskiyLat).abs();
       double lngDiff = (point.longitude - kuybyshevskiyLng).abs();
       if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
         print('🚫 Исключаем точку рядом с КПП Куйбышевский: ${point.latitude}, ${point.longitude}');
         shouldExclude = true;
-      }
-      
-      // Проверяем село Успенка
-      if (!shouldExclude) {
-        latDiff = (point.latitude - uspenkaVillageLat).abs();
-        lngDiff = (point.longitude - uspenkaVillageLng).abs();
-        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
-          print('🚫 Исключаем точку рядом с село Успенка: ${point.latitude}, ${point.longitude}');
-          shouldExclude = true;
-        }
       }
       
       // Проверяем село Калиновая
