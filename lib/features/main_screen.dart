@@ -940,12 +940,21 @@ class _MainScreenState extends State<MainScreen> {
       }
       return;
     }
+
+    // 🛣️ ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ КПП УСПЕНКА для маршрутов из Донецка
+    final finalRoutePoints = _addUspenkaCheckpointIfNeeded(modifiedRoutePoints);
     
+    // NOTE: historically we used Waypoint for all intermediate mandatory
+    // checkpoints to force the router to pass exactly through these points.
+    // A recent change used Viapoint for intermediates which let the
+    // routing engine select nearby roads and resulted in unexpected paths.
+    // Revert to Waypoint for intermediates to restore previous, correct
+    // routing behavior (user expectation: exact passage through КПП).
     final requestPoints = [
-      mapkit.RequestPoint(modifiedRoutePoints.first, mapkit.RequestPointType.Waypoint, null, null, null),
-      ...(modifiedRoutePoints.sublist(1, modifiedRoutePoints.length - 1).map(
-          (it) => mapkit.RequestPoint(it, mapkit.RequestPointType.Viapoint, null, null, null))),
-      mapkit.RequestPoint(modifiedRoutePoints.last, mapkit.RequestPointType.Waypoint, null, null, null)
+      mapkit.RequestPoint(finalRoutePoints.first, mapkit.RequestPointType.Waypoint, null, null, null),
+      ...(finalRoutePoints.sublist(1, finalRoutePoints.length - 1).map(
+          (it) => mapkit.RequestPoint(it, mapkit.RequestPointType.Waypoint, null, null, null))),
+      mapkit.RequestPoint(finalRoutePoints.last, mapkit.RequestPointType.Waypoint, null, null, null)
     ];
 
     print('🚗 Requesting driving route with ${requestPoints.length} request points');
@@ -1906,6 +1915,14 @@ class _MainScreenState extends State<MainScreen> {
     const kuybyshevskiyLng = 39.944856;
     const kalinovayaLat = 47.740000;
     const kalinovayaLng = 38.820000;
+    
+    // ❌ СТАРАЯ НЕРАБОЧАЯ КПП УСПЕНКА (закрыта, шлагбаум, тупик) - ЗАПРЕЩЕНА!
+    const oldUspenkaLat = 47.697816;
+    const oldUspenkaLng = 38.666213;
+    
+    // 🚫 КРИТИЧЕСКИ ОПАСНАЯ ЗОНА - ЗАПРЕЩЕН ПРОЕЗД!
+    const dangerousZoneLat = 47.908989;
+    const dangerousZoneLng = 38.943275;
 
     List<Point> cleanedPoints = [];
     int excludedCount = 0;
@@ -1931,6 +1948,26 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
       
+      // Проверяем старую нерабочую КПП Успенка (закрыта, шлагбаум)
+      if (!shouldExclude) {
+        latDiff = (point.latitude - oldUspenkaLat).abs();
+        lngDiff = (point.longitude - oldUspenkaLng).abs();
+        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+          print('🚫 Исключаем точку рядом со СТАРОЙ КПП Успенка (закрыта): ${point.latitude}, ${point.longitude}');
+          shouldExclude = true;
+        }
+      }
+      
+      // 🚨 Проверяем КРИТИЧЕСКИ ОПАСНУЮ ЗОНУ - ПОЛНЫЙ ЗАПРЕТ!
+      if (!shouldExclude) {
+        latDiff = (point.latitude - dangerousZoneLat).abs();
+        lngDiff = (point.longitude - dangerousZoneLng).abs();
+        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+          print('🚨 КРИТИЧЕСКАЯ ОПАСНОСТЬ! Исключаем точку рядом с запрещенной зоной: ${point.latitude}, ${point.longitude}');
+          shouldExclude = true;
+        }
+      }
+      
       if (!shouldExclude) {
         cleanedPoints.add(point);
       } else {
@@ -1942,6 +1979,16 @@ class _MainScreenState extends State<MainScreen> {
 
     return cleanedPoints;
   }
+
+  /// 🛣️ ФУНКЦИЯ УДАЛЕНА - НЕ ДОБАВЛЯЕМ АВТОМАТИЧЕСКИ НИКАКИХ КПП
+  /// Пользователь сам выбирает маршрут
+  List<Point> _addUspenkaCheckpointIfNeeded(List<Point> routePoints) {
+    // ✅ ПРОСТО ВОЗВРАЩАЕМ ИСХОДНЫЕ ТОЧКИ БЕЗ ИЗМЕНЕНИЙ
+    print('🛣️ [DEBUG] Автоматическое добавление КПП ОТКЛЮЧЕНО - возвращаем оригинальные точки');
+    return routePoints;
+  }
+
+
 
 
 }

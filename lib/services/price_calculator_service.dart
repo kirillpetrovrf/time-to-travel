@@ -92,52 +92,42 @@ class PriceCalculatorService {
           );
         }
         
-        // 🎯 ПРОВЕРКА: Точка в географическом коридоре Донецк-Ростов
-        // Если в коридоре → ВСЕГДА минимум 8000₽, независимо от расстояния
-        final isInCorridor = TripPricing.isRouteInDonetskRostovCorridor(
-          fromLat: fromLat,
-          fromLng: fromLng,
-          toLat: toLat,
-          toLng: toLng,
-        );
+        // 🎯 УНИВЕРСАЛЬНОЕ ПРАВИЛО: Все маршруты от Донецка → базовая цена 8000₽ + 60₽/км
+        // Это применяется к ЛЮБОМУ пункту назначения, не только к городу Ростов
+        const double donetskRostovDistance = 190.0;
+        final basePrice = TripPricing.getDonetskRostovBasePrice(departureTime);
         
-        if (isInCorridor) {
-          // Точка в коридоре Донецк-Ростов → спецмаршрут минимум 8000₽
-          const double donetskRostovDistance = 190.0;
-          final basePrice = TripPricing.getDonetskRostovBasePrice(departureTime);
+        // Рассчитываем доплату за километры после 190км
+        double additionalCost = 0.0;
+        if (distanceKm > donetskRostovDistance) {
+          double beyondRostovKm = distanceKm - donetskRostovDistance;
+          additionalCost = beyondRostovKm * pricePerKmBeyondRostov;
           
-          // Рассчитываем доплату за километры после 190км
-          double additionalCost = 0.0;
-          if (distanceKm > donetskRostovDistance) {
-            double beyondRostovKm = distanceKm - donetskRostovDistance;
-            additionalCost = beyondRostovKm * pricePerKmBeyondRostov;
-            
-            print('💰 [PRICE] �️ Маршрут в коридоре Донецк-Ростов');
-            print('💰 [PRICE] 📍 От: $fromLat, $fromLng → До: $toLat, $toLng');
-            print('💰 [PRICE] 📏 Общее расстояние: ${distanceKm.toStringAsFixed(2)} км');
-            print('💰 [PRICE] 📏 Базовый маршрут (Донецк-Ростов): $donetskRostovDistance км');
-            print('💰 [PRICE] 📏 Дополнительно за Ростовом: ${beyondRostovKm.toStringAsFixed(2)} км');
-            print('💰 [PRICE] 💵 Доплата: ${additionalCost.toStringAsFixed(2)}₽ (${beyondRostovKm.toStringAsFixed(2)} км × $pricePerKmBeyondRostov₽/км)');
-            print('💰 [PRICE] 💎 Итоговая цена: ${(basePrice + additionalCost).toStringAsFixed(2)}₽');
-          } else {
-            print('💰 [PRICE] �️ Маршрут в коридоре Донецк-Ростов');
-            print('💰 [PRICE] 📍 От: $fromLat, $fromLng → До: $toLat, $toLng');
-            print('💰 [PRICE] 💎 Фиксированная цена: ${basePrice.toStringAsFixed(0)}₽');
-          }
-          
-          final finalPrice = basePrice + additionalCost;
-          
-          return PriceCalculation(
-            rawPrice: finalPrice,
-            finalPrice: finalPrice,
-            distance: distanceKm,
-            baseCost: finalPrice,
-            costPerKm: 0,
-            roundedUp: false,
-            appliedMinPrice: false,
-            isSpecialRoute: true,
-          );
+          print('💰 [PRICE] 🚗 Маршрут дальше базового расстояния Донецк-Ростов');
+          print('💰 [PRICE] 📍 От: $fromLat, $fromLng → До: $toLat, $toLng');
+          print('💰 [PRICE] 📏 Общее расстояние: ${distanceKm.toStringAsFixed(2)} км');
+          print('💰 [PRICE] 📏 Базовое расстояние: $donetskRostovDistance км');
+          print('💰 [PRICE] 📏 Дополнительно: ${beyondRostovKm.toStringAsFixed(2)} км');
+          print('💰 [PRICE] 💵 Доплата: ${additionalCost.toStringAsFixed(2)}₽ (${beyondRostovKm.toStringAsFixed(2)} км × $pricePerKmBeyondRostov₽/км)');
+          print('💰 [PRICE] 💎 Итоговая цена: ${(basePrice + additionalCost).toStringAsFixed(2)}₽');
+        } else {
+          print('💰 [PRICE] 🚗 Маршрут в пределах базового расстояния');
+          print('💰 [PRICE] 📍 От: $fromLat, $fromLng → До: $toLat, $toLng');
+          print('💰 [PRICE] 💎 Базовая цена: ${basePrice.toStringAsFixed(0)}₽');
         }
+        
+        final finalPrice = basePrice + additionalCost;
+        
+        return PriceCalculation(
+          rawPrice: finalPrice,
+          finalPrice: finalPrice,
+          distance: distanceKm,
+          baseCost: finalPrice,
+          costPerKm: 0,
+          roundedUp: false,
+          appliedMinPrice: false,
+          isSpecialRoute: true,
+        );
       }
     }
 

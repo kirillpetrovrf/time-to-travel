@@ -54,16 +54,23 @@ final class MapSearchManager {
           .map((geoObjectItem) {
             final geoObj = geoObjectItem.asGeoObject();
             final point = geoObj?.geometry.firstOrNull?.asPoint();
+            final name = geoObj?.name ?? '';
             
             if (point == null) {
               print('⚠️ Skipping item without point: ${geoObj?.name ?? "unnamed"}');
+              return null;
             }
 
-            return point?.let(
-              (it) => search_model.SearchResponseItem(
-                point,
-                geoObjectItem.asGeoObject(),
-              ),
+            // 🚧 Фильтруем технические дорожные объекты
+            final isRoadCode = RegExp(r'^\d+[КНР]-\d+').hasMatch(name);
+            if (isRoadCode) {
+              print('🚧 Skipping road code: $name');
+              return null;
+            }
+
+            return search_model.SearchResponseItem(
+              point,
+              geoObjectItem.asGeoObject(),
             );
           })
           .whereType<search_model.SearchResponseItem>()
@@ -362,7 +369,8 @@ final class MapSearchManager {
       _searchQuery,
       _throttledVisibleRegion,
       (searchQuery, region) {
-        if (searchQuery.isNotEmpty && region != null) {
+        // 🔢 Минимум 3 символа для подсказок (было isNotEmpty)
+        if (searchQuery.length >= 3 && region != null) {
           // 🌍 Используем BoundingBox видимой области карты (работает для всего мира!)
           _submitSuggest(searchQuery, region.toBoundingBox());
         } else {
@@ -482,6 +490,8 @@ final class MapSearchManager {
     
     return cities.any((city) => lowerQuery.contains(city));
   }
+
+
 
   void _resetSuggest() {
     _suggestSession.reset();
