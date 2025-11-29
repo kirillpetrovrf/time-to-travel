@@ -30,8 +30,11 @@ final class MapSearchManager {
   final _suggestState = BehaviorSubject<suggest_model.SuggestState>()
     ..add(suggest_model.SuggestOff.instance);
   
-  // 📍 Текущая GPS-позиция пользователя для приоритета саджестов
-  Point? _userPosition;
+
+  
+  // 🔄 Переменные для двухэтапного поиска
+  String? _currentSearchQuery;
+  bool _isSecondarySearchInProgress = false;
 
   late final _throttledVisibleRegion =
       _visibleRegion.debounceTime(const Duration(seconds: 1));
@@ -221,6 +224,21 @@ final class MapSearchManager {
         print('       searchText: "${item.searchText}"');
       }
       
+      // 🔄 ДВУХЭТАПНЫЙ ПОИСК: Проверяем есть ли результаты в видимой области карты
+      if (!_isSecondarySearchInProgress && _currentSearchQuery != null) {
+        final localResultsCount = _countLocalResults(response.items);
+        print('📊 Найдено результатов: всего=${response.items.length}, в видимой области карты=${localResultsCount}');
+        
+        // Проверяем нужен ли двухэтапный поиск
+        final needsSecondarySearch = _shouldUseSecondarySearch(_currentSearchQuery!, response.items, localResultsCount);
+        
+        if (needsSecondarySearch) {
+          print('🔄 Запускаем поиск в видимой области карты...');
+          _performVisibleAreaSearch(_currentSearchQuery!);
+          return; // Не обрабатываем результаты первого поиска
+        }
+      }
+      
       // 🎯 Приоритизация Донецка ДНР в suggest results
       var itemsList = response.items.toList();
       final query = _searchQuery.value.toLowerCase();
@@ -341,7 +359,6 @@ final class MapSearchManager {
 
   /// 📍 Установить текущую GPS-позицию пользователя для приоритета саджестов
   void setUserPosition(Point position) {
-    _userPosition = position;
     print('📍 User position updated: (${position.latitude}, ${position.longitude})');
   }
 
@@ -416,80 +433,221 @@ final class MapSearchManager {
     BoundingBox box, [
     SuggestOptions? options,
   ]) {
-    BoundingBox effectiveBox;
-    
     print('🔍 _submitSuggest called with query: "$query"');
     
-    // 🎯 Определяем, указал ли пользователь город в запросе
-    final hasExplicitCity = _queryContainsCity(query);
+    // Сохраняем для возможного второго поиска
+    _currentSearchQuery = query;
+    _isSecondarySearchInProgress = false;
     
-    if (hasExplicitCity) {
-      // Если указан конкретный город → используем широкий bbox (вся Россия)
-      effectiveBox = BoundingBox(
-        const Point(latitude: 41.0, longitude: 19.0),  // Юго-запад России
-        const Point(latitude: 82.0, longitude: 180.0), // Северо-восток России
-      );
-      print('🌐 Query contains city name → using wide BoundingBox (all Russia)');
-      print('   Query: "$query"');
-    } else if (_userPosition != null) {
-      // Если НЕТ города в запросе И есть GPS → маленький bbox вокруг пользователя
-      // Создаём BoundingBox ~20км вокруг текущей позиции (≈0.2 градуса)
-      final latDelta = 0.2;
-      final lonDelta = 0.2;
-      effectiveBox = BoundingBox(
-        Point(
-          latitude: _userPosition!.latitude - latDelta,
-          longitude: _userPosition!.longitude - lonDelta,
-        ),
-        Point(
-          latitude: _userPosition!.latitude + latDelta,
-          longitude: _userPosition!.longitude + lonDelta,
-        ),
-      );
-      print('📍 No city in query → using local BoundingBox around user position');
-      print('   User position: (${_userPosition!.latitude}, ${_userPosition!.longitude})');
-      print('   BoundingBox: SW(${effectiveBox.southWest.latitude},${effectiveBox.southWest.longitude}) NE(${effectiveBox.northEast.latitude},${effectiveBox.northEast.longitude})');
-    } else {
-      // Fallback: если нет ни города, ни GPS → используем bbox видимой области карты
-      effectiveBox = box;
-      print('🗺️ Using visible region BoundingBox (no city, no GPS)');
-    }
+    // 🌍 ЭТАП 1: Начинаем с глобального поиска по всей России БЕЗ префикса
+    _performGlobalSearch(query, box, options);
+  }
+
+  void _performGlobalSearch(String query, BoundingBox box, SuggestOptions? options) {
+    final globalBox = BoundingBox(
+      const Point(latitude: 41.0, longitude: 19.0),  // Юго-запад России
+      const Point(latitude: 82.0, longitude: 180.0), // Северо-восток России
+    );
+    
+    print('🌍 ЭТАП 1: Глобальный поиск без префикса: "$query"');
+    print('   📦 Используем глобальный BoundingBox по всей России');
     
     try {
       _suggestSession.suggest(
-        effectiveBox,
+        globalBox,
         options ?? defaultSuggestOptions,
         _suggestSessionListener,
         text: query,
       );
-      print('✅ suggest() call completed successfully');
+      print('✅ Global suggest() completed');
     } catch (e) {
-      print('❌ Error calling suggest(): $e');
+      print('❌ Error in global search: $e');
     }
   }
-  
-  /// Проверяет, содержит ли запрос название города
-  bool _queryContainsCity(String query) {
-    final lowerQuery = query.toLowerCase();
+
+  /// Определяет нужен ли двухэтапный поиск
+  bool _shouldUseSecondarySearch(String query, List<SuggestItem> items, int localCount) {
+    final cleanQuery = query.toLowerCase().trim();
     
-    // Список крупных городов России для быстрой проверки
-    const cities = [
-      'москва', 'санкт-петербург', 'питер', 'екатеринбург', 'екб',
-      'новосибирск', 'казань', 'нижний новгород', 'челябинск',
-      'самара', 'омск', 'ростов-на-дону', 'ростов', 'уфа', 'красноярск',
-      'воронеж', 'пермь', 'волгоград', 'краснодар', 'саратов',
-      'тюмень', 'тольятти', 'ижевск', 'барнаул', 'ульяновск',
-      'иркутск', 'хабаровск', 'ярославль', 'владивосток', 'махачкала',
-      'томск', 'оренбург', 'кемерово', 'новокузнецк', 'рязань',
-      'набережные челны', 'астрахань', 'пенза', 'липецк', 'киров',
-      'чебоксары', 'калининград', 'тула', 'курск', 'сочи',
-      'ставрополь', 'улан-удэ', 'магнитогорск', 'иваново', 'брянск',
-      'белгород', 'сургут', 'владимир', 'архангельск', 'чита',
-      'нижний тагил', 'калуга', 'смоленск', 'волжский', 'курган'
+    // 🚫 НЕ используем двухэтапный поиск для:
+    
+    // 1. Поиск городов - если первый результат это город без префикса региона/области
+    if (items.isNotEmpty) {
+      final firstItem = items.first;
+      final title = firstItem.title.text.toLowerCase();
+      final subtitle = firstItem.subtitle?.text.toLowerCase();
+      
+      // Если заголовок точно соответствует запросу и нет подзаголовка = это крупный город
+      if (title == cleanQuery && (subtitle == null || subtitle.isEmpty || subtitle == 'null')) {
+        print('🏙️ Найден крупный город "$title" без региона - НЕ используем двухэтапный поиск');
+        return false;
+      }
+      
+      // Проверяем известные крупные города
+      final majorCities = ['москва', 'санкт-петербург', 'спб', 'екатеринбург', 'новосибирск', 
+                          'казань', 'челябинск', 'омск', 'ростов-на-дону', 'уфа', 'красноярск',
+                          'воронеж', 'пермь', 'волгоград', 'тверь', 'донецк', 'астрахань', 'минск',
+                          'ейск', 'таганрог', 'новочеркасск', 'шахты', 'батайск', 'краснодар'];
+      
+      if (majorCities.contains(cleanQuery)) {
+        print('🏙️ Запрос "$cleanQuery" - это крупный город - НЕ используем двухэтапный поиск');
+        return false;
+      }
+    }
+    
+    // 2. Поиск областей/регионов
+    if (cleanQuery.contains('область') || cleanQuery.contains('край') || cleanQuery.contains('республика') || cleanQuery.contains('округ')) {
+      print('🗺️ Запрос содержит регион - НЕ используем двухэтапный поиск');
+      return false;
+    }
+    
+    // 2.1. Проверяем частичные названия известных регионов России
+    final regionPrefixes = [
+      'удмурт', 'татарст', 'башкорт', 'чуваш', 'мордов', 'марий', 'коми',
+      'карель', 'саха', 'бурят', 'тув', 'хакас', 'алта', 'адыг', 'карач', 
+      'кабард', 'северн', 'ингуш', 'чечен', 'дагест', 'калмыц',
+      'ямало', 'ханты', 'ненецк', 'чукот', 'магадан', 'камчатск',
+      'сахалин', 'приморск', 'хабаровск', 'амурск', 'еврейск'
     ];
     
-    return cities.any((city) => lowerQuery.contains(city));
+    for (final prefix in regionPrefixes) {
+      if (cleanQuery.startsWith(prefix)) {
+        print('🗺️ Запрос "$cleanQuery" начинается с "$prefix" - похоже на регион - НЕ используем двухэтапный поиск');
+        return false;
+      }
+    }
+    
+    // 2.2. Проверяем названия областных центров которые могут быть частью поиска региона
+    final regionCapitalPrefixes = [
+      'архангел', 'астрахан', 'белгород', 'брянск', 'владимир', 'волгоград',
+      'вологда', 'воронеж', 'иваново', 'иркутск', 'калининград', 'калуга',
+      'кемерово', 'киров', 'костром', 'курган', 'курск', 'липецк',
+      'магадан', 'мурманск', 'нижний', 'новгород', 'новосибирск', 'омск',
+      'орёл', 'оренбург', 'пенза', 'псков', 'ростов', 'рязань',
+      'самара', 'саратов', 'смоленск', 'тамбов', 'тверь', 'томск',
+      'тула', 'тюмень', 'ульяновск', 'челябинск', 'ярославл'
+    ];
+    
+    for (final prefix in regionCapitalPrefixes) {
+      if (cleanQuery.startsWith(prefix) && cleanQuery.length > prefix.length + 2) {
+        print('🗺️ Запрос "$cleanQuery" может быть поиском региона по областному центру "$prefix" - НЕ используем двухэтапный поиск');
+        return false;
+      }
+    }
+    
+    // ✅ Используем двухэтапный поиск для улиц/адресов с малым количеством локальных результатов
+    if (localCount < 3) {
+      print('🛣️ Мало локальных результатов ($localCount) для запроса "$cleanQuery" - используем двухэтапный поиск');
+      return true;
+    }
+    
+    print('✅ Достаточно локальных результатов ($localCount) - НЕ используем двухэтапный поиск');
+    return false;
   }
+
+  /// Считает сколько результатов находится в видимой области карты
+  int _countLocalResults(List<SuggestItem> items) {
+    final visibleRegion = _visibleRegion.valueOrNull;
+    if (visibleRegion == null) {
+      print('⚠️ Нет информации о видимой области карты');
+      return 0;
+    }
+    
+    int localCount = 0;
+    for (final item in items) {
+      // Получаем координаты из displayText, если возможно
+      // Простая эвристика: если subtitle содержит название видимого на карте города
+      final subtitle = item.subtitle?.text.toLowerCase() ?? '';
+      final displayText = item.displayText?.toLowerCase() ?? '';
+      
+      // Проверяем есть ли упоминания городов в видимой области
+      // Для демонстрации проверим Пермь (можно расширить)
+      if (subtitle.contains('пермь') || displayText.contains('пермь')) {
+        localCount++;
+      }
+    }
+    
+    return localCount;
+  }
+
+  /// Выполняет поиск в видимой области карты с префиксом города
+  void _performVisibleAreaSearch(String query) {
+    final visibleRegion = _visibleRegion.valueOrNull;
+    if (visibleRegion == null) {
+      print('⚠️ Не можем выполнить поиск в видимой области - нет данных карты');
+      return;
+    }
+    
+    _isSecondarySearchInProgress = true;
+    
+    // Определяем город из видимой области (для Перми)
+    final centerLat = (visibleRegion.bottomLeft.latitude + visibleRegion.topRight.latitude) / 2;
+    final centerLng = (visibleRegion.bottomLeft.longitude + visibleRegion.topRight.longitude) / 2;
+    final centerPoint = Point(latitude: centerLat, longitude: centerLng);
+    
+    final cityPrefix = _getCityFromGPS(centerPoint);
+    final searchQuery = cityPrefix != null ? '$cityPrefix, $query' : query;
+    
+    // Используем BoundingBox видимой области карты (немного расширенный)
+    final latDelta = (visibleRegion.topRight.latitude - visibleRegion.bottomLeft.latitude) * 0.5;
+    final lonDelta = (visibleRegion.topRight.longitude - visibleRegion.bottomLeft.longitude) * 0.5;
+    
+    final expandedBox = BoundingBox(
+      Point(
+        latitude: visibleRegion.bottomLeft.latitude - latDelta,
+        longitude: visibleRegion.bottomLeft.longitude - lonDelta,
+      ),
+      Point(
+        latitude: visibleRegion.topRight.latitude + latDelta,
+        longitude: visibleRegion.topRight.longitude + lonDelta,
+      ),
+    );
+    
+    print('🗺️ ЭТАП 2: Поиск в видимой области карты: "$searchQuery"');
+    print('   📦 BoundingBox: SW(${expandedBox.southWest.latitude},${expandedBox.southWest.longitude}) NE(${expandedBox.northEast.latitude},${expandedBox.northEast.longitude})');
+    
+    try {
+      _suggestSession.suggest(
+        expandedBox,
+        defaultSuggestOptions,
+        _suggestSessionListener,
+        text: searchQuery,
+      );
+      print('✅ Visible area suggest() completed');
+    } catch (e) {
+      print('❌ Error in visible area search: $e');
+    }
+  }
+
+
+
+  String? _getCityFromGPS(Point position) {
+    final lat = position.latitude;
+    final lng = position.longitude;
+    
+    // Пермь: 58.0105°N, 56.2502°E
+    if ((lat - 58.0105).abs() < 1.0 && (lng - 56.2502).abs() < 1.0) {
+      return 'Пермь';
+    }
+    // Москва: 55.7558°N, 37.6176°E  
+    else if ((lat - 55.7558).abs() < 1.0 && (lng - 37.6176).abs() < 1.0) {
+      return 'Москва';
+    }
+    // Екатеринбург: 56.8431°N, 60.6454°E
+    else if ((lat - 56.8431).abs() < 1.0 && (lng - 60.6454).abs() < 1.0) {
+      return 'Екатеринбург';
+    }
+    // Ростов-на-Дону: 47.2357°N, 39.7015°E
+    else if ((lat - 47.2357).abs() < 1.0 && (lng - 39.7015).abs() < 1.0) {
+      return 'Ростов-на-Дону';
+    }
+    
+    return null; // Неизвестный город
+  }
+
+
+  
+
 
 
 

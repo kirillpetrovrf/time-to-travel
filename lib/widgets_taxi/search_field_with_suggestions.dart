@@ -42,120 +42,24 @@ class SearchFieldWithSuggestions extends StatefulWidget {
 
 class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions> {
   late FocusNode _focusNode;
-  OverlayEntry? _overlayEntry;
-  final LayerLink _layerLink = LayerLink();
-  late GlobalKey _fieldKey;
   bool _isSettingTextProgrammatically = false;
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
-    _fieldKey = GlobalKey();
     
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
         widget.onFieldTapped?.call();
-        // Используем addPostFrameCallback для показа overlay
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showOverlay();
-        });
-      } else {
-        _hideOverlay();
       }
     });
   }
 
   @override
   void dispose() {
-    _hideOverlay();
     _focusNode.dispose();
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(SearchFieldWithSuggestions oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    
-    // Обновляем overlay когда меняются предложения
-    if (widget.showSuggestions != oldWidget.showSuggestions ||
-        widget.suggestions != oldWidget.suggestions) {
-      // Используем addPostFrameCallback чтобы избежать setState во время build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (widget.showSuggestions && _focusNode.hasFocus) {
-          _updateOverlay();
-        } else {
-          _hideOverlay();
-        }
-      });
-    }
-  }
-
-  void _showOverlay() {
-    if (_overlayEntry != null) return;
-    
-    _overlayEntry = _createOverlayEntry();
-    Overlay.of(context).insert(_overlayEntry!);
-  }
-
-  void _updateOverlay() {
-    _hideOverlay();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_focusNode.hasFocus) {
-        _showOverlay();
-      }
-    });
-  }
-
-  void _hideOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  OverlayEntry _createOverlayEntry() {
-    final RenderBox renderBox = _fieldKey.currentContext!.findRenderObject() as RenderBox;
-    final size = renderBox.size;
-
-    return OverlayEntry(
-      builder: (context) => Positioned(
-        width: size.width,
-        child: CompositedTransformFollower(
-          link: _layerLink,
-          showWhenUnlinked: false,
-          offset: Offset(0.0, size.height + 5.0),
-          child: Material(
-            elevation: 8.0,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 200),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemBackground.resolveFrom(context),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: CupertinoColors.systemGrey4.resolveFrom(context),
-                  width: 0.5,
-                ),
-              ),
-              child: widget.suggestions.isEmpty
-                  ? const SizedBox.shrink()
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      itemCount: widget.suggestions.length,
-                      itemBuilder: (context, index) {
-                        // Дополнительная проверка безопасности
-                        if (index >= widget.suggestions.length) {
-                          return const SizedBox.shrink();
-                        }
-                        final suggestion = widget.suggestions[index];
-                        return _buildSuggestionItem(suggestion);
-                      },
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildSuggestionItem(SuggestItem suggestion) {
@@ -170,9 +74,8 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
         // Сбрасываем флаг после установки
         _isSettingTextProgrammatically = false;
         
-        // Затем скрываем overlay и убираем фокус
+        // Убираем фокус
         _focusNode.unfocus();
-        _hideOverlay();
         
         // И вызываем callback с полным suggestion объектом
         widget.onSuggestionSelected?.call(suggestion);
@@ -222,97 +125,131 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
     final brightness = CupertinoTheme.brightnessOf(context);
     final isDark = brightness == Brightness.dark;
 
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: Container(
-        key: _fieldKey,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        decoration: BoxDecoration(
-          color: widget.isActive 
-              ? (isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white)
-              : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7)),
-          borderRadius: BorderRadius.circular(10),
-          border: widget.isActive
-              ? Border.all(
-                  color: CupertinoColors.activeBlue.resolveFrom(context),
-                  width: 2,
-                )
-              : null,
-        ),
-        child: Row(
-          children: [
-            // Кнопка выбора точки на карте с текстом
-            GestureDetector(
-              onTap: widget.onMapButtonTapped,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: widget.iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: widget.iconColor.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  widget.mapButtonText,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: widget.iconColor,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focusNode,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isDark ? CupertinoColors.white : CupertinoColors.black,
-                ),
-                decoration: InputDecoration(
-                  hintText: widget.placeholder,
-                  hintStyle: TextStyle(
-                    color: isDark ? CupertinoColors.systemGrey2 : CupertinoColors.systemGrey,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onChanged: (value) {
-                  // Игнорируем изменения когда текст устанавливается программно
-                  if (!_isSettingTextProgrammatically) {
-                    widget.onTextChanged?.call(value);
-                  }
-                },
-                onSubmitted: (value) {
-                  // 🆕 Когда пользователь нажимает "Найти" на клавиатуре
-                  if (value.isNotEmpty) {
-                    // Убираем фокус, чтобы скрыть клавиатуру и остановить автопоиск
-                    _focusNode.unfocus();
-                    widget.onSubmitted?.call(value);
-                  }
-                },
-              ),
-            ),
-            if (widget.controller.text.isNotEmpty)
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Основное поле ввода
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          decoration: BoxDecoration(
+            color: widget.isActive 
+                ? (isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white)
+                : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7)),
+            borderRadius: BorderRadius.circular(10),
+            border: widget.isActive
+                ? Border.all(
+                    color: CupertinoColors.activeBlue.resolveFrom(context),
+                    width: 2,
+                  )
+                : null,
+          ),
+          child: Row(
+            children: [
+              // Кнопка выбора точки на карте с текстом
               GestureDetector(
-                onTap: () {
-                  widget.controller.clear();
-                  widget.onTextChanged?.call('');
-                  _focusNode.requestFocus();
-                },
-                child: Icon(
-                  Icons.close,
-                  size: 20,
-                  color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                onTap: widget.onMapButtonTapped,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: widget.iconColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: widget.iconColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    widget.mapButtonText,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: widget.iconColor,
+                    ),
+                  ),
                 ),
               ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focusNode,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark ? CupertinoColors.white : CupertinoColors.black,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: widget.placeholder,
+                      hintStyle: TextStyle(
+                        color: isDark ? CupertinoColors.systemGrey2 : CupertinoColors.systemGrey,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onChanged: (value) {
+                      // Игнорируем изменения когда текст устанавливается программно
+                      if (!_isSettingTextProgrammatically) {
+                        widget.onTextChanged?.call(value);
+                      }
+                    },
+                    onSubmitted: (value) {
+                      // 🆕 Когда пользователь нажимает "Найти" на клавиатуре
+                      if (value.isNotEmpty) {
+                        // Убираем фокус, чтобы скрыть клавиатуру и остановить автопоиск
+                        _focusNode.unfocus();
+                        widget.onSubmitted?.call(value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              if (widget.controller.text.isNotEmpty)
+                GestureDetector(
+                  onTap: () {
+                    widget.controller.clear();
+                    widget.onTextChanged?.call('');
+                    _focusNode.requestFocus();
+                  },
+                  child: Icon(
+                    Icons.close,
+                    size: 20,
+                    color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
+        // 🔧 ИСПРАВЛЕНИЕ: Список подсказок как в официальном коде Yandex
+        if (widget.showSuggestions && widget.suggestions.isNotEmpty)
+          Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemBackground.resolveFrom(context),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: CupertinoColors.systemGrey4.resolveFrom(context),
+                width: 0.5,
+              ),
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              // 🔧 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Добавляем key для принудительного обновления
+              key: ValueKey('suggestions_${widget.suggestions.length}_${widget.suggestions.isNotEmpty ? widget.suggestions.first.title.text : ''}'),
+              itemCount: widget.suggestions.length,
+              itemBuilder: (context, index) {
+                // Дополнительная проверка безопасности
+                if (index >= widget.suggestions.length) {
+                  return const SizedBox.shrink();
+                }
+                final suggestion = widget.suggestions[index];
+                return _buildSuggestionItem(suggestion);
+              },
+            ),
+          ),
+      ],
     );
   }
 }

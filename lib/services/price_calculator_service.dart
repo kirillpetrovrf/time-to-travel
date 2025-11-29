@@ -1,6 +1,7 @@
 import '../models/price_calculation.dart';
 import '../models/trip_type.dart';
 import 'calculator_settings_service.dart';
+import 'route_management_service.dart';
 
 /// Сервис для расчёта стоимости поездки
 class PriceCalculatorService {
@@ -9,6 +10,8 @@ class PriceCalculatorService {
 
   final CalculatorSettingsService _settingsService =
       CalculatorSettingsService.instance;
+  final RouteManagementService _routeService =
+      RouteManagementService.instance;
 
   /// Рассчитать стоимость поездки по расстоянию
   Future<PriceCalculation> calculatePrice(double distanceKm, {
@@ -33,7 +36,50 @@ class PriceCalculatorService {
     final settings = await _settingsService.getSettings();
     final pricePerKmBeyondRostov = settings.pricePerKmBeyondRostov ?? 60.0;
 
-    // 🎯 СПЕЦИАЛЬНАЯ ЛОГИКА: Проверяем маршрут Донецк-Ростов
+    // 🎯 ПРИОРИТЕТ 1: Проверяем предустановленные маршруты (новая система)
+    
+    double? predefinedPrice = await _routeService.getRoutePrice(fromCity, toCity);
+    
+    if (predefinedPrice != null) {
+      print('💰 [PRICE] 🎯 ПРЕДУСТАНОВЛЕННЫЙ МАРШРУТ: $fromCity → $toCity');
+      print('💰 [PRICE] 💎 Предустановленная цена: ${predefinedPrice.toStringAsFixed(0)}₽');
+      print('💰 [PRICE] 🔄 Двусторонний маршрут (работает в обе стороны)');
+      print('💰 [PRICE] ========== ПРЕДУСТАНОВЛЕННЫЙ ТАРИФ ==========');
+
+      return PriceCalculation(
+        rawPrice: predefinedPrice,
+        finalPrice: predefinedPrice,
+        distance: distanceKm,
+        baseCost: predefinedPrice,
+        costPerKm: 0,
+        roundedUp: false,
+        appliedMinPrice: false,
+        isSpecialRoute: true,
+      );
+    }
+
+    // 🎯 ПРИОРИТЕТ 2: Проверяем фиксированные тарифы (старая система, fallback)
+    
+    double? fixedPrice = TripPricing.getFixedRoutePrice(fromCity, toCity);
+    
+    if (fixedPrice != null) {
+      print('💰 [PRICE] 🎯 ФИКСИРОВАННЫЙ ТАРИФ (СТАРЫЙ): $fromCity → $toCity');
+      print('💰 [PRICE] 💎 Фиксированная цена: ${fixedPrice.toStringAsFixed(0)}₽');
+      print('💰 [PRICE] ========== СТАРЫЙ ФИКСИРОВАННЫЙ ТАРИФ ==========');
+
+      return PriceCalculation(
+        rawPrice: fixedPrice,
+        finalPrice: fixedPrice,
+        distance: distanceKm,
+        baseCost: fixedPrice,
+        costPerKm: 0,
+        roundedUp: false,
+        appliedMinPrice: false,
+        isSpecialRoute: true,
+      );
+    }
+
+    // 🎯 ПРИОРИТЕТ 3: Проверяем специальный маршрут Донецк-Ростов
     final specialPrice = TripPricing.getSpecialRoutePrice(
       fromCity: fromCity,
       toCity: toCity,
@@ -49,7 +95,7 @@ class PriceCalculatorService {
     if (specialPrice > 0) {
       print('💰 [PRICE] 🎯 СПЕЦИАЛЬНЫЙ МАРШРУТ: Донецк ↔ Ростов');
       print('💰 [PRICE] 🕒 Время: ${departureTime ?? "текущее"}');
-      print('💰 [PRICE] 💎 Фиксированная цена: ${specialPrice.toStringAsFixed(0)}₽');
+      print('💰 [PRICE] 💎 Специальная цена: ${specialPrice.toStringAsFixed(0)}₽');
       print('💰 [PRICE] ========== СПЕЦИАЛЬНЫЙ ТАРИФ ==========');
 
       return PriceCalculation(
@@ -94,7 +140,7 @@ class PriceCalculatorService {
         
         // 🎯 УНИВЕРСАЛЬНОЕ ПРАВИЛО: Все маршруты от Донецка → базовая цена 8000₽ + 60₽/км
         // Это применяется к ЛЮБОМУ пункту назначения, не только к городу Ростов
-        const double donetskRostovDistance = 190.0;
+        const double donetskRostovDistance = 190.0; 
         final basePrice = TripPricing.getDonetskRostovBasePrice(departureTime);
         
         // Рассчитываем доплату за километры после 190км
@@ -189,6 +235,7 @@ class PriceCalculatorService {
     }
 
     // Округление до тысяч вверх (если включено)
+    // ⚠️ ВАЖНО: Округление применяется ТОЛЬКО к расчетным маршрутам (не к предустановленным!)
     double finalPrice = rawPrice;
     bool roundedUp = false;
 
@@ -198,9 +245,13 @@ class PriceCalculatorService {
 
       if (roundedUp) {
         print(
-          '💰 [PRICE] 🔼 Округлено до тысяч: ${rawPrice.toStringAsFixed(0)}₽ → ${finalPrice.toStringAsFixed(0)}₽',
+          '💰 [PRICE] 🔼 Округлено до тысяч (живой расчет): ${rawPrice.toStringAsFixed(0)}₽ → ${finalPrice.toStringAsFixed(0)}₽',
         );
+      } else {
+        print('💰 [PRICE] ✅ Цена уже кратна 1000₽, округление не требуется');
       }
+    } else {
+      print('💰 [PRICE] ℹ️ Округление отключено или цена ниже минимальной');
     }
 
     final calculation = PriceCalculation(

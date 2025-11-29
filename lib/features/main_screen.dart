@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:common/common.dart'; // Нужен для extension методов (let, castOrNull) и Impl классов
 import 'package:flutter/cupertino.dart';
@@ -22,6 +23,7 @@ import '../models/user.dart';
 import '../services/price_calculator_service.dart';
 import '../services/offline_orders_service.dart';
 import '../services/firebase_orders_service.dart';
+import '../services/orders_sync_service.dart';
 import '../models/price_calculation.dart';
 import '../models/taxi_order.dart';
 import '../models/booking.dart';
@@ -580,20 +582,38 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     
-    // Сохраняем в Firebase (онлайн) - необязательно, заказ уже в SQLite
+    // Попытка сохранения в Firebase (онлайн) — необязательная.
+    // Политика: сначала всегда сохраняем локально в SQLite. Если сейчас есть интернет,
+    // делаем неблокирующую попытку загрузки в Firebase; в противном случае — синхронизирует
+    // фоновый OrdersSyncService при появлении сети.
     try {
-      print('☁️ [ORDER] Сохранение в Firebase...');
-      await FirebaseOrdersService.instance.saveOrder(order).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          print('⏱️ [ORDER] Firebase timeout - продолжаем без синхронизации');
-          throw TimeoutException('Firebase save timeout');
-        },
-      );
-      print('✅ [ORDER] Сохранено в Firebase');
+      final hasInternet = await OrdersSyncService.instance.hasInternetConnection();
+      if (hasInternet) {
+        print('☁️ [ORDER] Интернет присутствует, пробуем сохранить в Firebase (неблокирующе)...');
+
+        // Fire-and-forget: не блокируем UI/создание заказа на сетевых вызовах.
+        FirebaseOrdersService.instance.saveOrder(order).timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('⏱️ [ORDER] Firebase timeout - отложено, синхронизация выполнит повтор');
+            throw TimeoutException('Firebase save timeout');
+          },
+        ).then((_) async {
+          print('✅ [ORDER] Быстрая отправка в Firebase выполнена, помечаем как синхронизированный');
+          try {
+            await OfflineOrdersService.instance.markAsSynced(order.orderId);
+          } catch (e) {
+            print('⚠️ [ORDER] Не удалось пометить заказ как синхронизированный: $e');
+          }
+        }).catchError((e) {
+          // Ошибки здесь не мешают пользователю — главная копия уже в SQLite
+          print('⚠️ [ORDER] Быстрая отправка в Firebase не удалась: $e');
+        });
+      } else {
+        print('⚠️ [ORDER] Нет интернета сейчас — Firebase сохранение отложено, заказ в SQLite');
+      }
     } catch (e) {
-      print('⚠️ [ORDER] Ошибка сохранения в Firebase: $e');
-      // Не прерываем процесс - заказ уже сохранен локально в SQLite
+      print('⚠️ [ORDER] Ошибка при попытке быстрой отправки в Firebase: $e');
     }
     
     print('🎉 [ORDER] Заказ успешно создан и сохранен!');
@@ -1142,6 +1162,14 @@ class _MainScreenState extends State<MainScreen> {
               final mapSearchState = snapshot.data;
               final suggestState = mapSearchState?.suggestState;
               final suggestions = suggestState is SuggestSuccess ? suggestState.suggestItems : <SuggestItem>[];
+              
+              print('🔍 [UI_STREAM] StreamBuilder rebuild: activeField=$_activeField, suggestions=${suggestions.length}, suggestState=${suggestState.runtimeType}');
+              if (suggestions.isNotEmpty) {
+                print('   📋 First 3 suggestions:');
+                for (int i = 0; i < suggestions.length && i < 3; i++) {
+                  print('      [${i+1}] ${suggestions[i].title.text}');
+                }
+              }
 
                   return SearchFieldsPanel(
                     fromController: _textFieldControllerFrom,
@@ -1980,14 +2008,74 @@ class _MainScreenState extends State<MainScreen> {
     return cleanedPoints;
   }
 
-  /// 🛣️ ФУНКЦИЯ УДАЛЕНА - НЕ ДОБАВЛЯЕМ АВТОМАТИЧЕСКИ НИКАКИХ КПП
-  /// Пользователь сам выбирает маршрут
+  /// 🛣️ Автоматически добавляет промежуточные КПП для маршрутов из Донецка
+  /// Добавляет Авелон и Поворот на Ростов для любых поездок из Донецка в Россию
   List<Point> _addUspenkaCheckpointIfNeeded(List<Point> routePoints) {
-    // ✅ ПРОСТО ВОЗВРАЩАЕМ ИСХОДНЫЕ ТОЧКИ БЕЗ ИЗМЕНЕНИЙ
-    print('🛣️ [DEBUG] Автоматическое добавление КПП ОТКЛЮЧЕНО - возвращаем оригинальные точки');
-    return routePoints;
+    if (routePoints.length < 2) {
+      print('🛣️ [DEBUG] Недостаточно точек для анализа: ${routePoints.length}');
+      return routePoints;
+    }
+
+    final startPoint = routePoints.first;
+    final endPoint = routePoints.last;
+
+    // Проверяем, что маршрут начинается из Донецка (радиус 20км от центра)
+    const donetskLat = 48.015884;
+    const donetskLng = 37.80285;
+    
+    final startDistanceFromDonetsk = _calculateDistanceBetweenPoints(
+      startPoint.latitude, startPoint.longitude,
+      donetskLat, donetskLng,
+    );
+
+    if (startDistanceFromDonetsk > 20.0) {
+      print('🛣️ [DEBUG] Маршрут НЕ из Донецка (расстояние: ${startDistanceFromDonetsk.toStringAsFixed(2)}км)');
+      return routePoints;
+    }
+
+    // Проверяем направление движения от Донецка  
+    // Запад = только если И западнее И не сильно севернее
+    final isMovingWest = endPoint.longitude < donetskLng && endPoint.latitude < (donetskLat + 2.0);
+    
+    if (isMovingWest) {
+      print('🛣️ [DEBUG] Маршрут идёт на ЗАПАД от Донецка - не добавляем КПП (направление на Украину)');
+      return routePoints;
+    }
+    
+    print('🛣️ [DEBUG] Маршрут идёт на СЕВЕР/ВОСТОК/ЮГ от Донецка - добавляем КПП (направление на Россию)');
+
+    // Координаты обязательной промежуточной точки
+    const avelon = Point(latitude: 47.699184, longitude: 38.679496);  // КПП Успенка (Авелон)
+
+    // Создаем новый список с промежуточной точкой
+    final List<Point> enhancedRoute = [
+      routePoints.first, // Начальная точка (Донецк)
+      avelon,           // Авелон (КПП)
+    ];
+
+    // Добавляем оставшиеся точки (кроме первой)
+    enhancedRoute.addAll(routePoints.skip(1));
+
+    print('🛣️ ✅ Добавлен обязательный КПП для маршрута из Донецка (направление на Россию):');
+    print('   📍 Авелон (КПП): 47.699184, 38.679496');
+    print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+
+    return enhancedRoute;
   }
 
+  /// Вычисляет расстояние между двумя точками в км (формула гаверсинусов)
+  double _calculateDistanceBetweenPoints(double lat1, double lng1, double lat2, double lng2) {
+    const double earthRadius = 6371.0; // км
+    final double dLat = (lat2 - lat1) * (math.pi / 180);
+    final double dLng = (lng2 - lng1) * (math.pi / 180);
+    
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * (math.pi / 180)) * math.cos(lat2 * (math.pi / 180)) *
+        math.sin(dLng / 2) * math.sin(dLng / 2);
+    
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
 
 
 

@@ -151,9 +151,8 @@ class ReverseGeocodingService {
   }
 
   /// Извлекает адрес из GeoObject
-  /// Формат: "Город, Улица" (город всегда первым)
   /// Приоритет: 
-  /// 1. geoObject.name (готовый адрес) + город из descriptionText
+  /// 1. geoObject.name (готовый форматированный адрес от Yandex) 
   /// 2. toponymMetadata components (собираем из компонентов)
   /// 3. descriptionText (запасной вариант)
   String? _extractStreetAddress(GeoObject geoObject) {
@@ -162,37 +161,11 @@ class ReverseGeocodingService {
       print("   name: ${geoObject.name}");
       print("   descriptionText: ${geoObject.descriptionText}");
       
-      // Извлекаем город из descriptionText (первое слово до запятой)
-      String? city;
-      if (geoObject.descriptionText != null && geoObject.descriptionText!.isNotEmpty) {
-        final description = geoObject.descriptionText!;
-        final parts = description.split(',').map((e) => e.trim()).toList();
-        if (parts.isNotEmpty) {
-          city = parts[0]; // Первая часть — обычно город
-          print("🏙️ Extracted city from description: '$city'");
-        }
-      }
-      
       // ПРИОРИТЕТ 1: Сначала проверяем готовый адрес в name
       // Именно здесь Yandex возвращает готовый адрес типа "улица Революции, 48В"
       if (geoObject.name != null && geoObject.name!.isNotEmpty) {
         final name = geoObject.name!;
-        
-        // Если name — это уже город (совпадает с city), вернём только город
-        if (city != null && name == city) {
-          print("✅ Address is city itself: '$city'");
-          return city;
-        }
-        
-        // Формируем: "Город, Улица"
-        if (city != null) {
-          final fullAddress = '$city, $name';
-          print("✅ Built full address: '$fullAddress'");
-          return fullAddress;
-        }
-        
-        // Если город не найден, вернём только name
-        print("⚠️ City not found, using name only: '$name'");
+        print("✅ Using ready address from name: '$name'");
         return name;
       }
       
@@ -229,39 +202,19 @@ class ReverseGeocodingService {
         
         // Возвращаем адрес только если есть улица
         if (street == null) {
-          print("⚠️ No street found in components");
-          
-          // Если улицы нет, но есть город — вернём город
-          if (locality != null) {
-            print("✅ Returning city only: '$locality'");
-            return locality;
-          }
-          
-          // Если совсем ничего нет, пробуем город из descriptionText
-          if (city != null) {
-            print("✅ Returning city from description: '$city'");
-            return city;
-          }
-          
+          print("⚠️ No street found in components, skipping");
           return null;
         }
         
-        // Формируем адрес: Город, улица + дом
-        final List<String> addressParts = [];
+        // Формируем адрес: улица + дом + город
+        final List<String> addressParts = [street];
         
-        // Сначала город
-        if (city != null) {
-          addressParts.add(city);
-        } else if (locality != null) {
-          addressParts.add(locality);
-        }
-        
-        // Потом улица
-        addressParts.add(street);
-        
-        // Потом номер дома
         if (house != null) {
           addressParts.add(house);
+        }
+        
+        if (locality != null) {
+          addressParts.add(locality);
         }
         
         final result = addressParts.join(', ');

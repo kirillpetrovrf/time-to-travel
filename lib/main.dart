@@ -8,11 +8,14 @@ import 'theme/theme_manager.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
 import 'services/orders_sync_service.dart';
+import 'services/offline_routes_service.dart';
+import 'services/route_management_service.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/orders/screens/booking_detail_screen.dart';
 import 'models/booking.dart';
+import 'data/route_initializer.dart';
 
 /// Глобальный NavigatorKey для навигации из уведомлений
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -31,6 +34,25 @@ void main() async {
     // Как только появится интернет, несинхронизированные заказы автоматически загрузятся
     OrdersSyncService.instance.startAutoSync();
     print('✅ Автосинхронизация заказов запущена');
+    
+    // ✅ Инициализация SQLite для маршрутов
+    try {
+      _initializeOfflineRoutesDatabase();
+      print('✅ Инициализация SQLite маршрутов запущена в фоне');
+    } catch (e) {
+      print('⚠️ Ошибка инициализации SQLite маршрутов: $e');
+    }
+    
+    // ✅ Инициализация предустановленных маршрутов ДНР
+    try {
+      // Выполняем инициализацию в фоне, чтобы не блокировать запуск
+      Future.microtask(() async {
+        await _initializePredefinedRoutes();
+      });
+      print('✅ Инициализация предустановленных маршрутов запущена в фоне');
+    } catch (e) {
+      print('⚠️ Ошибка при запуску инициализации маршрутов: $e');
+    }
   } catch (e) {
     // ⚠️ Firebase недоступен (китайские телефоны без Google Services)
     // Приложение продолжит работать в OFFLINE режиме на SQLite
@@ -53,6 +75,45 @@ void main() async {
   }
 
   runApp(const TimeToTravelApp());
+}
+
+/// Инициализация SQLite базы данных для маршрутов
+void _initializeOfflineRoutesDatabase() async {
+  try {
+    // Запускаем в фоне, чтобы не блокировать UI
+    Future.microtask(() async {
+      // Инициализируем базу данных и добавляем fallback данные если нужно
+      await OfflineRoutesService.instance.getAllRoutes();
+      
+      // Инициализируем RouteManagementService для проверки fallback данных
+      await RouteManagementService.instance.getAllRoutes();
+      
+      print('✅ SQLite база данных маршрутов инициализирована');
+    });
+  } catch (e) {
+    print('❌ Ошибка инициализации SQLite маршрутов: $e');
+  }
+}
+
+/// ПОЛНАЯ ОЧИСТКА И ЗАГРУЗКА ТОЛЬКО ПОЛЬЗОВАТЕЛЬСКИХ МАРШРУТОВ
+Future<void> _initializePredefinedRoutes() async {
+  try {
+    print('🧹 ЗАПУСК ПОЛНОЙ ОЧИСТКИ - удаляем все придуманные маршруты');
+    print('📋 Загружаем ТОЛЬКО маршруты из пользовательского списка');
+    
+    // ПРИНУДИТЕЛЬНАЯ ОЧИСТКА И ЗАГРУЗКА ТОЛЬКО ПОЛЬЗОВАТЕЛЬСКИХ МАРШРУТОВ
+    await RouteInitializer.forceInitializeOnlyUserRoutes();
+    
+    // Проверяем финальный статус
+    final finalStatus = await RouteInitializer.checkInitializationStatus();
+    print('🎯 ОЧИСТКА ЗАВЕРШЕНА:');
+    print('   • Всего маршрутов в базе: ${finalStatus['total_routes_in_db']}');
+    print('   • Пользовательских маршрутов: ${finalStatus['initializer_routes_in_db']}/${finalStatus['initializer_routes_total']} (${finalStatus['initialization_percentage']}%)');
+    print('   • ✅ Все придуманные маршруты удалены, остались только пользовательские!');
+    
+  } catch (e) {
+    print('❌ Ошибка при очистке и загрузке пользовательских маршрутов: $e');
+  }
 }
 
 class TimeToTravelApp extends StatelessWidget {

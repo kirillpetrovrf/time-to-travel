@@ -15,6 +15,9 @@ import 'package:taxi_route_calculator/managers/route_points_manager.dart';
 import 'package:taxi_route_calculator/managers/search_routing_integration.dart';
 import 'package:taxi_route_calculator/permissions/permission_manager.dart';
 import 'package:taxi_route_calculator/services/reverse_geocoding_service.dart';
+import 'package:taxi_route_calculator/services/trip_api_service.dart';
+import 'package:taxi_route_calculator/services/taxi_driver_location_service.dart';
+import 'package:taxi_route_calculator/screens/taxi_tracking_screen.dart';
 import 'package:taxi_route_calculator/utils/polyline_extensions.dart';
 import 'package:taxi_route_calculator/widgets/geolocation_button.dart';
 import 'package:taxi_route_calculator/widgets/search_fields_panel.dart';
@@ -22,8 +25,8 @@ import 'package:taxi_route_calculator/widgets/point_type_selector.dart';
 import 'package:yandex_maps_mapkit/directions.dart';
 import 'package:yandex_maps_mapkit/image.dart' as image_provider;
 import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
-import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon; // For Point, hide Icon to avoid conflict
-// import 'package:yandex_maps_mapkit/mapkit_factory.dart';
+import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle; // Hide conflicts with Flutter, provides createLocationManager()
+import 'package:yandex_maps_mapkit/mapkit_factory.dart' as mapkit_factory; // Provides mapkit instance
 import 'package:yandex_maps_mapkit/runtime.dart';
 
 enum ActiveField { none, from, to }
@@ -46,6 +49,12 @@ class _MainScreenState extends State<MainScreen> {
   final _reverseGeocodingService = ReverseGeocodingService();
   late final RoutePointsManager _routePointsManager;
   SearchRoutingIntegration? _integration; // 🆕 Координатор интеграции (nullable until map is ready)
+
+  // 🚖 Taxi tracking services
+  final _apiService = TripApiService();
+  TaxiDriverLocationService? _driverService; // Nullable - initialized in _setupMap
+  String? _currentTripId;
+  bool _isTripActive = false;
 
   late final mapkit.MapObjectCollection _searchResultPlacemarksCollection;
 
@@ -154,7 +163,7 @@ class _MainScreenState extends State<MainScreen> {
   // Geolocation variables
   late final DialogsFactory _dialogsFactory;
   late final PermissionManager _permissionManager;
-  // late final mapkit.LocationManager _locationManager;
+  mapkit.LocationManager? _locationManager; // ✅ Nullable - initialized in _setupMap
   // late final CameraManager _cameraManager;
   // late final mapkit.UserLocationLayer _userLocationLayer;
   late final AppLifecycleListener _lifecycleListener;
@@ -273,8 +282,7 @@ class _MainScreenState extends State<MainScreen> {
     // Initialize geolocation components
     _dialogsFactory = DialogsFactory(_showDialog);
     _permissionManager = PermissionManager(_dialogsFactory);
-    // TODO: Найти правильный способ создания LocationManager
-    // _locationManager = mapkit.createLocationManager();
+    // _locationManager will be initialized in _setupMap
     
     _lifecycleListener = AppLifecycleListener(
       onResume: () {
@@ -292,8 +300,16 @@ class _MainScreenState extends State<MainScreen> {
     _mapManager.dispose();
     _reverseGeocodingService.dispose();
     _integration?.dispose();
+    _driverService?.dispose(); // 🚖 Stop taxi tracking
     // RoutePointsManagerSafe не имеет dispose метода - очистка происходит автоматически
     super.dispose();
+  }
+
+  /// Helper method to create LocationManager
+  /// Workaround for import conflicts with mapkit.dart
+  mapkit.LocationManager _createLocationManager() {
+    // Using mapkit_factory which exports global 'mapkit' variable
+    return mapkit_factory.mapkit.createLocationManager();
   }
 
   // Геолокационные методы
@@ -327,6 +343,128 @@ class _MainScreenState extends State<MainScreen> {
       },
     );
   }
+
+  // 🚖 ============================================================================
+  // TAXI TRACKING METHODS
+  // ============================================================================
+
+  /// Начать поездку такси (для водителя)
+  Future<void> _startTrip() async {
+    try {
+      // Проверяем что маршрут построен
+      if (!_routeCompleted || _drivingRoutes.isEmpty) {
+        _showSnackBar('⚠️ Сначала постройте маршрут');
+        return;
+      }
+
+      // Получаем точки маршрута
+      final fromPoint = _routePointsManager.fromPoint;
+      final toPoint = _routePointsManager.toPoint;
+      
+      if (fromPoint == null || toPoint == null) {
+        _showSnackBar('⚠️ Не удалось получить точки маршрута');
+        return;
+      }
+
+      print('🚕 Starting taxi trip...');
+      print('📍 From: ${fromPoint.latitude}, ${fromPoint.longitude}');
+      print('📍 To: ${toPoint.latitude}, ${toPoint.longitude}');
+
+      // Создаём поездку на backend
+      final tripId = await _apiService.createTrip(
+        from: fromPoint,
+        to: toPoint,
+        driverId: 'driver_${DateTime.now().millisecondsSinceEpoch}',
+        customerId: 'customer_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      print('✅ Trip created: $tripId');
+
+      // Начинаем поездку
+      await _apiService.startTrip(tripId);
+      print('🚕 Trip started on backend');
+
+      // Запускаем отслеживание GPS
+      if (_driverService != null) {
+        await _driverService!.startTrip(tripId);
+        print('📡 GPS tracking started');
+      }
+
+      setState(() {
+        _currentTripId = tripId;
+        _isTripActive = true;
+      });
+
+      _showSnackBar('🚕 Поездка начата! ID: ${tripId.substring(0, 12)}...');
+      print('🎉 Trip fully initialized: $tripId');
+      
+    } catch (e) {
+      print('❌ Error starting trip: $e');
+      _showSnackBar('❌ Ошибка начала поездки: $e');
+    }
+  }
+
+  /// Остановить поездку такси
+  Future<void> _stopTrip() async {
+    if (_currentTripId == null || !_isTripActive) {
+      _showSnackBar('⚠️ Нет активной поездки');
+      return;
+    }
+
+    try {
+      print('🛑 Stopping trip: $_currentTripId');
+
+      // Останавливаем отслеживание GPS
+      if (_driverService != null) {
+        await _driverService!.stopTrip();
+        print('📡 GPS tracking stopped');
+      }
+
+      // Завершаем поездку на backend
+      await _apiService.completeTrip(_currentTripId!);
+      print('✅ Trip completed on backend');
+
+      setState(() {
+        _currentTripId = null;
+        _isTripActive = false;
+      });
+
+      _showSnackBar('✅ Поездка завершена');
+      
+    } catch (e) {
+      print('❌ Error stopping trip: $e');
+      _showSnackBar('❌ Ошибка завершения поездки: $e');
+    }
+  }
+
+  /// Открыть экран отслеживания такси (для клиента)
+  void _openTrackingScreen() {
+    if (_currentTripId == null) {
+      _showSnackBar('⚠️ Нет активной поездки для отслеживания');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaxiTrackingScreen(tripId: _currentTripId!),
+      ),
+    );
+  }
+
+  /// Показать SnackBar с сообщением
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ============================================================================
 
   void _requestPermissionsIfNeeded() {
     final permissions = [PermissionType.accessLocation];
@@ -688,19 +826,67 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
-          // Кнопка меню в левом нижнем углу
+          // 🚖 Кнопки управления такси в левом нижнем углу
           Positioned(
             bottom: 16,
             left: 16,
-            child: FloatingActionButton(
-              heroTag: "menu_button",
-              mini: true,
-              backgroundColor: Colors.white,
-              onPressed: () => _showMenuBottomSheet(context),
-              child: const Icon(
-                Icons.more_vert,
-                color: Colors.black54,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Кнопка начать поездку
+                FloatingActionButton.extended(
+                  heroTag: "start_trip_button",
+                  onPressed: _isTripActive ? null : _startTrip,
+                  backgroundColor: _isTripActive ? Colors.grey : Colors.green,
+                  icon: Icon(
+                    _isTripActive ? Icons.check_circle : Icons.local_taxi,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    _isTripActive ? 'Поездка идёт' : 'Начать поездку',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Кнопка остановить поездку
+                if (_isTripActive)
+                  FloatingActionButton.extended(
+                    heroTag: "stop_trip_button",
+                    onPressed: _stopTrip,
+                    backgroundColor: Colors.red,
+                    icon: const Icon(Icons.stop, color: Colors.white),
+                    label: const Text(
+                      'Завершить',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                if (_isTripActive) const SizedBox(height: 8),
+                // Кнопка карта отслеживания
+                if (_currentTripId != null)
+                  FloatingActionButton.extended(
+                    heroTag: "tracking_screen_button",
+                    onPressed: _openTrackingScreen,
+                    backgroundColor: Colors.blue,
+                    icon: const Icon(Icons.map, color: Colors.white),
+                    label: const Text(
+                      'Карта отслеживания',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                if (_currentTripId != null) const SizedBox(height: 8),
+                // Кнопка меню (сохраняем старую функциональность)
+                FloatingActionButton(
+                  heroTag: "menu_button",
+                  mini: true,
+                  backgroundColor: Colors.white,
+                  onPressed: () => _showMenuBottomSheet(context),
+                  child: const Icon(
+                    Icons.more_vert,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -723,6 +909,15 @@ class _MainScreenState extends State<MainScreen> {
     
     // Create user location collection for user location marker
     _userLocationCollection = mapWindow.map.mapObjects.addCollection();
+    
+    // 🚖 Initialize LocationManager and taxi driver service
+    // Temporary workaround: create LocationManager using dynamic import
+    _locationManager = _createLocationManager();
+    _driverService = TaxiDriverLocationService(
+      locationManager: _locationManager!,
+      apiService: _apiService,
+    );
+    print('🚖 Taxi driver service initialized');
     
     print('🔧 Route points collection created, initializing RoutePointsManager...');
     _routePointsManager = RoutePointsManager(
@@ -1131,11 +1326,6 @@ class _MainScreenState extends State<MainScreen> {
         // Не запрашиваем разрешения сразу, используем fallback
         print('⚠️ Разрешение на геолокацию не предоставлено, использую Москву как fallback');
         _setFallbackLocation(mapWindow);
-        // Автоматически запускаем геолокацию через 2 секунды
-        Future.delayed(const Duration(seconds: 2), () {
-          print('🎯 Автоматический запуск геолокации через 2 секунды...');
-          _moveToUserLocation();
-        });
         return;
       }
 
@@ -1164,11 +1354,6 @@ class _MainScreenState extends State<MainScreen> {
 
       // Устанавливаем позицию пользователя
       final userPoint = Point(latitude: position.latitude, longitude: position.longitude);
-      
-      // 📍 КЛЮЧЕВОЙ МОМЕНТ: Устанавливаем GPS-позицию в MapSearchManager для приоритета саджестов
-      _mapManager.setUserPosition(userPoint);
-      print('✅ GPS-позиция установлена в MapSearchManager при инициализации');
-      
       final userCameraPosition = CameraPosition(
         userPoint, 
         zoom: 13.0,
@@ -1189,11 +1374,6 @@ class _MainScreenState extends State<MainScreen> {
     } catch (e) {
       print('❌ Ошибка получения геолокации при запуске: $e');
       _setFallbackLocation(mapWindow);
-      // Автоматически запускаем геолокацию через 2 секунды даже при ошибке
-      Future.delayed(const Duration(seconds: 2), () {
-        print('🎯 Автоматический запуск геолокации после ошибки через 2 секунды...');
-        _moveToUserLocation();
-      });
     }
   }
 

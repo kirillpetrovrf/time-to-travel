@@ -13,7 +13,7 @@ class OrdersSyncService {
   final _firebaseService = FirebaseOrdersService.instance;
   final _connectivity = Connectivity();
   
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<dynamic>? _connectivitySubscription;
   bool _isSyncing = false;
   
   /// Запустить мониторинг интернета и автосинхронизацию
@@ -24,12 +24,21 @@ class OrdersSyncService {
     _syncOrders();
     
     // Подписываемся на изменения интернета
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
-      print('📶 [SYNC] Статус подключения изменился: $results');
-      
-      // Если есть любое подключение (WiFi, Mobile) - синхронизируем
-      if (results.contains(ConnectivityResult.wifi) || 
-          results.contains(ConnectivityResult.mobile)) {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+      print('📶 [SYNC] Статус подключения изменился: $result');
+
+      // result can be either ConnectivityResult or List<ConnectivityResult> depending on
+      // connectivity_plus version; handle both cases robustly.
+      bool hasConnection = false;
+
+      if (result is ConnectivityResult) {
+        hasConnection = result == ConnectivityResult.wifi || result == ConnectivityResult.mobile;
+      } else if (result is List) {
+        // list may contain ConnectivityResult values
+        hasConnection = result.contains(ConnectivityResult.wifi) || result.contains(ConnectivityResult.mobile);
+      }
+
+      if (hasConnection) {
         print('✅ [SYNC] Интернет доступен, запускаем синхронизацию...');
         _syncOrders();
       } else {
@@ -127,10 +136,9 @@ class OrdersSyncService {
   
   /// Проверить статус интернета
   Future<bool> hasInternetConnection() async {
-    final results = await _connectivity.checkConnectivity();
-    final hasConnection = results.contains(ConnectivityResult.wifi) || 
-                          results.contains(ConnectivityResult.mobile);
-    
+    final result = await _connectivity.checkConnectivity();
+    final hasConnection = result == ConnectivityResult.wifi || result == ConnectivityResult.mobile;
+
     print('📶 [SYNC] Статус интернета: ${hasConnection ? "✅ есть" : "❌ нет"}');
     return hasConnection;
   }

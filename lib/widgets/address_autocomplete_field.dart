@@ -61,9 +61,25 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       return;
     }
     
+    // Небольшая эвристика: если среди результатов есть точное совпадение
+    // по названию города/места (например, "ейск" → "Ейск"), перемещаем
+    // такие результаты вперёд, чтобы город был видимым сразу.
+    final items = response.items.toList();
+    final query = _controller.text.trim().toLowerCase();
+
+    items.sort((a, b) {
+      final aTitle = a.title.text.toLowerCase();
+      final bTitle = b.title.text.toLowerCase();
+
+      final aExact = aTitle == query ? 0 : 1;
+      final bExact = bTitle == query ? 0 : 1;
+
+      return aExact.compareTo(bExact);
+    });
+
     setState(() {
       _suggestions.clear();
-      _suggestions.addAll(response.items.take(7));
+      _suggestions.addAll(items.take(7));
       _showSuggestions = _suggestions.isNotEmpty;
       _isSearching = false;
     });
@@ -110,12 +126,19 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     setState(() => _isSearching = true);
 
     try {
-      final searchText = '${widget.cityContext}, $text';
+      // Формируем текст запроса: если передан контекст города, добавляем префикс,
+      // но не заставляем всегда использовать его (пользователь может вводить город напрямую).
+      final searchText = (widget.cityContext.trim().isNotEmpty)
+          ? '${widget.cityContext}, $text'
+          : text;
       debugPrint('🔍 [AUTOCOMPLETE] Поиск: "$searchText"');
 
-      final boundingBox = BoundingBox(
-        const Point(latitude: 47.0, longitude: 37.5),
-        const Point(latitude: 48.5, longitude: 40.5),
+      // Вместо локального (ростовского) BoundingBox используем глобальный
+      // (покрытие России) — это позволит не привязываться к конкретным
+      // регионам в коде и получить корректные подсказки от Yandex API.
+      final globalBox = BoundingBox(
+        const Point(latitude: 41.0, longitude: 19.0),
+        const Point(latitude: 82.0, longitude: 180.0),
       );
 
       final options = SuggestOptions(
@@ -125,7 +148,7 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       );
 
       _suggestSession.suggest(
-        boundingBox,
+        globalBox,
         options,
         _suggestListener,
         text: searchText,
