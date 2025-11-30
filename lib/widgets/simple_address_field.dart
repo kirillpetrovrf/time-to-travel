@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle;
@@ -157,20 +158,28 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
     if (!mounted) return;
     
     print('✅✅✅ SimpleAddressField: CALLBACK FIRED! получено ${response.items.length} подсказок');
-    print('📋 SimpleAddressField подсказки:');
+    print('📋 SimpleAddressField исходные подсказки:');
     for (int i = 0; i < response.items.length && i < 3; i++) {
       final item = response.items[i];
       print('   [${i+1}] ${item.displayText}');
     }
     
+    // 🎯 Применяем интеллектуальную сортировку для улучшения релевантности
+    List<SuggestItem> sortedItems = _prioritizeSuggestions(response.items, _controller.text);
+    
     setState(() {
       _suggestions.clear();
-      _suggestions.addAll(response.items.take(5));
+      _suggestions.addAll(sortedItems.take(5));
       _isSearching = false;
       _showSuggestions = true;
     });
     
-    print('🎯 SimpleAddressField состояние обновлено: ${_suggestions.length} подсказок, showSuggestions=$_showSuggestions');
+    print('🎯 SimpleAddressField состояние обновлено: ${_suggestions.length} подсказок после приоритизации');
+    print('🏆 ТОП-3 приоритизированных результата:');
+    for (int i = 0; i < math.min(3, _suggestions.length); i++) {
+      final item = _suggestions[i];
+      print('   [${i+1}] ${item.displayText} (${_getLocationTypeFromItem(item)})');
+    }
   }
 
   void _onSuggestError(dynamic error) {
@@ -266,4 +275,140 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
       ],
     );
   }
+
+  /// 🎯 Интеллектуальная приоритизация предложений для улучшения релевантности
+  List<SuggestItem> _prioritizeSuggestions(List<SuggestItem> items, String query) {
+    if (items.isEmpty || query.isEmpty) return items;
+    
+    final cleanQuery = query.toLowerCase().trim();
+    print('🎯 Приоритизация ${items.length} предложений для запроса: "$cleanQuery"');
+    
+    // Создаем список с весами релевантности
+    List<_WeightedSuggestion> weightedItems = items.map((item) {
+      final weight = _calculateRelevanceWeight(item, cleanQuery);
+      return _WeightedSuggestion(item, weight);
+    }).toList();
+    
+    // Сортируем по весу (больший вес = выше приоритет)
+    weightedItems.sort((a, b) => b.weight.compareTo(a.weight));
+    
+    print('📊 Результаты приоритизации:');
+    for (int i = 0; i < math.min(5, weightedItems.length); i++) {
+      final weighted = weightedItems[i];
+      print('   [${i+1}] ${weighted.item.displayText} (вес: ${weighted.weight}, тип: ${_getLocationTypeFromItem(weighted.item)})');
+    }
+    
+    return weightedItems.map((w) => w.item).toList();
+  }
+
+  /// 🔢 Расчет веса релевантности для предложения
+  double _calculateRelevanceWeight(SuggestItem item, String query) {
+    double weight = 0.0;
+    
+    final displayText = item.displayText?.toLowerCase() ?? '';
+    final title = _extractPlainTitle(item.title).toLowerCase();
+    final locationType = _getLocationTypeFromItem(item);
+    
+    // 1. Точное слово (token) совпадение — если одно из слов в названии равно запросу
+    //    Это важный сигнал для населённых пунктов: "посёлок Кын" -> слово "кын" === запрос
+    final words = title.split(RegExp(r'[^\p{L}\d]+', unicode: true)).where((w) => w.isNotEmpty).toList();
+    if (words.any((w) => w == query)) {
+      weight += 900.0;
+      print('   🎯 Точное слово в названии: words=$words содержит "$query" (+900)');
+    }
+    // 2. Полное совпадение всей title
+    else if (title == query) {
+      weight += 800.0;
+      print('   🎯 Полное совпадение: "$title" = "$query" (+800)');
+    }
+    // 3. Начинается с запроса (например: Кыновский) — меньший приоритет, т.к. это может быть улица
+    else if (title.startsWith(query)) {
+      weight += 300.0;
+      print('   🔥 Начинается с запроса: "$title" startsWith "$query" (+300)');
+    }
+    // 4. Содержит запрос в подстроке — самый слабый сигнал
+    else if (title.contains(query)) {
+      weight += 100.0;
+      print('   ✨ Содержит запрос: "$title" contains "$query" (+100)');
+    }
+    
+    // 4. Бонусы за тип локации (города/села важнее рек/улиц)
+    switch (locationType) {
+      case 'город':
+      case 'посёлок':
+      case 'село':
+      case 'деревня':
+        weight += 300.0;
+        print('   🏘️ Населенный пункт: $locationType (+300)');
+        break;
+      case 'станция':
+      case 'достопримечательность':
+        weight += 200.0;
+        print('   🚉 Важный объект: $locationType (+200)');
+        break;
+      case 'река':
+      case 'озеро':
+      case 'ручей':
+        weight += 50.0;
+        print('   🌊 Водный объект: $locationType (+50)');
+        break;
+      case 'улица':
+      case 'переулок':
+      case 'проспект':
+        weight += 10.0;
+        print('   🛣️ Улица: $locationType (+10)');
+        break;
+    }
+    
+    // 5. Бонус за краткость (короткие названия обычно более точные)
+    if (title.length <= query.length + 2) {
+      weight += 50.0;
+      print('   📏 Краткое название (+50)');
+    }
+    
+    print('   📊 Итоговый вес для "$displayText": $weight');
+    return weight;
+  }
+
+  /// 🏷️ Определение типа локации из предложения
+  String _getLocationTypeFromItem(SuggestItem item) {
+    final displayText = item.displayText?.toLowerCase() ?? '';
+    final title = _extractPlainTitle(item.title).toLowerCase();
+    
+    // Проверяем по началу названия
+    if (title.startsWith('город ')) return 'город';
+    if (title.startsWith('посёлок ')) return 'посёлок';
+    if (title.startsWith('село ')) return 'село';
+    if (title.startsWith('деревня ')) return 'деревня';
+    if (title.startsWith('река ')) return 'река';
+    if (title.startsWith('озеро ')) return 'озеро';
+    if (title.startsWith('ручей ')) return 'ручей';
+    
+    // Проверяем по содержанию subtitle или displayText
+    if (displayText.contains('железнодорожная станция')) return 'станция';
+    if (displayText.contains('достопримечательность')) return 'достопримечательность';
+    if (displayText.contains('улица')) return 'улица';
+    if (displayText.contains('переулок')) return 'переулок';
+    if (displayText.contains('проспект')) return 'проспект';
+    if (displayText.contains('шоссе')) return 'шоссе';
+    
+    return 'неизвестно';
+  }
+
+  /// 🔤 Извлечение чистого текста из SpannableString
+  String _extractPlainTitle(dynamic spannableTitle) {
+    if (spannableTitle == null) return '';
+    final titleStr = spannableTitle.toString();
+    // Извлекаем текст между "text: " и первой запятой
+    final match = RegExp(r'text: ([^,}]+)').firstMatch(titleStr);
+    return match?.group(1) ?? titleStr;
+  }
+}
+
+/// 🏋️ Вспомогательный класс для хранения предложения с весом
+class _WeightedSuggestion {
+  final SuggestItem item;
+  final double weight;
+  
+  _WeightedSuggestion(this.item, this.weight);
 }

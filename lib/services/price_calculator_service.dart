@@ -54,6 +54,7 @@ class PriceCalculatorService {
         costPerKm: 0,
         roundedUp: false,
         appliedMinPrice: false,
+        roundedDistanceKm: null,
         isSpecialRoute: true,
       );
     }
@@ -75,6 +76,7 @@ class PriceCalculatorService {
         costPerKm: 0,
         roundedUp: false,
         appliedMinPrice: false,
+        roundedDistanceKm: null,
         isSpecialRoute: true,
       );
     }
@@ -106,6 +108,7 @@ class PriceCalculatorService {
         costPerKm: 0,
         roundedUp: false,
         appliedMinPrice: false,
+        roundedDistanceKm: null,
         isSpecialRoute: true,
       );
     }
@@ -134,6 +137,7 @@ class PriceCalculatorService {
             costPerKm: 0,
             roundedUp: false,
             appliedMinPrice: false,
+            roundedDistanceKm: null,
             isSpecialRoute: true,
           );
         }
@@ -147,14 +151,23 @@ class PriceCalculatorService {
         double additionalCost = 0.0;
         if (distanceKm > donetskRostovDistance) {
           double beyondRostovKm = distanceKm - donetskRostovDistance;
-          additionalCost = beyondRostovKm * pricePerKmBeyondRostov;
+          
+          // 🔄 УМНОЕ ОКРУГЛЕНИЕ: Округляем дополнительные км до 50км вверх
+          double roundedBeyondKm = _roundKilometersUp(beyondRostovKm);
+          bool kmRounded = roundedBeyondKm != beyondRostovKm;
+          
+          additionalCost = roundedBeyondKm * pricePerKmBeyondRostov;
           
           print('💰 [PRICE] 🚗 Маршрут дальше базового расстояния Донецк-Ростов');
           print('💰 [PRICE] 📍 От: $fromLat, $fromLng → До: $toLat, $toLng');
           print('💰 [PRICE] 📏 Общее расстояние: ${distanceKm.toStringAsFixed(2)} км');
           print('💰 [PRICE] 📏 Базовое расстояние: $donetskRostovDistance км');
-          print('💰 [PRICE] 📏 Дополнительно: ${beyondRostovKm.toStringAsFixed(2)} км');
-          print('💰 [PRICE] 💵 Доплата: ${additionalCost.toStringAsFixed(2)}₽ (${beyondRostovKm.toStringAsFixed(2)} км × $pricePerKmBeyondRostov₽/км)');
+          if (kmRounded) {
+            print('💰 [PRICE] 📏 Дополнительно: ${beyondRostovKm.toStringAsFixed(2)} → ${roundedBeyondKm.toInt()}км (округлено)');
+          } else {
+            print('💰 [PRICE] � Дополнительно: ${beyondRostovKm.toStringAsFixed(2)} км');
+          }
+          print('💰 [PRICE] �💵 Доплата: ${additionalCost.toStringAsFixed(2)}₽ (${roundedBeyondKm.toInt()} км × $pricePerKmBeyondRostov₽/км)');
           print('💰 [PRICE] 💎 Итоговая цена: ${(basePrice + additionalCost).toStringAsFixed(2)}₽');
         } else {
           print('💰 [PRICE] 🚗 Маршрут в пределах базового расстояния');
@@ -162,16 +175,29 @@ class PriceCalculatorService {
           print('💰 [PRICE] 💎 Базовая цена: ${basePrice.toStringAsFixed(0)}₽');
         }
         
-        final finalPrice = basePrice + additionalCost;
+        double rawPrice = basePrice + additionalCost;
+        
+        // 🔄 ОКРУГЛЕНИЕ ЦЕНЫ: Применяем округление до тысяч для Донецкой логики
+        double finalPrice = rawPrice;
+        bool priceRounded = false;
+        if (settings.roundToThousands && rawPrice > settings.minPrice) {
+          finalPrice = (rawPrice / 1000).ceil() * 1000;
+          priceRounded = rawPrice != finalPrice;
+          
+          if (priceRounded) {
+            print('💰 [PRICE] 🔼 Округлено до тысяч: ${rawPrice.toStringAsFixed(2)}₽ → ${finalPrice.toStringAsFixed(0)}₽');
+          }
+        }
         
         return PriceCalculation(
-          rawPrice: finalPrice,
+          rawPrice: rawPrice,
           finalPrice: finalPrice,
           distance: distanceKm,
-          baseCost: finalPrice,
-          costPerKm: 0,
-          roundedUp: false,
+          baseCost: basePrice,
+          costPerKm: pricePerKmBeyondRostov,
+          roundedUp: priceRounded,
           appliedMinPrice: false,
+          roundedDistanceKm: (distanceKm > donetskRostovDistance) ? _roundKilometersUp(distanceKm - donetskRostovDistance) + donetskRostovDistance : null,
           isSpecialRoute: true,
         );
       }
@@ -203,6 +229,7 @@ class PriceCalculatorService {
             costPerKm: 0,
             roundedUp: false,
             appliedMinPrice: false,
+            roundedDistanceKm: null,
             isSpecialRoute: true,
           );
         }
@@ -214,9 +241,19 @@ class PriceCalculatorService {
       '💰 [PRICE] Настройки: base=${settings.baseCost}₽, perKm=${settings.costPerKm}₽, min=${settings.minPrice}₽',
     );
 
-    // Формула: базовая + (км × коэффициент)
-    double rawPrice = settings.baseCost + (distanceKm * settings.costPerKm);
-    print('💰 [PRICE] Сырая цена: ${rawPrice.toStringAsFixed(2)}₽');
+    // 🔄 УМНОЕ ОКРУГЛЕНИЕ: Округляем километры до 50км вверх
+    double roundedKm = _roundKilometersUp(distanceKm);
+    bool kmRounded = roundedKm != distanceKm;
+    
+    if (kmRounded) {
+      print('💰 [PRICE] 📏 Округление км: ${distanceKm.toStringAsFixed(1)} → ${roundedKm.toInt()}км');
+    } else {
+      print('💰 [PRICE] 📏 Километры: ${distanceKm.toStringAsFixed(1)}км (округление не требуется)');
+    }
+
+    // Формула с округленными километрами: базовая + (округленные_км × коэффициент)
+    double rawPrice = settings.baseCost + (roundedKm * settings.costPerKm);
+    print('💰 [PRICE] Расчет: ${settings.baseCost}₽ + (${roundedKm.toInt()}км × ${settings.costPerKm}₽) = ${rawPrice.toStringAsFixed(0)}₽');
 
     // Проверка минимальной цены
     if (rawPrice < settings.minPrice) {
@@ -231,6 +268,7 @@ class PriceCalculatorService {
         costPerKm: settings.costPerKm,
         roundedUp: false,
         appliedMinPrice: true,
+        roundedDistanceKm: roundedKm,
       );
     }
 
@@ -262,6 +300,7 @@ class PriceCalculatorService {
       costPerKm: settings.costPerKm,
       roundedUp: roundedUp,
       appliedMinPrice: false,
+      roundedDistanceKm: roundedKm,
     );
 
     print(
@@ -281,5 +320,13 @@ class PriceCalculatorService {
     }
 
     return examples;
+  }
+
+  /// 🔄 Умное округление километров до 50км вверх
+  /// Примеры: 430км → 450км, 480км → 500км, 50км → 50км (без изменений)
+  double _roundKilometersUp(double km) {
+    const int roundingInterval = 50;
+    double rounded = (km / roundingInterval).ceil() * roundingInterval.toDouble();
+    return rounded;
   }
 }

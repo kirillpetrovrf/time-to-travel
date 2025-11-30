@@ -260,7 +260,11 @@ class _MainScreenState extends State<MainScreen> {
   late final _drivingRouteListener = DrivingSessionRouteListener(
     onDrivingRoutes: (newRoutes) {
       print('🎉🎉🎉 onDrivingRoutes FIRED! Got ${newRoutes.length} routes');
-      if (newRoutes.isEmpty) {
+      
+      // Используем все найденные маршруты (блокировка КПП убрана)
+      final routesToUse = newRoutes;
+      
+      if (routesToUse.isEmpty) {
         // Показываем диалог вместо SnackBar
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -281,13 +285,13 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
       setState(() {
-        _drivingRoutes = newRoutes;
+        _drivingRoutes = routesToUse;
         _onDrivingRoutesUpdated();
       });
       
       // 🆕 Расчёт цены для первого маршрута
-      if (newRoutes.isNotEmpty) {
-        final route = newRoutes.first;
+      if (routesToUse.isNotEmpty) {
+        final route = routesToUse.first;
         final distanceKm = route.metadata.weight.distance.value / 1000;
         print('📏 [ROUTE] Расстояние маршрута: $distanceKm км');
         _calculatePriceForDistance(distanceKm);
@@ -630,47 +634,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // Переключение на вкладку "Мои заказы"
-  Future<void> _navigateToOrders() async {
-    // DEPRECATED: Этот метод больше не используется
-    // Теперь используем _openTaxiOrderDetails() для открытия экрана деталей
-    try {
-      print('📤 [NAV] Запуск переключения на вкладку Заказы...');
-      final userType = await AuthService.instance.getUserType();
-      final ordersIndex = userType == UserType.dispatcher ? 2 : 1;
-      print('📤 [NAV] Тип пользователя: $userType, индекс вкладки: $ordersIndex');
-      
-      // Используем addPostFrameCallback для безопасного переключения после закрытия диалога
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          final currentState = HomeScreen.homeScreenKey.currentState;
-          final currentIndex = currentState?.currentIndex ?? 0;
-          
-          print('📤 [NAV] Текущая вкладка: $currentIndex, целевая: $ordersIndex');
-          
-          // Если уже на нужной вкладке, сначала переключимся на карту (индекс 0), затем обратно
-          if (currentIndex == ordersIndex) {
-            print('⚠️ [NAV] Уже на вкладке $ordersIndex, делаем промежуточное переключение');
-            currentState?.switchToTabSilently(0); // Переключаемся на карту
-            
-            // Через короткую задержку переключаемся на Orders
-            Future.delayed(const Duration(milliseconds: 100), () {
-              if (mounted) {
-                print('📤 [NAV] Возвращаемся на вкладку Заказы');
-                HomeScreen.homeScreenKey.currentState?.switchToTabSilently(ordersIndex);
-              }
-            });
-          } else {
-            print('📤 [NAV] Переключение на вкладку Заказы, индекс: $ordersIndex');
-            currentState?.switchToTabSilently(ordersIndex);
-          }
-        } else {
-          print('⚠️ [NAV] Widget не mounted, переключение отменено');
-        }
-      });
-    } catch (e) {
-      print('⚠️ [NAV] Ошибка при переключении на вкладку Заказы: $e');
-    }
-  }
+  // DEPRECATED: метод _navigateToOrders удален - больше не используется
 
   /// Открывает экран деталей taxi order (конвертируя TaxiOrder → Booking)
   Future<void> _openTaxiOrderDetails(String orderId) async {
@@ -964,6 +928,8 @@ class _MainScreenState extends State<MainScreen> {
     // 🛣️ ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ КПП УСПЕНКА для маршрутов из Донецка
     final finalRoutePoints = _addUspenkaCheckpointIfNeeded(modifiedRoutePoints);
     
+    // Блокировка КПП убрана - строим маршруты без ограничений
+    
     // NOTE: historically we used Waypoint for all intermediate mandatory
     // checkpoints to force the router to pass exactly through these points.
     // A recent change used Viapoint for intermediates which let the
@@ -996,8 +962,9 @@ class _MainScreenState extends State<MainScreen> {
     
     print('🎧 Listener: ${_drivingRouteListener.hashCode}');
     
-    // Используем стандартные настройки маршрутизации  
-    // Настройки маршрутизации для точного прохождения через КПП
+    // Используем стандартные настройки маршрутизации с максимальной точностью
+    // 🚫 NOTE: Yandex MapKit в данной версии не поддерживает avoidAreas
+    // Вместо этого полагаемся на точные waypoint'ы и фильтрацию результатов
     const drivingOptions = DrivingOptions(
       routesCount: 1, // Только один маршрут для точного прохождения
     );
@@ -1976,12 +1943,13 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
       
-      // Проверяем старую нерабочую КПП Успенка (закрыта, шлагбаум)
+      // Проверяем старую нерабочую КПП Успенка (закрыта, шлагбаум) - УСИЛЕННАЯ ПРОВЕРКА
       if (!shouldExclude) {
         latDiff = (point.latitude - oldUspenkaLat).abs();
         lngDiff = (point.longitude - oldUspenkaLng).abs();
-        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
-          print('🚫 Исключаем точку рядом со СТАРОЙ КПП Успенка (закрыта): ${point.latitude}, ${point.longitude}');
+        // Увеличиваем радиус для старой КПП, чтобы точно её избежать
+        if (latDiff < (exclusionRadius * 2.0) && lngDiff < (exclusionRadius * 2.0)) {
+          print('🚫 ⚠️ КРИТИЧНО! Исключаем точку рядом со СТАРОЙ КПП Успенка (47.697816, 38.666213 - ЗАКРЫТА!): ${point.latitude}, ${point.longitude}');
           shouldExclude = true;
         }
       }
@@ -2008,8 +1976,8 @@ class _MainScreenState extends State<MainScreen> {
     return cleanedPoints;
   }
 
-  /// 🛣️ Автоматически добавляет промежуточные КПП для маршрутов из Донецка
-  /// Добавляет Авелон и Поворот на Ростов для любых поездок из Донецка в Россию
+  /// 🛣️ Автоматически добавляет промежуточные КПП для маршрутов связанных с Донецком
+  /// Добавляет КПП Авелон-Успенка для поездок из Донецка в Россию или в Донецк из России
   List<Point> _addUspenkaCheckpointIfNeeded(List<Point> routePoints) {
     if (routePoints.length < 2) {
       print('🛣️ [DEBUG] Недостаточно точек для анализа: ${routePoints.length}');
@@ -2019,7 +1987,7 @@ class _MainScreenState extends State<MainScreen> {
     final startPoint = routePoints.first;
     final endPoint = routePoints.last;
 
-    // Проверяем, что маршрут начинается из Донецка (радиус 20км от центра)
+    // Проверяем связь маршрута с Донецком (радиус 20км от центра)
     const donetskLat = 48.015884;
     const donetskLng = 37.80285;
     
@@ -2028,37 +1996,93 @@ class _MainScreenState extends State<MainScreen> {
       donetskLat, donetskLng,
     );
 
-    if (startDistanceFromDonetsk > 20.0) {
-      print('🛣️ [DEBUG] Маршрут НЕ из Донецка (расстояние: ${startDistanceFromDonetsk.toStringAsFixed(2)}км)');
+    final endDistanceFromDonetsk = _calculateDistanceBetweenPoints(
+      endPoint.latitude, endPoint.longitude,
+      donetskLat, donetskLng,
+    );
+
+    // Проверяем, что маршрут связан с Донецком (либо начинается из Донецка, либо заканчивается в Донецке)
+    final isFromDonetsk = startDistanceFromDonetsk <= 20.0;
+    final isToDonetsk = endDistanceFromDonetsk <= 20.0;
+
+    if (!isFromDonetsk && !isToDonetsk) {
+      print('🛣️ [DEBUG] Маршрут НЕ связан с Донецком: старт ${startDistanceFromDonetsk.toStringAsFixed(2)}км, финиш ${endDistanceFromDonetsk.toStringAsFixed(2)}км');
       return routePoints;
     }
 
-    // Проверяем направление движения от Донецка  
-    // Запад = только если И западнее И не сильно севернее
-    final isMovingWest = endPoint.longitude < donetskLng && endPoint.latitude < (donetskLat + 2.0);
-    
-    if (isMovingWest) {
-      print('🛣️ [DEBUG] Маршрут идёт на ЗАПАД от Донецка - не добавляем КПП (направление на Украину)');
-      return routePoints;
+    // Проверяем направление движения
+    if (isFromDonetsk) {
+      // Маршрут ИЗ Донецка - проверяем направление
+      final isMovingWest = endPoint.longitude < donetskLng && endPoint.latitude < (donetskLat + 2.0);
+      
+      if (isMovingWest) {
+        print('🛣️ [DEBUG] Маршрут идёт на ЗАПАД от Донецка - не добавляем КПП (направление на Украину)');
+        return routePoints;
+      }
+      
+      print('🛣️ [DEBUG] Маршрут идёт на СЕВЕР/ВОСТОК/ЮГ от Донецка - добавляем КПП (направление на Россию)');
+    } else if (isToDonetsk) {
+      // Маршрут В Донецк - проверяем откуда (не должен быть с запада/Украины)
+      final isFromWest = startPoint.longitude < donetskLng && startPoint.latitude < (donetskLat + 2.0);
+      
+      if (isFromWest) {
+        print('🛣️ [DEBUG] Маршрут в Донецк с ЗАПАДА - не добавляем КПП (направление из Украины)');
+        return routePoints;
+      }
+      
+      print('🛣️ [DEBUG] Маршрут В Донецк с СЕВЕРА/ВОСТОКА/ЮГА - добавляем КПП (направление из России)');
     }
-    
-    print('🛣️ [DEBUG] Маршрут идёт на СЕВЕР/ВОСТОК/ЮГ от Донецка - добавляем КПП (направление на Россию)');
 
-    // Координаты обязательной промежуточной точки
-    const avelon = Point(latitude: 47.699184, longitude: 38.679496);  // КПП Успенка (Авелон)
+    // ✅ ОБЯЗАТЕЛЬНЫЕ ТОЧКИ для военного маршрута из/в Донецк
+    const avelon = Point(latitude: 47.698500, longitude: 38.678000);  // КПП Авило-Успенка (на развязке М4)
+    const militaryCheckpoint = Point(latitude: 47.318238, longitude: 39.009139);  // Обязательная военная контрольная точка
+    
+    // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: убеждаемся что не используем старые НЕРАБОТАЮЩИЕ координаты!
+    const oldBadKpp = Point(latitude: 47.697816, longitude: 38.666213);  // ЗАПРЕЩЕННЫЕ координаты!
+    if ((avelon.latitude - oldBadKpp.latitude).abs() < 0.01 && (avelon.longitude - oldBadKpp.longitude).abs() < 0.01) {
+      print('🚨🚨🚨 КРИТИЧЕСКАЯ ОШИБКА! Используются СТАРЫЕ неработающие координаты КПП! Исправите код!');
+      return routePoints; // Возвращаем без изменений, чтобы не сломать маршрут
+    }
 
     // Создаем новый список с промежуточной точкой
-    final List<Point> enhancedRoute = [
-      routePoints.first, // Начальная точка (Донецк)
-      avelon,           // Авелон (КПП)
-    ];
+    List<Point> enhancedRoute;
+    
+    if (isFromDonetsk) {
+      // Маршрут ИЗ Донецка: добавляем КПП и военную контрольную точку
+      enhancedRoute = [
+        routePoints.first,   // Начальная точка (Донецк)
+        avelon,             // Авелон (КПП)
+        militaryCheckpoint, // Военная контрольная точка
+      ];
+      enhancedRoute.addAll(routePoints.skip(1)); // Остальные точки
+      
+      print('🛣️ ✅ Добавлены обязательные точки для военного маршрута ИЗ Донецка:');
+    } else if (isToDonetsk) {
+      // Маршрут В Донецк: добавляем военную точку и КПП (в обратном порядке)
+      enhancedRoute = [
+        routePoints.first,   // Начальная точка (Россия)
+        militaryCheckpoint, // Военная контрольная точка
+        avelon,             // Авелон (КПП) 
+      ];
+      enhancedRoute.addAll(routePoints.skip(1)); // Остальные точки включая Донецк
+      
+      print('🛣️ ✅ Добавлены обязательные точки для военного маршрута В Донецк:');
+    } else {
+      enhancedRoute = routePoints; // Не должно происходить, но на всякий случай
+      print('🛣️ ⚠️ Неопределенный тип маршрута - возвращаем исходный:');
+    };
+    if (isFromDonetsk) {
+      print('   📍 КПП Авило-Успенка: 47.698500, 38.678000');
+      print('   🔒 Военная контрольная точка: 47.318238, 39.009139');
+      print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+      print('   🛡️ ВОЕННЫЙ МАРШРУТ: Донецк → КПП → Контрольная точка → Россия');
+    } else {
+      print('   📍 КПП Авило-Успенка: 47.698500, 38.678000');
+      print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+      print('   🛡️ ВОЕННЫЙ МАРШРУТ: Россия → КПП → Донецк');
+    }
 
-    // Добавляем оставшиеся точки (кроме первой)
-    enhancedRoute.addAll(routePoints.skip(1));
-
-    print('🛣️ ✅ Добавлен обязательный КПП для маршрута из Донецка (направление на Россию):');
-    print('   📍 Авелон (КПП): 47.699184, 38.679496');
-    print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+    // Финальная проверка КПП убрана - используем все маршруты
 
     return enhancedRoute;
   }
@@ -2076,6 +2100,8 @@ class _MainScreenState extends State<MainScreen> {
     final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
   }
+  
+
 
 
 

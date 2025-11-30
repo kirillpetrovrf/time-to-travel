@@ -43,17 +43,30 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     _controller = TextEditingController(text: widget.initialValue);
     _controller.addListener(_onTextChanged);
     
-    _searchManager = SearchFactory.instance.createSearchManager(SearchManagerType.Combined);
-    _suggestSession = _searchManager.createSuggestSession();
-    
-    _suggestListener = SearchSuggestSessionSuggestListener(
-      onResponse: _onSuggestResponse,
-      onError: _onSuggestError,
-    );
+    // Инициализируем SearchManager как в рабочих примерах
+    try {
+      _searchManager = SearchFactory.instance.createSearchManager(SearchManagerType.Combined);
+      _suggestSession = _searchManager.createSuggestSession();
+      
+      // ✅ Создаём listener в том же порядке что и рабочий код
+      _suggestListener = SearchSuggestSessionSuggestListener(
+        onResponse: _onSuggestResponse,
+        onError: _onSuggestError,
+      );
+      
+      debugPrint('✅ [AUTOCOMPLETE] SearchManager инициализирован успешно');
+      debugPrint('✅ [AUTOCOMPLETE] SuggestSession: $_suggestSession');
+      debugPrint('✅ [AUTOCOMPLETE] Listener: $_suggestListener');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AUTOCOMPLETE] Ошибка инициализации SearchManager: $e');
+      debugPrint('❌ [AUTOCOMPLETE] Stack trace: $stackTrace');
+    }
   }
 
   void _onSuggestResponse(SuggestResponse response) {
-    debugPrint('✅ [AUTOCOMPLETE] Найдено ${response.items.length} подсказок');
+    debugPrint('🎉🎉🎉 [AUTOCOMPLETE] RESPONSE CALLBACK FIRED!');
+    debugPrint('📊 [AUTOCOMPLETE] Получено подсказок: ${response.items.length}');
+    debugPrint('🧭 [AUTOCOMPLETE] Mounted: $mounted');
     
     // ✅ КРИТИЧНО: Проверяем, что виджет не удален
     if (!mounted) {
@@ -61,32 +74,55 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       return;
     }
     
-    // Небольшая эвристика: если среди результатов есть точное совпадение
-    // по названию города/места (например, "ейск" → "Ейск"), перемещаем
-    // такие результаты вперёд, чтобы город был видимым сразу.
+    // Диагностика: выводим все подсказки
+    if (response.items.isNotEmpty) {
+      debugPrint('📋 [AUTOCOMPLETE] ТОП-5 подсказок:');
+      for (int i = 0; i < response.items.length && i < 5; i++) {
+        final item = response.items[i];
+        debugPrint('   [$i] displayText: "${item.displayText}"');
+        debugPrint('       title: "${item.title.text}"');
+        debugPrint('       subtitle: "${item.subtitle?.text ?? 'null'}"');
+      }
+    } else {
+      debugPrint('🚫 [AUTOCOMPLETE] Подсказки отсутствуют');
+    }
+    
+    // Сортировка и фильтрация результатов
     final items = response.items.toList();
     final query = _controller.text.trim().toLowerCase();
 
+    // Приоритет точным совпадениям
     items.sort((a, b) {
       final aTitle = a.title.text.toLowerCase();
       final bTitle = b.title.text.toLowerCase();
 
-      final aExact = aTitle == query ? 0 : 1;
-      final bExact = bTitle == query ? 0 : 1;
+      final aExact = aTitle.contains(query) ? 0 : 1;
+      final bExact = bTitle.contains(query) ? 0 : 1;
 
       return aExact.compareTo(bExact);
     });
 
-    setState(() {
-      _suggestions.clear();
-      _suggestions.addAll(items.take(7));
-      _showSuggestions = _suggestions.isNotEmpty;
-      _isSearching = false;
-    });
+    try {
+      setState(() {
+        _suggestions.clear();
+        _suggestions.addAll(items.take(7));
+        _showSuggestions = _suggestions.isNotEmpty;
+        _isSearching = false;
+      });
+      
+      debugPrint('✅ [AUTOCOMPLETE] setState успешно выполнен');
+      debugPrint('📈 [AUTOCOMPLETE] Показываем ${_suggestions.length} подсказок');
+      debugPrint('👁️ [AUTOCOMPLETE] showSuggestions: $_showSuggestions');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AUTOCOMPLETE] Ошибка в setState: $e');
+      debugPrint('❌ [AUTOCOMPLETE] Stack trace: $stackTrace');
+    }
   }
 
   void _onSuggestError(yandex.Error error) {
-    debugPrint('❌ [AUTOCOMPLETE] Ошибка: $error');
+    debugPrint('💥💥💥 [AUTOCOMPLETE] ERROR CALLBACK FIRED!');
+    debugPrint('🚨 [AUTOCOMPLETE] Ошибка: $error');
+    debugPrint('🧭 [AUTOCOMPLETE] Mounted: $mounted');
     
     // ✅ КРИТИЧНО: Проверяем, что виджет не удален
     if (!mounted) {
@@ -94,11 +130,17 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       return;
     }
     
-    setState(() {
-      _suggestions.clear();
-      _showSuggestions = false;
-      _isSearching = false;
-    });
+    try {
+      setState(() {
+        _suggestions.clear();
+        _showSuggestions = false;
+        _isSearching = false;
+      });
+      debugPrint('✅ [AUTOCOMPLETE] Error setState выполнен успешно');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AUTOCOMPLETE] Ошибка в error setState: $e');
+      debugPrint('❌ [AUTOCOMPLETE] Stack trace: $stackTrace');
+    }
   }
 
   void _onTextChanged() {
@@ -126,35 +168,39 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     setState(() => _isSearching = true);
 
     try {
-      // Формируем текст запроса: если передан контекст города, добавляем префикс,
-      // но не заставляем всегда использовать его (пользователь может вводить город напрямую).
-      final searchText = (widget.cityContext.trim().isNotEmpty)
+      // Формируем текст запроса с контекстом города
+      final searchText = widget.cityContext.trim().isNotEmpty 
           ? '${widget.cityContext}, $text'
           : text;
+      
       debugPrint('🔍 [AUTOCOMPLETE] Поиск: "$searchText"');
+      debugPrint('🔍 [AUTOCOMPLETE] SearchManager: $_searchManager');
+      debugPrint('🔍 [AUTOCOMPLETE] SuggestSession: $_suggestSession');
+      debugPrint('🔍 [AUTOCOMPLETE] Listener: $_suggestListener');
 
-      // Вместо локального (ростовского) BoundingBox используем глобальный
-      // (покрытие России) — это позволит не привязываться к конкретным
-      // регионам в коде и получить корректные подсказки от Yandex API.
-      final globalBox = BoundingBox(
+      // Используем глобальный BoundingBox как в рабочем коде
+      final boundingBox = BoundingBox(
         const Point(latitude: 41.0, longitude: 19.0),
         const Point(latitude: 82.0, longitude: 180.0),
       );
 
       final options = SuggestOptions(
         suggestTypes: SuggestType(
-          SuggestType.Geo.value | SuggestType.Biz.value,
+          SuggestType.Geo.value | SuggestType.Biz.value | SuggestType.Transit.value,
         ),
       );
 
+      debugPrint('� [AUTOCOMPLETE] Вызываем suggest...');
       _suggestSession.suggest(
-        globalBox,
+        boundingBox,
         options,
         _suggestListener,
-        text: searchText,
+        text: searchText, // ✅ Исправлено: передаём query в text параметр
       );
-    } catch (e) {
-      debugPrint('❌ [AUTOCOMPLETE] Ошибка: $e');
+      debugPrint('✅ [AUTOCOMPLETE] Suggest вызван успешно, ожидаем callback...');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AUTOCOMPLETE] Ошибка в _fetchSuggestions: $e');
+      debugPrint('❌ [AUTOCOMPLETE] Stack trace: $stackTrace');
       setState(() {
         _isSearching = false;
       });

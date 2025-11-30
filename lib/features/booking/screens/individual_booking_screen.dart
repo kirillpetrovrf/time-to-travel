@@ -68,6 +68,9 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   // Переключатель для детей
   bool _hasChildren = false; // Включен ли переключатель "Добавить ребёнка"
 
+  // Комментарии (необязательное поле)
+  final TextEditingController _commentsController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -107,6 +110,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     _scrollController.dispose();
     _pickupFocusNode.dispose();
     _dropoffFocusNode.dispose();
+    _commentsController.dispose();
     super.dispose();
   }
 
@@ -181,6 +185,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     // Животные
                     _buildSectionTitle('Животные', theme),
                     _buildPetsSection(theme),
+
+                    const SizedBox(height: 24),
+
+                    // Комментарии
+                    _buildSectionTitle('Комментарии', theme),
+                    _buildCommentsSection(theme),
 
                     const SizedBox(height: 24),
 
@@ -1357,6 +1367,63 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     return categoryText;
   }
 
+  Widget _buildCommentsSection(theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(CupertinoIcons.chat_bubble_text, color: theme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Дополнительная информация (необязательно)',
+                    style: TextStyle(
+                      color: theme.secondaryLabel,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            CupertinoTextField(
+              controller: _commentsController,
+              placeholder: 'Укажите особые пожелания, контактные данные или другую важную информацию...',
+              placeholderStyle: TextStyle(
+                color: theme.tertiaryLabel,
+                fontSize: 16,
+              ),
+              style: TextStyle(
+                color: theme.label,
+                fontSize: 16,
+              ),
+              decoration: BoxDecoration(
+                color: theme.systemBackground,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.separator.withOpacity(0.3)),
+              ),
+              padding: const EdgeInsets.all(12),
+              maxLines: 4,
+              maxLength: 500,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Диалог подтверждения наличия багажа
   void _showBaggageConfirmationDialog() {
     print('🔍 [INDIVIDUAL] _showBaggageConfirmationDialog() вызван');
@@ -1765,6 +1832,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         totalPrice: _calculatePrice(),
         status: BookingStatus.pending,
         createdAt: DateTime.now(),
+        notes: _commentsController.text.trim().isNotEmpty ? _commentsController.text.trim() : null,
         trackingPoints: const [],
         baggage: _selectedBaggage,
         pets: _selectedPets,

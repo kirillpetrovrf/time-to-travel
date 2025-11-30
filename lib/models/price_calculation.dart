@@ -8,6 +8,7 @@ class PriceCalculation {
   final bool roundedUp; // Было ли округление
   final bool appliedMinPrice; // Применена ли минимальная цена
   final bool isSpecialRoute; // Специальный маршрут (фиксированная цена)
+  final double? roundedDistanceKm; // Округлённое расстояние, если применялось
 
   PriceCalculation({
     required this.rawPrice,
@@ -17,6 +18,7 @@ class PriceCalculation {
     required this.costPerKm,
     required this.roundedUp,
     required this.appliedMinPrice,
+    this.roundedDistanceKm,
     this.isSpecialRoute = false,
   });
 
@@ -29,8 +31,12 @@ class PriceCalculation {
     }
 
     String result = 'Базовая стоимость: ${baseCost.toInt()} ₽\n';
-    result +=
-        'Расстояние: ${distance.toInt()} км × ${costPerKm.toInt()} ₽ = ${(distance * costPerKm).toInt()} ₽\n';
+  // Показываем округленное расстояние, если оно отличается
+  final displayKm = (roundedDistanceKm != null && roundedDistanceKm != distance)
+    ? '${distance.toInt()} → ${roundedDistanceKm!.toInt()}'
+    : '${distance.toInt()}';
+  result +=
+    'Расстояние: $displayKm км × ${costPerKm.toInt()} ₽ = ${( (roundedDistanceKm ?? distance) * costPerKm).toInt()} ₽\n';
     result += 'Сумма: ${rawPrice.toInt()} ₽\n';
 
     if (appliedMinPrice) {
@@ -59,7 +65,8 @@ class PriceCalculation {
 
   /// Формула расчёта
   String get formula {
-    return '$baseCost + (${distance.toInt()} × $costPerKm) = ${rawPrice.toInt()} ₽';
+    final usedKm = (roundedDistanceKm != null) ? roundedDistanceKm!.toInt() : distance.toInt();
+    return '$baseCost + (${usedKm} × $costPerKm) = ${rawPrice.toInt()} ₽';
   }
 
   @override

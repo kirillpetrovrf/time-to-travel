@@ -51,7 +51,7 @@ class CalculatorSettings {
   static CalculatorSettings get defaultSettings {
     return CalculatorSettings(
       baseCost: 500,
-      costPerKm: 15,
+      costPerKm: 60, // Обновлено: 60₽/км вместо 15₽/км
       minPrice: 1000,
       roundToThousands: true,
       pricePerKmBeyondRostov: 60.0, // По умолчанию 60₽ за км дальше Ростова

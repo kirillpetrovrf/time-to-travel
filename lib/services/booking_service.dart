@@ -53,6 +53,7 @@ class BookingService {
       totalPrice: booking.totalPrice,
       status: booking.status,
       createdAt: booking.createdAt,
+      notes: booking.notes,
       trackingPoints: booking.trackingPoints,
       baggage: booking.baggage,
       pets: booking.pets,

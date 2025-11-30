@@ -62,6 +62,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 _buildPetsCard(theme),
                 const SizedBox(height: 16),
               ],
+              if (_currentBooking.notes != null && _currentBooking.notes!.isNotEmpty) ...[
+                _buildCommentsCard(theme),
+                const SizedBox(height: 16),
+              ],
               _buildPriceCard(theme),
               const SizedBox(height: 24),
               _buildActionButtons(theme),
@@ -684,6 +688,45 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               ),
             );
           }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentsCard(theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(CupertinoIcons.chat_bubble_text, color: theme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Комментарии',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: theme.label,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _currentBooking.notes!,
+            style: TextStyle(
+              fontSize: 16,
+              color: theme.label,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );
