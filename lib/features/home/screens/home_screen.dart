@@ -7,6 +7,7 @@ import '../../orders/screens/orders_screen.dart';
 import '../../tracking/screens/tracking_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../admin/screens/admin_panel_screen.dart';
+import '../../main_screen.dart'; // Импорт MainScreen (Свободный маршрут)
 import 'dispatcher_home_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -73,14 +74,17 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         // Для клиентов
         switch (lastScreen) {
-          case '/booking':
-            tabIndex = 0;
+          case '/custom_route':
+            tabIndex = 0; // Свободный маршрут - главный экран
             break;
-          case '/orders':
+          case '/booking':
             tabIndex = 1;
             break;
-          case '/tracking':
+          case '/orders':
             tabIndex = 2;
+            break;
+          case '/tracking':
+            tabIndex = 0; // Совместимость: старое "Отслеживание" → Свободный маршрут
             break;
           case '/profile':
             tabIndex = 3;
@@ -106,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Если переключаемся на вкладку заказов, обновляем key
     if ((_userType == UserType.dispatcher && index == 2) ||
-        (_userType == UserType.client && index == 1)) {
+        (_userType == UserType.client && index == 2)) {
       _ordersScreenKey++;
     }
 
@@ -141,13 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
       // Для клиентов
       switch (index) {
         case 0:
-          route = '/booking';
+          route = '/custom_route';
           break;
         case 1:
-          route = '/orders';
+          route = '/booking';
           break;
         case 2:
-          route = '/tracking';
+          route = '/orders';
           break;
         case 3:
           route = '/profile';
@@ -268,17 +272,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ]
                 : [
-                    // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
+                    // Для клиентов: Свободный маршрут, Бронирование, Мои заказы, Профиль
+                    BottomNavigationBarItem(
+                      icon: Icon(CupertinoIcons.map, size: 24),
+                      label: '',
+                    ),
                     BottomNavigationBarItem(
                       icon: Icon(CupertinoIcons.car, size: 24),
                       label: '',
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(CupertinoIcons.list_dash, size: 24),
-                      label: '',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.location, size: 24),
                       label: '',
                     ),
                     BottomNavigationBarItem(
@@ -306,20 +310,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   return const DispatcherHomeScreen();
               }
             } else {
-              // Для клиентов: Бронирование, Мои заказы, Отслеживание, Профиль
+              // Для клиентов: Свободный маршрут, Бронирование, Мои заказы, Профиль
               switch (index) {
                 case 0:
-                  return const BookingScreen(); // Бронирование
+                  return const MainScreen(); // Свободный маршрут - ГЛАВНЫЙ!
                 case 1:
+                  return const BookingScreen(); // Бронирование
+                case 2:
                   return OrdersScreen(
                     key: ValueKey('orders_$_ordersScreenKey'),
                   ); // Мои заказы
-                case 2:
-                  return const TrackingScreen(); // Отслеживание
                 case 3:
                   return const ProfileScreen(); // Профиль
                 default:
-                  return const BookingScreen();
+                  return const MainScreen();
               }
             }
           },

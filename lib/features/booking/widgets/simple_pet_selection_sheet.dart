@@ -44,7 +44,6 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
     );
 
     widget.onPetSelected(pet);
-    Navigator.pop(context);
   }
 
   @override
@@ -102,7 +101,6 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
               padding: EdgeInsets.zero,
               onPressed: () {
                 widget.onPetSelected(null);
-                Navigator.pop(context);
               },
               child: Icon(CupertinoIcons.xmark, color: theme.label),
             ),
@@ -338,7 +336,6 @@ class _SimplePetSelectionSheetState extends State<SimplePetSelectionSheet> {
               child: CupertinoButton(
                 onPressed: () {
                   widget.onPetSelected(null);
-                  Navigator.pop(context);
                 },
                 color: theme.quaternaryLabel,
                 child: const Text(

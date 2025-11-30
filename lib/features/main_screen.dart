@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:common/common.dart'; // Нужен для extension методов (let, castOrNull) и Impl классов
@@ -30,12 +31,14 @@ import '../models/booking.dart';
 import '../models/route_stop.dart';
 import '../models/trip_type.dart' as trip_type;
 import '../models/passenger_info.dart';
+import '../models/baggage.dart';
+import '../models/pet_info_v3.dart';
 import 'orders/screens/booking_detail_screen.dart';
-import 'package:uuid/uuid.dart';
 import '../utils/polyline_extensions.dart';
 import '../widgets_taxi/geolocation_button.dart';
 import '../widgets_taxi/search_fields_panel.dart';
 import '../widgets_taxi/point_type_selector.dart';
+import '../widgets/custom_route_booking_modal.dart';
 import 'package:yandex_maps_mapkit/directions.dart';
 import 'package:yandex_maps_mapkit/image.dart' as image_provider;
 import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
@@ -511,69 +514,57 @@ class _MainScreenState extends State<MainScreen> {
     print('   Price: ${_calculation!.finalPrice}₽');
     
     // Получаем адреса точек маршрута
-    String fromAddress = 'Адрес не определен';
-    String toAddress = 'Адрес не определен';
+    String fromAddress = _textFieldControllerFrom.text.isNotEmpty 
+        ? _textFieldControllerFrom.text 
+        : 'Адрес не определен';
+    String toAddress = _textFieldControllerTo.text.isNotEmpty
+        ? _textFieldControllerTo.text
+        : 'Адрес не определен';
     
-    try {
-      final reverseGeoService = ReverseGeocodingService();
-      
-      print('📍 [ORDER] Получение адреса точки отправления...');
-      fromAddress = await reverseGeoService.getAddressFromPoint(fromPoint) ?? 'Адрес не определен';
-      print('   FROM Address: $fromAddress');
-      
-      print('📍 [ORDER] Получение адреса точки назначения...');
-      toAddress = await reverseGeoService.getAddressFromPoint(toPoint) ?? 'Адрес не определен';
-      print('   TO Address: $toAddress');
-    } catch (e) {
-      print('⚠️ [ORDER] Ошибка получения адресов: $e');
-      // Продолжаем создание заказа даже если не удалось получить адреса
+    // Если адреса пустые, пробуем получить через reverse geocoding
+    if (fromAddress == 'Адрес не определен' || toAddress == 'Адрес не определен') {
+      try {
+        final reverseGeoService = ReverseGeocodingService();
+        
+        if (fromAddress == 'Адрес не определен') {
+          print('📍 [ORDER] Получение адреса точки отправления...');
+          fromAddress = await reverseGeoService.getAddressFromPoint(fromPoint) ?? 'Адрес не определен';
+          print('   FROM Address: $fromAddress');
+        }
+        
+        if (toAddress == 'Адрес не определен') {
+          print('📍 [ORDER] Получение адреса точки назначения...');
+          toAddress = await reverseGeoService.getAddressFromPoint(toPoint) ?? 'Адрес не определен';
+          print('   TO Address: $toAddress');
+        }
+      } catch (e) {
+        print('⚠️ [ORDER] Ошибка получения адресов: $e');
+      }
     }
     
-    print('💬 [ORDER] Показываем диалог подтверждения...');
-    print('   FROM: $fromAddress');
-    print('   TO: $toAddress');
-    print('   Distance: ${_distanceKm!.toStringAsFixed(1)} км');
-    print('   Price: ${_calculation!.finalPrice.toStringAsFixed(0)}₽');
+    print('🎯 [ORDER] Открываем модальное окно бронирования...');
     
-    // 🆕 Показываем диалог ПОДТВЕРЖДЕНИЯ перед созданием заказа
-    final confirmed = await _showOrderConfirmationDialog(
-      fromAddress: fromAddress,
-      toAddress: toAddress,
-      distance: _distanceKm!,
-      price: _calculation!.finalPrice,
+    // Открываем модальное окно бронирования
+    final order = await showCupertinoModalPopup<TaxiOrder>(
+      context: context,
+      builder: (context) => CustomRouteBookingModal(
+        fromAddress: fromAddress,
+        toAddress: toAddress,
+        fromPoint: fromPoint,
+        toPoint: toPoint,
+        distanceKm: _distanceKm,
+        basePrice: _calculation!.finalPrice,
+        baseCost: _calculation!.baseCost,
+        costPerKm: _calculation!.costPerKm,
+      ),
     );
     
-    print('✅ [ORDER] Результат диалога подтверждения: $confirmed');
-    
-    if (confirmed != true) {
-      print('❌ [ORDER] Пользователь отменил создание заказа');
+    if (order == null) {
+      print('❌ [ORDER] Пользователь отменил бронирование');
       return;
     }
     
-    print('✅ [ORDER] Пользователь подтвердил создание заказа, продолжаем...');
-    
-    // Генерируем уникальный ID заказа
-    final orderId = const Uuid().v4();
-    print('🆔 [ORDER] ID заказа: $orderId');
-    
-    // Создаем объект заказа
-    final order = TaxiOrder(
-      orderId: orderId,
-      timestamp: DateTime.now(),
-      fromPoint: fromPoint,
-      toPoint: toPoint,
-      fromAddress: fromAddress,
-      toAddress: toAddress,
-      distanceKm: _distanceKm!,
-      rawPrice: _calculation!.rawPrice,
-      finalPrice: _calculation!.finalPrice,
-      baseCost: _calculation!.baseCost,
-      costPerKm: _calculation!.costPerKm,
-      status: 'pending',
-    );
-    
-    print('📦 [ORDER] Объект заказа создан:');
-    print(order.toString());
+    print('✅ [ORDER] Заказ создан через модальное окно: ${order.orderId}');
     
     // Сохраняем в SQLite (офлайн)
     try {
@@ -586,16 +577,12 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     
-    // Попытка сохранения в Firebase (онлайн) — необязательная.
-    // Политика: сначала всегда сохраняем локально в SQLite. Если сейчас есть интернет,
-    // делаем неблокирующую попытку загрузки в Firebase; в противном случае — синхронизирует
-    // фоновый OrdersSyncService при появлении сети.
+    // Попытка сохранения в Firebase (онлайн) — необязательная
     try {
       final hasInternet = await OrdersSyncService.instance.hasInternetConnection();
       if (hasInternet) {
         print('☁️ [ORDER] Интернет присутствует, пробуем сохранить в Firebase (неблокирующе)...');
 
-        // Fire-and-forget: не блокируем UI/создание заказа на сетевых вызовах.
         FirebaseOrdersService.instance.saveOrder(order).timeout(
           const Duration(seconds: 5),
           onTimeout: () {
@@ -610,7 +597,6 @@ class _MainScreenState extends State<MainScreen> {
             print('⚠️ [ORDER] Не удалось пометить заказ как синхронизированный: $e');
           }
         }).catchError((e) {
-          // Ошибки здесь не мешают пользователю — главная копия уже в SQLite
           print('⚠️ [ORDER] Быстрая отправка в Firebase не удалась: $e');
         });
       } else {
@@ -622,15 +608,9 @@ class _MainScreenState extends State<MainScreen> {
     
     print('🎉 [ORDER] Заказ успешно создан и сохранен!');
     
-    // Показываем успех
-    print('📱 [ORDER] Вызов success dialog...');
-    _showOrderSuccessDialog(
-      orderId: orderId,
-      fromAddress: fromAddress,
-      toAddress: toAddress,
-      distance: _distanceKm!,
-      price: _calculation!.finalPrice,
-    );
+    // Открываем экран деталей заказа напрямую (без success dialog)
+    print('📱 [ORDER] Прямой переход к экрану деталей заказа...');
+    await _openTaxiOrderDetails(order.orderId);
   }
 
   // Переключение на вкладку "Мои заказы"
@@ -675,6 +655,47 @@ class _MainScreenState extends State<MainScreen> {
         isPopular: false,
       );
       
+      // ✅ Декодируем JSON данные из TaxiOrder
+      List<PassengerInfo> passengers = [PassengerInfo(type: PassengerType.adult)];
+      List<BaggageItem> baggage = [];
+      List<PetInfo> pets = [];
+      
+      // Декодируем пассажиров
+      if (taxiOrder.passengersJson != null && taxiOrder.passengersJson!.isNotEmpty) {
+        try {
+          final passengersData = jsonDecode(taxiOrder.passengersJson!) as List;
+          passengers = passengersData.map((json) => PassengerInfo.fromJson(json)).toList();
+          print('✅ [TAXI] Декодировано ${passengers.length} пассажиров');
+        } catch (e) {
+          print('⚠️ [TAXI] Ошибка декодирования пассажиров: $e');
+        }
+      }
+      
+      // Декодируем багаж
+      if (taxiOrder.baggageJson != null && taxiOrder.baggageJson!.isNotEmpty) {
+        try {
+          final baggageData = jsonDecode(taxiOrder.baggageJson!) as List;
+          baggage = baggageData.map((json) => BaggageItem.fromJson(json)).toList();
+          print('✅ [TAXI] Декодировано ${baggage.length} единиц багажа');
+        } catch (e) {
+          print('⚠️ [TAXI] Ошибка декодирования багажа: $e');
+        }
+      }
+      
+      // Декодируем животных
+      if (taxiOrder.petsJson != null && taxiOrder.petsJson!.isNotEmpty) {
+        try {
+          final petsData = jsonDecode(taxiOrder.petsJson!) as List;
+          pets = petsData.map((json) => PetInfo.fromJson(json)).toList();
+          print('✅ [TAXI] Декодировано ${pets.length} животных');
+        } catch (e) {
+          print('⚠️ [TAXI] Ошибка декодирования животных: $e');
+        }
+      }
+      
+      // Подсчитываем общее количество пассажиров
+      final totalPassengers = passengers.length;
+      
       final booking = Booking(
         id: taxiOrder.orderId,
         clientId: clientId,
@@ -682,7 +703,7 @@ class _MainScreenState extends State<MainScreen> {
         direction: trip_type.Direction.donetskToRostov, // Для customRoute не используется
         departureDate: taxiOrder.timestamp,
         departureTime: DateFormat('HH:mm').format(taxiOrder.timestamp),
-        passengerCount: 1,
+        passengerCount: totalPassengers, // ✅ Реальное количество пассажиров
         pickupAddress: taxiOrder.fromAddress,
         dropoffAddress: taxiOrder.toAddress,
         fromStop: fromStop, // ✅ Теперь передаём остановки
@@ -690,18 +711,18 @@ class _MainScreenState extends State<MainScreen> {
         totalPrice: taxiOrder.finalPrice.round(), // Конвертируем double → int
         status: _convertTaxiStatusToBookingStatus(taxiOrder.status),
         createdAt: taxiOrder.timestamp,
-        baggage: [],
-        pets: [],
-        passengers: [
-          PassengerInfo(
-            type: PassengerType.adult,
-            seatType: null,
-            useOwnSeat: false,
-            ageMonths: null,
-          ),
-        ],
+        baggage: baggage,  // ✅ Реальные данные о багаже
+        pets: pets,        // ✅ Реальные данные о животных
+        passengers: passengers, // ✅ Реальные данные о пассажирах
+        notes: taxiOrder.notes, // ✅ Комментарии пользователя
+        vehicleClass: taxiOrder.vehicleClass, // ✅ Класс транспорта
+        // ✅ НОВОЕ: передаём информацию о расчёте цены
+        distanceKm: taxiOrder.distanceKm,
+        baseCost: taxiOrder.baseCost,
+        costPerKm: taxiOrder.costPerKm,
       );
       print('✅ [TAXI] TaxiOrder конвертирован в Booking');
+      print('📊 [TAXI] Booking: ${totalPassengers} пассажиров, ${baggage.length} багажа, ${pets.length} животных');
       
       // 4. ВАЖНО: Возвращаемся на главный экран (закрываем success dialog)
       // Точно как в individual_booking_screen.dart
@@ -756,101 +777,7 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  // Показать диалог подтверждения перед созданием заказа
-  Future<bool?> _showOrderConfirmationDialog({
-    required String fromAddress,
-    required String toAddress,
-    required double distance,
-    required double price,
-  }) async {
-    return await showCupertinoDialog<bool>(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Подтверждение заказа'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            Text('Откуда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(fromAddress, style: TextStyle(fontSize: 14)),
-            const SizedBox(height: 8),
-            Text('Куда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(toAddress, style: TextStyle(fontSize: 14)),
-            const SizedBox(height: 8),
-            Text('Расстояние: ${distance.toStringAsFixed(1)} км', style: TextStyle(fontSize: 14)),
-            Text('Стоимость: ${price.toStringAsFixed(0)} ₽', 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.systemRed)),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            child: const Text('Отмена'),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Заказать'),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Показать диалог успешного создания заказа
-  void _showOrderSuccessDialog({
-    required String orderId,
-    required String fromAddress,
-    required String toAddress,
-    required double distance,
-    required double price,
-  }) {
-    print('🎯 [DIALOG] _showOrderSuccessDialog вызван');
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Заказ создан!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            Text('ID: ${orderId.substring(0, 8)}...', 
-              style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-            const SizedBox(height: 8),
-            Text('Откуда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(fromAddress, style: TextStyle(fontSize: 14)),
-            const SizedBox(height: 8),
-            Text('Куда:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(toAddress, style: TextStyle(fontSize: 14)),
-            const SizedBox(height: 8),
-            Text('Расстояние: ${distance.toStringAsFixed(1)} км', style: TextStyle(fontSize: 14)),
-            Text('Стоимость: ${price.toStringAsFixed(0)} ₽', 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: CupertinoColors.systemRed)),
-            const SizedBox(height: 12),
-            const Text('Заказ сохранен в раздел "Мои заказы"', 
-              style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Посмотреть заказ'),
-            onPressed: () async {
-              print('✅ [DIALOG] "Посмотреть заказ" button pressed');
-              Navigator.of(context).pop(); // Закрываем диалог
-              
-              // Открываем экран деталей заказа (как в individual/group bookings)
-              await _openTaxiOrderDetails(orderId);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   // Показать диалог с результатом заказа (Cupertino-стиль)
   void _showOrderDialog(String title, String message, {required bool isError}) {
     showCupertinoDialog(

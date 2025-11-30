@@ -43,7 +43,6 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
           padding: EdgeInsets.zero,
           onPressed: () {
             widget.onVehicleSelected(_selectedVehicle);
-            Navigator.pop(context);
           },
           child: const Text('Готово'),
         ),

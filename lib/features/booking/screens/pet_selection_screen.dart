@@ -260,7 +260,6 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
   void _savePet() {
     if (!_hasPet) {
       widget.onPetSelected(null);
-      Navigator.of(context).pop();
       return;
     }
 
@@ -287,7 +286,6 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
       weight: '', // TODO: Add weight input field
     );
     widget.onPetSelected(petInfo);
-    Navigator.of(context).pop();
   }
 
   void _showSizeRequiredDialog() {

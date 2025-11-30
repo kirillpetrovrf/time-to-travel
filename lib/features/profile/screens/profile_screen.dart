@@ -5,6 +5,7 @@ import '../../../services/auth_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
+import '../../tracking/screens/tracking_screen.dart';
 import 'about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -189,6 +190,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
+          _buildSettingsItem(
+            theme: theme,
+            icon: CupertinoIcons.location,
+            title: 'Отслеживание',
+            onTap: () {
+              Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (context) => const TrackingScreen(),
+                ),
+              );
+            },
+          ),
+
+          Divider(height: 1, color: theme.separator.withOpacity(0.2)),
+
           _buildSettingsItem(
             theme: theme,
             icon: CupertinoIcons.settings,

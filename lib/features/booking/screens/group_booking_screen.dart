@@ -1475,13 +1475,21 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
                     const SizedBox(height: 2),
                     Text(
                       _selectedBaggage.isNotEmpty
-                          ? '+${_calculateBaggagePrice()} ₽'
+                          ? (_calculateBaggagePrice() > 0
+                              ? '+${_calculateBaggagePrice().toInt()} ₽'
+                              : 'Бесплатно')
                           : 'Размеры S, M, L, Custom',
                       style: TextStyle(
                         color: _selectedBaggage.isNotEmpty
-                            ? theme.primary
+                            ? (_calculateBaggagePrice() > 0
+                                ? theme.primary
+                                : theme.systemGreen)
                             : theme.secondaryLabel,
                         fontSize: 14,
+                        fontWeight: _selectedBaggage.isNotEmpty &&
+                                _calculateBaggagePrice() == 0
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -1758,19 +1766,20 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
       print('💵 [GROUP] $passengersWithM пассажиров выбрали 1×M (бесплатно)');
     }
 
-    // Шаг 3: Распределяем S по 2 штуки на пассажира
-    int passengersWithS = 0;
+    // Шаг 3: Распределяем S - ЛЮБОЕ количество до лимита (availablePassengers × 2)
+    int freeS = 0;
     if (remainingS > 0 && availablePassengers > 0) {
-      // Сколько пассажиров может выбрать 2×S?
-      int maxPassengersForS = remainingS ~/ 2; // Делим нацело
-      passengersWithS = maxPassengersForS <= availablePassengers
-          ? maxPassengersForS
-          : availablePassengers;
-      availablePassengers -= passengersWithS;
-      remainingS -= (passengersWithS * 2);
+      int maxFreeS = availablePassengers * 2; // Лимит бесплатных S
+      freeS = remainingS <= maxFreeS ? remainingS : maxFreeS;
+
+      // Считаем сколько пассажиров использовали бесплатные S
+      int usedPassengers = (freeS / 2).ceil(); // Округляем вверх
+
+      remainingS -= freeS;
       print(
-        '💵 [GROUP] $passengersWithS пассажиров выбрали 2×S (бесплатно, итого ${passengersWithS * 2} шт)',
+        '💵 [GROUP] Бесплатных S: $freeS шт (лимит: $maxFreeS), использовано $usedPassengers пассажиров',
       );
+      availablePassengers -= usedPassengers;
     }
 
     print('💵 [GROUP] Неиспользованных пассажиров: $availablePassengers');

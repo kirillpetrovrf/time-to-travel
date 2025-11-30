@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../models/baggage.dart';
 import '../../../models/booking.dart';
 import '../../../models/trip_type.dart';
+import '../../../models/passenger_info.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
 
@@ -56,6 +57,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               const SizedBox(height: 16),
               _buildPassengerInfoCard(theme),
               const SizedBox(height: 16),
+              _buildVehicleClassCard(theme),
+              if (_currentBooking.vehicleClass != null && _currentBooking.vehicleClass!.isNotEmpty)
+                const SizedBox(height: 16),
               _buildBaggageCard(theme),
               const SizedBox(height: 16),
               if (_currentBooking.pets.isNotEmpty) ...[
@@ -312,6 +316,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _buildPassengerInfoCard(theme) {
+    final adults = _currentBooking.passengers.where((p) => p.isAdult).length;
+    final children = _currentBooking.passengers.where((p) => p.isChild).toList();
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -338,8 +345,149 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Количество: ${_currentBooking.passengerCount} ${_getPassengerText(_currentBooking.passengerCount)}',
-            style: TextStyle(fontSize: 16, color: theme.label),
+            'Взрослых: $adults, Детей: ${children.length}',
+            style: TextStyle(fontSize: 16, color: theme.label, fontWeight: FontWeight.w500),
+          ),
+          
+          // Детальная информация о детях
+          if (children.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Text(
+              'Информация о детях:',
+              style: TextStyle(
+                fontSize: 15,
+                color: theme.secondaryLabel,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...children.asMap().entries.map((entry) {
+              final index = entry.key;
+              final child = entry.value;
+              
+              // Форматируем возраст
+              String ageStr = 'Возраст не указан';
+              if (child.ageMonths != null) {
+                final years = child.ageMonths! ~/ 12;
+                final months = child.ageMonths! % 12;
+                ageStr = '$years ${_pluralizeYears(years)}';
+                if (months > 0) {
+                  ageStr += ' $months ${_pluralizeMonths(months)}';
+                }
+              }
+              
+              // Тип кресла
+              String seatStr = child.seatType?.displayName ?? 'Без кресла';
+              if (child.seatType != null) {
+                seatStr += child.useOwnSeat ? ' (своё)' : ' (водителя)';
+              }
+              
+              return Padding(
+                padding: EdgeInsets.only(bottom: index < children.length - 1 ? 12 : 0),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.tertiarySystemBackground,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ребёнок ${index + 1}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: theme.label,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '• $ageStr',
+                        style: TextStyle(fontSize: 14, color: theme.label),
+                      ),
+                      Text(
+                        '• $seatStr',
+                        style: TextStyle(fontSize: 14, color: theme.label),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  // Вспомогательные методы для склонения слов
+  String _pluralizeYears(int count) {
+    if (count % 10 == 1 && count % 100 != 11) return 'год';
+    if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) return 'года';
+    return 'лет';
+  }
+  
+  String _pluralizeMonths(int count) {
+    if (count % 10 == 1 && count % 100 != 11) return 'месяц';
+    if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) return 'месяца';
+    return 'месяцев';
+  }
+  
+  Widget _buildVehicleClassCard(theme) {
+    if (_currentBooking.vehicleClass == null || _currentBooking.vehicleClass!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    // Форматируем название класса транспорта
+    String vehicleName;
+    switch (_currentBooking.vehicleClass) {
+      case 'sedan':
+        vehicleName = 'Седан (до 4 мест)';
+        break;
+      case 'wagon':
+        vehicleName = 'Универсал (до 4 мест)';
+        break;
+      case 'minivan':
+        vehicleName = 'Минивэн (до 7 мест)';
+        break;
+      case 'microbus':
+        vehicleName = 'Микроавтобус (до 18 мест)';
+        break;
+      default:
+        vehicleName = _currentBooking.vehicleClass!;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(CupertinoIcons.car_detailed, color: theme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Транспорт',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: theme.label,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            vehicleName,
+            style: TextStyle(fontSize: 16, color: theme.label, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -733,6 +881,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
 
   Widget _buildPriceCard(theme) {
+    // Проверяем, является ли это свободным маршрутом с расчётом цены
+    final hasCalculationInfo = _currentBooking.distanceKm != null &&
+        _currentBooking.baseCost != null &&
+        _currentBooking.costPerKm != null;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -758,6 +911,41 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          
+          // Если есть информация о расчёте цены (свободный маршрут)
+          if (hasCalculationInfo) ...[
+            _buildPriceDetailRow(
+              theme,
+              'Расстояние:',
+              '${_currentBooking.distanceKm!.toStringAsFixed(1)} км',
+            ),
+            const SizedBox(height: 8),
+            _buildPriceDetailRow(
+              theme,
+              'Базовая стоимость:',
+              '${_currentBooking.baseCost!.toInt()}₽',
+            ),
+            const SizedBox(height: 8),
+            _buildPriceDetailRow(
+              theme,
+              'Цена за км:',
+              '${_currentBooking.costPerKm!.toInt()}₽',
+            ),
+            const SizedBox(height: 8),
+            _buildPriceDetailRow(
+              theme,
+              'Минимальная цена:',
+              '1000.0₽',
+            ),
+            const SizedBox(height: 8),
+            _buildPriceDetailRow(
+              theme,
+              'Округление:',
+              'ДА',
+            ),
+            const Divider(height: 24),
+          ],
+          
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -786,6 +974,30 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Вспомогательный метод для отображения строки детализации цены
+  Widget _buildPriceDetailRow(theme, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            color: theme.secondaryLabel,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: theme.label,
+          ),
+        ),
+      ],
     );
   }
 

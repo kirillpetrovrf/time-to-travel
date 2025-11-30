@@ -4,6 +4,9 @@ import 'dart:convert';
 import '../models/booking.dart';
 import '../models/trip_type.dart';
 import '../models/route_stop.dart';
+import '../models/passenger_info.dart';
+import '../models/baggage.dart'; // Содержит BaggageItem
+import '../models/pet_info_v3.dart'; // Содержит PetInfo
 import 'auth_service.dart';
 import 'notification_service.dart';
 import 'offline_orders_service.dart';
@@ -203,6 +206,45 @@ class BookingService {
 
       // Конвертируем TaxiOrder → Booking
       final bookings = taxiOrders.map((order) {
+        // ✅ Декодируем JSON данные о пассажирах
+        List<PassengerInfo> passengers = [];
+        if (order.passengersJson != null && order.passengersJson!.isNotEmpty) {
+          try {
+            final passengersData = jsonDecode(order.passengersJson!) as List;
+            passengers = passengersData
+                .map((json) => PassengerInfo.fromJson(json as Map<String, dynamic>))
+                .toList();
+          } catch (e) {
+            debugPrint('⚠️ [BOOKING] Ошибка декодирования пассажиров: $e');
+          }
+        }
+
+        // ✅ Декодируем JSON данные о багаже
+        List<BaggageItem> baggage = [];
+        if (order.baggageJson != null && order.baggageJson!.isNotEmpty) {
+          try {
+            final baggageData = jsonDecode(order.baggageJson!) as List;
+            baggage = baggageData
+                .map((json) => BaggageItem.fromJson(json as Map<String, dynamic>))
+                .toList();
+          } catch (e) {
+            debugPrint('⚠️ [BOOKING] Ошибка декодирования багажа: $e');
+          }
+        }
+
+        // ✅ Декодируем JSON данные о животных
+        List<PetInfo> pets = [];
+        if (order.petsJson != null && order.petsJson!.isNotEmpty) {
+          try {
+            final petsData = jsonDecode(order.petsJson!) as List;
+            pets = petsData
+                .map((json) => PetInfo.fromJson(json as Map<String, dynamic>))
+                .toList();
+          } catch (e) {
+            debugPrint('⚠️ [BOOKING] Ошибка декодирования животных: $e');
+          }
+        }
+
         // Создаём RouteStop объекты из координат и адресов TaxiOrder
         final fromStop = RouteStop(
           id: 'taxi_from_${order.orderId}',
@@ -230,18 +272,23 @@ class BookingService {
           departureDate: order.timestamp, // Уже DateTime
           departureTime: 
               '${order.timestamp.hour.toString().padLeft(2, '0')}:${order.timestamp.minute.toString().padLeft(2, '0')}',
-          passengerCount: 1, // TaxiOrder не хранит пассажиров, используем 1
+          passengerCount: passengers.length, // ✅ Реальное количество пассажиров
           pickupAddress: order.fromAddress,
           dropoffAddress: order.toAddress,
           totalPrice: order.finalPrice.round(), // Округляем до int для Booking
           status: _convertOrderStatusToBookingStatus(order.status),
           createdAt: order.timestamp, // Уже DateTime
-          baggage: [],
-          pets: [],
-          passengers: [],
+          baggage: baggage,        // ✅ Декодированный багаж
+          pets: pets,              // ✅ Декодированные животные
+          passengers: passengers,  // ✅ Декодированные пассажиры
           pickupPoint: null,
           fromStop: fromStop,  // ✅ Добавляем fromStop с адресом
           toStop: toStop,      // ✅ Добавляем toStop с адресом
+          vehicleClass: order.vehicleClass, // ✅ Класс транспорта
+          notes: order.notes,      // ✅ Комментарии
+          distanceKm: order.distanceKm,     // ✅ Расстояние
+          baseCost: order.baseCost,         // ✅ Базовая стоимость
+          costPerKm: order.costPerKm,       // ✅ Стоимость за км
         );
       }).toList();
 

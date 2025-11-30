@@ -85,6 +85,12 @@ class Booking {
   final List<BaggageItem> baggage; // Багаж пассажира
   final List<PetInfo> pets; // Животные
   final List<PassengerInfo> passengers; // Информация о пассажирах
+  
+  // Дополнительные поля для расчёта цены (свободный маршрут)
+  final double? distanceKm; // Расстояние в км
+  final double? baseCost; // Базовая стоимость
+  final double? costPerKm; // Цена за км
+  final String? vehicleClass; // Класс транспорта (sedan/wagon/minivan/microbus)
 
   const Booking({
     required this.id,
@@ -108,6 +114,10 @@ class Booking {
     this.baggage = const [],
     this.pets = const [],
     this.passengers = const [],
+    this.distanceKm,
+    this.baseCost,
+    this.costPerKm,
+    this.vehicleClass,
   });
 
   Map<String, dynamic> toJson() {
@@ -133,6 +143,10 @@ class Booking {
       'baggage': baggage.map((e) => e.toJson()).toList(),
       'pets': pets.map((e) => e.toJson()).toList(),
       'passengers': passengers.map((e) => e.toJson()).toList(),
+      'distanceKm': distanceKm,
+      'baseCost': baseCost,
+      'costPerKm': costPerKm,
+      'vehicleClass': vehicleClass,
     };
   }
 
@@ -177,6 +191,10 @@ class Booking {
       passengers: (json['passengers'] as List? ?? [])
           .map((e) => PassengerInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
+      distanceKm: json['distanceKm'] as double?,
+      baseCost: json['baseCost'] as double?,
+      costPerKm: json['costPerKm'] as double?,
+      vehicleClass: json['vehicleClass'] as String?,
     );
   }
 }

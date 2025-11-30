@@ -12,10 +12,36 @@ enum Direction {
 }
 
 enum VehicleClass {
-  sedan, // Седан (1-3 пассажира)
-  wagon, // Универсал (1-4 пассажира, больше багажа)
-  minivan, // Минивэн (1-6 пассажиров)
-  microbus, // Микроавтобус (1-8 пассажиров)
+  sedan(
+    name: 'Седан',
+    description: '1-3 пассажира',
+    extraPrice: 0,
+  ),
+  wagon(
+    name: 'Универсал',
+    description: '1-4 пассажира, больше багажа',
+    extraPrice: 500,
+  ),
+  minivan(
+    name: 'Минивэн',
+    description: '1-6 пассажиров',
+    extraPrice: 1500,
+  ),
+  microbus(
+    name: 'Микроавтобус',
+    description: '1-8 пассажиров',
+    extraPrice: 3000,
+  );
+
+  const VehicleClass({
+    required this.name,
+    required this.description,
+    required this.extraPrice,
+  });
+
+  final String name;
+  final String description;
+  final double extraPrice;
 }
 
 class TripPricing {

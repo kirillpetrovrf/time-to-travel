@@ -27,6 +27,15 @@ class TaxiOrder {
   // Клиент (опционально для будущего)
   final String? clientName;
   final String? clientPhone;
+  
+  // Данные бронирования (опциональные для обратной совместимости)
+  final DateTime? departureDate;      // Дата поездки
+  final String? departureTime;        // Время отправления (HH:mm)
+  final String? passengersJson;       // JSON: List<PassengerInfo>
+  final String? baggageJson;          // JSON: List<BaggageItem>
+  final String? petsJson;             // JSON: List<PetInfo>
+  final String? notes;                // Комментарии
+  final String? vehicleClass;         // sedan/wagon/minivan/microbus
 
   TaxiOrder({
     required this.orderId,
@@ -44,6 +53,13 @@ class TaxiOrder {
     this.isSynced = false,         // По умолчанию не синхронизировано
     this.clientName,
     this.clientPhone,
+    this.departureDate,
+    this.departureTime,
+    this.passengersJson,
+    this.baggageJson,
+    this.petsJson,
+    this.notes,
+    this.vehicleClass,
   });
 
   /// Преобразование в Map для SQLite и Firebase
@@ -66,6 +82,13 @@ class TaxiOrder {
       'isSynced': isSynced ? 1 : 0,  // SQLite boolean as integer
       'clientName': clientName,
       'clientPhone': clientPhone,
+      'departureDate': departureDate?.toIso8601String(),
+      'departureTime': departureTime,
+      'passengersJson': passengersJson,
+      'baggageJson': baggageJson,
+      'petsJson': petsJson,
+      'notes': notes,
+      'vehicleClass': vehicleClass,
     };
   }
 
@@ -93,6 +116,15 @@ class TaxiOrder {
       isSynced: (map['isSynced'] ?? 0) == 1,  // SQLite integer to boolean
       clientName: map['clientName'] as String?,
       clientPhone: map['clientPhone'] as String?,
+      departureDate: map['departureDate'] != null 
+          ? DateTime.parse(map['departureDate'] as String)
+          : null,
+      departureTime: map['departureTime'] as String?,
+      passengersJson: map['passengersJson'] as String?,
+      baggageJson: map['baggageJson'] as String?,
+      petsJson: map['petsJson'] as String?,
+      notes: map['notes'] as String?,
+      vehicleClass: map['vehicleClass'] as String?,
     );
   }
 
@@ -113,6 +145,13 @@ class TaxiOrder {
     bool? isSynced,
     String? clientName,
     String? clientPhone,
+    DateTime? departureDate,
+    String? departureTime,
+    String? passengersJson,
+    String? baggageJson,
+    String? petsJson,
+    String? notes,
+    String? vehicleClass,
   }) {
     return TaxiOrder(
       orderId: orderId ?? this.orderId,
@@ -130,6 +169,13 @@ class TaxiOrder {
       isSynced: isSynced ?? this.isSynced,
       clientName: clientName ?? this.clientName,
       clientPhone: clientPhone ?? this.clientPhone,
+      departureDate: departureDate ?? this.departureDate,
+      departureTime: departureTime ?? this.departureTime,
+      passengersJson: passengersJson ?? this.passengersJson,
+      baggageJson: baggageJson ?? this.baggageJson,
+      petsJson: petsJson ?? this.petsJson,
+      notes: notes ?? this.notes,
+      vehicleClass: vehicleClass ?? this.vehicleClass,
     );
   }
 

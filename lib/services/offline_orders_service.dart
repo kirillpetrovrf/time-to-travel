@@ -27,7 +27,7 @@ class OfflineOrdersService {
 
     return await openDatabase(
       path,
-      version: 2,  // Увеличили версию для миграции
+      version: 3,  // Увеличили версию для новых полей бронирования
       onCreate: (db, version) async {
         print('📦 [SQLITE] Создание таблицы orders...');
         
@@ -49,7 +49,14 @@ class OfflineOrdersService {
             status TEXT NOT NULL,
             isSynced INTEGER NOT NULL DEFAULT 0,
             clientName TEXT,
-            clientPhone TEXT
+            clientPhone TEXT,
+            departureDate TEXT,
+            departureTime TEXT,
+            passengersJson TEXT,
+            baggageJson TEXT,
+            petsJson TEXT,
+            notes TEXT,
+            vehicleClass TEXT
           )
         ''');
         
@@ -62,6 +69,18 @@ class OfflineOrdersService {
           // Добавляем колонку isSynced для существующих таблиц
           await db.execute('ALTER TABLE orders ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 0');
           print('✅ [SQLITE] Добавлена колонка isSynced');
+        }
+        
+        if (oldVersion < 3) {
+          // Добавляем новые колонки для расширенного бронирования
+          await db.execute('ALTER TABLE orders ADD COLUMN departureDate TEXT');
+          await db.execute('ALTER TABLE orders ADD COLUMN departureTime TEXT');
+          await db.execute('ALTER TABLE orders ADD COLUMN passengersJson TEXT');
+          await db.execute('ALTER TABLE orders ADD COLUMN baggageJson TEXT');
+          await db.execute('ALTER TABLE orders ADD COLUMN petsJson TEXT');
+          await db.execute('ALTER TABLE orders ADD COLUMN notes TEXT');
+          await db.execute('ALTER TABLE orders ADD COLUMN vehicleClass TEXT');
+          print('✅ [SQLITE] Добавлены колонки для расширенного бронирования');
         }
       },
     );
