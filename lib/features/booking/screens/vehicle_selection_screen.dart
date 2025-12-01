@@ -43,6 +43,8 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
           padding: EdgeInsets.zero,
           onPressed: () {
             widget.onVehicleSelected(_selectedVehicle);
+            // Закрываем экран с результатом (унифицированный паттерн: child попит)
+            Navigator.pop(context, _selectedVehicle);
           },
           child: const Text('Готово'),
         ),

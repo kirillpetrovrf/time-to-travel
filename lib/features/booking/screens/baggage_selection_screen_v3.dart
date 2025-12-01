@@ -507,8 +507,10 @@ class _BaggageSelectionScreenState extends State<BaggageSelectionScreen> {
             );
             print('✅ [БАГАЖ] ==========================================');
             print('');
-            // Callback сам вызовет Navigator.pop с правильным типом
+            // Вызываем callback
             widget.onBaggageSelected(baggageList);
+            // Закрываем экран
+            Navigator.of(context).pop();
           },
         ),
       ),

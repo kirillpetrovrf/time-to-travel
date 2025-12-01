@@ -1447,6 +1447,9 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
   }
 
   Widget _buildBaggageSection(theme) {
+    // Вычисляем цену ОДИН раз, чтобы избежать бесконечного цикла логов
+    final baggagePrice = _selectedBaggage.isNotEmpty ? _calculateBaggagePrice() : 0.0;
+    
     return Container(
       decoration: BoxDecoration(
         color: theme.secondarySystemBackground,
@@ -1475,19 +1478,19 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
                     const SizedBox(height: 2),
                     Text(
                       _selectedBaggage.isNotEmpty
-                          ? (_calculateBaggagePrice() > 0
-                              ? '+${_calculateBaggagePrice().toInt()} ₽'
+                          ? (baggagePrice > 0
+                              ? '+${baggagePrice.toInt()} ₽'
                               : 'Бесплатно')
                           : 'Размеры S, M, L, Custom',
                       style: TextStyle(
                         color: _selectedBaggage.isNotEmpty
-                            ? (_calculateBaggagePrice() > 0
+                            ? (baggagePrice > 0
                                 ? theme.primary
                                 : theme.systemGreen)
                             : theme.secondaryLabel,
                         fontSize: 14,
                         fontWeight: _selectedBaggage.isNotEmpty &&
-                                _calculateBaggagePrice() == 0
+                                baggagePrice == 0
                             ? FontWeight.w600
                             : FontWeight.normal,
                       ),

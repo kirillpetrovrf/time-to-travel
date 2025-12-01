@@ -767,22 +767,20 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
           child: CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: () async {
-              final result = await Navigator.push<List<BaggageItem>>(
+              await Navigator.push(
                 context,
                 CupertinoPageRoute(
                   builder: (context) => BaggageSelectionScreen(
                     passengerCount: _passengers.length,
                     onBaggageSelected: (baggage) {
-                      Navigator.pop(context, baggage);
+                      // Navigator.pop теперь вызывается внутри BaggageSelectionScreen
+                      setState(() {
+                        _baggage = baggage;
+                      });
                     },
                   ),
                 ),
               );
-              if (result != null) {
-                setState(() {
-                  _baggage = result;
-                });
-              }
             },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -900,19 +898,19 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
                       onChanged: (value) async {
                         if (value) {
                           // Включаем - открываем окно выбора
-                          final result = await showCupertinoModalPopup<PetInfo>(
+                          await showCupertinoModalPopup(
                             context: context,
                             builder: (context) => SimplePetSelectionSheet(
                               onPetSelected: (pet) {
-                                Navigator.pop(context, pet);
+                                // Navigator.pop теперь вызывается внутри SimplePetSelectionSheet
+                                if (pet != null) {
+                                  setState(() {
+                                    _pets = [pet];
+                                  });
+                                }
                               },
                             ),
                           );
-                          if (result != null) {
-                            setState(() {
-                              _pets = [result];
-                            });
-                          }
                         } else {
                           // Выключаем - удаляем животное
                           setState(() {
@@ -966,19 +964,19 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
                             style: TextStyle(color: theme.primary),
                           ),
                           onPressed: () async {
-                            final result = await showCupertinoModalPopup<PetInfo>(
+                            await showCupertinoModalPopup(
                               context: context,
                               builder: (context) => SimplePetSelectionSheet(
                                 onPetSelected: (pet) {
-                                  Navigator.pop(context, pet);
+                                  // Navigator.pop теперь вызывается внутри SimplePetSelectionSheet
+                                  if (pet != null) {
+                                    setState(() {
+                                      _pets = [pet];
+                                    });
+                                  }
                                 },
                               ),
                             );
-                            if (result != null) {
-                              setState(() {
-                                _pets = [result];
-                              });
-                            }
                           },
                         ),
                       ],
@@ -1097,7 +1095,8 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
                 CupertinoPageRoute(
                   builder: (context) => VehicleSelectionScreen(
                     onVehicleSelected: (vehicle) {
-                      Navigator.pop(context, vehicle);
+                      // Child теперь сам вызывает Navigator.pop с результатом
+                      // Родитель получает result через await Navigator.push
                     },
                   ),
                 ),
