@@ -163,6 +163,63 @@ class RouteData {
     ),
   ];
 
+  /// 🆕 НОВЫЙ МАРШРУТ: Донецк → Луганск (без военных КПП)
+  /// Фиксированная цена 10,000₽ независимо от места высадки
+  static const List<RouteStop> donetskToLuhansk = [
+    RouteStop(
+      id: 'donetsk',
+      name: 'Донецк',
+      order: 0,
+      latitude: 48.0159,
+      longitude: 37.8031,
+      priceFromStart: 10000, // Фиксированная цена
+      isPopular: true,
+    ),
+    RouteStop(
+      id: 'makeevka',
+      name: 'Макеевка',
+      order: 1,
+      latitude: 48.0477,
+      longitude: 37.9266,
+      priceFromStart: 10000, // Фиксированная цена
+      isPopular: true,
+    ),
+    RouteStop(
+      id: 'khartsyzsk',
+      name: 'Харцызск',
+      order: 2,
+      latitude: 48.0433,
+      longitude: 38.1544,
+      priceFromStart: 10000, // Фиксированная цена
+    ),
+    RouteStop(
+      id: 'yenakievo',
+      name: 'Енакиево',
+      order: 3,
+      latitude: 48.2333,
+      longitude: 38.2167,
+      priceFromStart: 10000, // Фиксированная цена
+      isPopular: true,
+    ),
+    RouteStop(
+      id: 'debaltsevo',
+      name: 'Дебальцево',
+      order: 4,
+      latitude: 48.3409,
+      longitude: 38.4066,
+      priceFromStart: 10000, // Фиксированная цена
+    ),
+    RouteStop(
+      id: 'luhansk',
+      name: 'Луганск',
+      order: 5,
+      latitude: 48.5742,
+      longitude: 39.3078,
+      priceFromStart: 10000, // Фиксированная цена
+      isPopular: true,
+    ),
+  ];
+
   /// Маршрут Ростов-на-Дону → Донецк (обратный порядок)
   static List<RouteStop> get rostovToDonetsk {
     return donetskToRostov.reversed.map((stop) {
@@ -178,6 +235,22 @@ class RouteData {
     }).toList();
   }
 
+  /// 🆕 Маршрут Луганск → Донецк (обратный порядок)
+  /// Фиксированная цена 10,000₽ независимо от места высадки
+  static List<RouteStop> get luhanskToDonetsk {
+    return donetskToLuhansk.reversed.map((stop) {
+      return RouteStop(
+        id: stop.id,
+        name: stop.name,
+        order: donetskToLuhansk.length - 1 - stop.order,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+        priceFromStart: 10000, // Фиксированная цена в обе стороны
+        isPopular: stop.isPopular,
+      );
+    }).toList();
+  }
+
   /// Получение остановок по направлению
   static List<RouteStop> getRouteStops(String direction) {
     switch (direction) {
@@ -185,6 +258,10 @@ class RouteData {
         return donetskToRostov;
       case 'rostov_to_donetsk':
         return rostovToDonetsk;
+      case 'donetsk_to_luhansk':     // 🆕 НОВОЕ
+        return donetskToLuhansk;
+      case 'luhansk_to_donetsk':     // 🆕 НОВОЕ
+        return luhanskToDonetsk;
       default:
         return [];
     }
@@ -253,6 +330,15 @@ class PickupPoints {
     'Главный ЖД вокзал',
   ];
 
+  /// 🆕 Места посадки в Енакиево
+  static const List<String> yenakievo = ['Центральная площадь', 'Автостанция'];
+
+  /// 🆕 Места посадки в Дебальцево  
+  static const List<String> debaltsevo = ['Железнодорожный вокзал', 'Центр города'];
+
+  /// 🆕 Места посадки в Луганске
+  static const List<String> luhansk = ['Автовокзал', 'ТЦ Украина', 'Площадь Героев'];
+
   /// Получение мест посадки по ID города
   static List<String> getPickupPointsForCity(String cityId) {
     switch (cityId) {
@@ -278,6 +364,13 @@ class PickupPoints {
         return taganrog;
       case 'rostov':
         return rostov;
+      // 🆕 НОВЫЕ ГОРОДА
+      case 'yenakievo':
+        return yenakievo;
+      case 'debaltsevo':
+        return debaltsevo;
+      case 'luhansk':
+        return luhansk;
       default:
         return [];
     }

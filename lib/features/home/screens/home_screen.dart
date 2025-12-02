@@ -27,9 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _ordersScreenKey = 0; // Счётчик для обновления экрана заказов
 
   // НОВОЕ (ТЗ v3.0): Секретный вход диспетчера (7 тапов)
-  int _secretTapCount = 0;
-  DateTime? _lastTapTime;
-
   @override
   void initState() {
     super.initState();
@@ -182,54 +179,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // Геттер для получения текущего индекса
   int get currentIndex => _currentIndex;
 
-  /// НОВОЕ (ТЗ v3.0): Обработка секретных тапов для входа диспетчера
-  void _handleSecretTap() {
-    final now = DateTime.now();
 
-    // Сброс счетчика если прошло больше 3 секунд с последнего тапа
-    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 3) {
-      _secretTapCount = 0;
-    }
 
-    _secretTapCount++;
-    _lastTapTime = now;
 
-    print('🔒 Секретный тап $_secretTapCount/7');
-
-    if (_secretTapCount >= 7) {
-      _secretTapCount = 0;
-      _showDispatcherLogin();
-    }
-  }
-
-  /// Показать диалог входа диспетчера
-  void _showDispatcherLogin() {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Вход диспетчера'),
-        content: const Text(
-          'Введите пароль диспетчера для доступа к административной панели.',
-        ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('Отмена'),
-            onPressed: () => Navigator.pop(context),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Войти'),
-            onPressed: () async {
-              Navigator.pop(context);
-              // Временный вход без пароля для демо
-              await AuthService.instance.upgradeToDispatcher();
-              _loadUserType();
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -328,21 +280,6 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
         ),
-        // НОВОЕ (ТЗ v3.0): Секретная зона для входа диспетчера (7 тапов в правом верхнем углу)
-        if (_userType != UserType.dispatcher)
-          Positioned(
-            top: 50,
-            right: 0,
-            child: GestureDetector(
-              onTap: _handleSecretTap,
-              child: Container(
-                width: 80,
-                height: 80,
-                color: CupertinoColors.systemBackground.withOpacity(0.0),
-                child: const SizedBox.shrink(),
-              ),
-            ),
-          ),
       ],
     );
   }

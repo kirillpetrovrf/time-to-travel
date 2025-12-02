@@ -852,8 +852,13 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    // 🛣️ ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ КПП УСПЕНКА для маршрутов из Донецка
-    final finalRoutePoints = _addUspenkaCheckpointIfNeeded(modifiedRoutePoints);
+    // 🛣️ ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ КПП УСПЕНКА для маршрутов из Донецка в Ростов
+    final fromCity = _textFieldControllerFrom.text.trim();
+    final toCity = _textFieldControllerTo.text.trim();
+    final routeWithCheckpoints = _addUspenkaCheckpointIfNeeded(modifiedRoutePoints, fromCity, toCity);
+    
+    // 🛣️ ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ ПРОМЕЖУТОЧНЫХ ГОРОДОВ для маршрута Донецк-Луганск
+    final finalRoutePoints = _addLuhanskWaypointsIfNeeded(routeWithCheckpoints);
     
     // Блокировка КПП убрана - строим маршруты без ограничений
     
@@ -1827,9 +1832,10 @@ class _MainScreenState extends State<MainScreen> {
 
   /// 🚫 Исключает запрещённые КПП из маршрута
   /// КПП Куйбышевский и другие запрещённые КПП для грузового транспорта
+  /// + Запрещенные города для маршрута Донецк-Луганск
   List<Point> _excludeForbiddenCheckpoints(List<Point> routePoints) {
     print('🔍 Проверяем ${routePoints.length} точек на предмет запрещённых КПП');
-    
+
     const double exclusionRadius = 0.05; // 5км радиус исключения (увеличен для большей надежности)
 
     // Запрещённые КПП и населенные пункты с их координатами
@@ -1841,11 +1847,20 @@ class _MainScreenState extends State<MainScreen> {
     // ❌ СТАРАЯ НЕРАБОЧАЯ КПП УСПЕНКА (закрыта, шлагбаум, тупик) - ЗАПРЕЩЕНА!
     const oldUspenkaLat = 47.697816;
     const oldUspenkaLng = 38.666213;
-    
+
     // 🚫 КРИТИЧЕСКИ ОПАСНАЯ ЗОНА - ЗАПРЕЩЕН ПРОЕЗД!
     const dangerousZoneLat = 47.908989;
     const dangerousZoneLng = 38.943275;
-
+    
+    // 🚫 ЗАПРЕЩЕННЫЕ ГОРОДА ДЛЯ МАРШРУТА ДОНЕЦК-ЛУГАНСК
+    // Ясиноватая - не ездим
+    const yasinovatayaLat = 48.137611;
+    const yasinovatayaLng = 38.056556;
+    
+    // Пантелемоновка - не ездим
+    const pantelemonivkaLat = 48.270833;
+    const pantelemonivkaLng = 38.416667;
+    
     List<Point> cleanedPoints = [];
     int excludedCount = 0;
 
@@ -1870,14 +1885,27 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
       
-      // Проверяем старую нерабочую КПП Успенка (закрыта, шлагбаум) - УСИЛЕННАЯ ПРОВЕРКА
+      // Проверяем старую нерабочую КПП Успенка (закрыта, шлагбаум) - ТОЧЕЧНАЯ ПРОВЕРКА
       if (!shouldExclude) {
-        latDiff = (point.latitude - oldUspenkaLat).abs();
-        lngDiff = (point.longitude - oldUspenkaLng).abs();
-        // Увеличиваем радиус для старой КПП, чтобы точно её избежать
-        if (latDiff < (exclusionRadius * 2.0) && lngDiff < (exclusionRadius * 2.0)) {
-          print('🚫 ⚠️ КРИТИЧНО! Исключаем точку рядом со СТАРОЙ КПП Успенка (47.697816, 38.666213 - ЗАКРЫТА!): ${point.latitude}, ${point.longitude}');
-          shouldExclude = true;
+        // Сначала проверяем, не находится ли точка рядом с РАБОЧЕЙ КПП Авило-Успенка
+        const workingKppLat = 47.698500;
+        const workingKppLng = 38.678000;
+        double workingLatDiff = (point.latitude - workingKppLat).abs();
+        double workingLngDiff = (point.longitude - workingKppLng).abs();
+        
+        // Если точка рядом с рабочей КПП - НЕ исключаем её
+        bool isNearWorkingKpp = (workingLatDiff < 0.01 && workingLngDiff < 0.01); // 1км радиус
+        
+        if (!isNearWorkingKpp) {
+          latDiff = (point.latitude - oldUspenkaLat).abs();
+          lngDiff = (point.longitude - oldUspenkaLng).abs();
+          // Уменьшаем радиус для старой КПП, чтобы не захватывать рабочую
+          if (latDiff < (exclusionRadius * 0.5) && lngDiff < (exclusionRadius * 0.5)) {
+            print('🚫 ⚠️ КРИТИЧНО! Исключаем точку рядом со СТАРОЙ КПП Успенка (47.697816, 38.666213 - ЗАКРЫТА!): ${point.latitude}, ${point.longitude}');
+            shouldExclude = true;
+          }
+        } else {
+          print('✅ Точка рядом с РАБОЧЕЙ КПП Авило-Успенка - НЕ исключаем: ${point.latitude}, ${point.longitude}');
         }
       }
       
@@ -1887,6 +1915,26 @@ class _MainScreenState extends State<MainScreen> {
         lngDiff = (point.longitude - dangerousZoneLng).abs();
         if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
           print('🚨 КРИТИЧЕСКАЯ ОПАСНОСТЬ! Исключаем точку рядом с запрещенной зоной: ${point.latitude}, ${point.longitude}');
+          shouldExclude = true;
+        }
+      }
+      
+      // 🚫 Проверяем Ясиноватую (запрещенный город для маршрута Донецк-Луганск)
+      if (!shouldExclude) {
+        latDiff = (point.latitude - yasinovatayaLat).abs();
+        lngDiff = (point.longitude - yasinovatayaLng).abs();
+        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+          print('🚫 Исключаем точку в Ясиноватой (запрещено для маршрута Донецк-Луганск): ${point.latitude}, ${point.longitude}');
+          shouldExclude = true;
+        }
+      }
+      
+      // 🚫 Проверяем Пантелемоновку (запрещенный город для маршрута Донецк-Луганск)
+      if (!shouldExclude) {
+        latDiff = (point.latitude - pantelemonivkaLat).abs();
+        lngDiff = (point.longitude - pantelemonivkaLng).abs();
+        if (latDiff < exclusionRadius && lngDiff < exclusionRadius) {
+          print('🚫 Исключаем точку в Пантелемоновке (запрещено для маршрута Донецк-Луганск): ${point.latitude}, ${point.longitude}');
           shouldExclude = true;
         }
       }
@@ -1905,7 +1953,27 @@ class _MainScreenState extends State<MainScreen> {
 
   /// 🛣️ Автоматически добавляет промежуточные КПП для маршрутов связанных с Донецком
   /// Добавляет КПП Авелон-Успенка для поездок из Донецка в Россию или в Донецк из России
-  List<Point> _addUspenkaCheckpointIfNeeded(List<Point> routePoints) {
+  List<Point> _addUspenkaCheckpointIfNeeded(List<Point> routePoints, String fromCity, String toCity) {
+    // 🚫 ПРИОРИТЕТ 1: ПРОВЕРКА ЛОКАЛЬНЫХ МАРШРУТОВ
+    if (trip_type.TripPricing.isLocalRoute(fromCity, toCity)) {
+      print('🏠 [LOCAL] ЛОКАЛЬНЫЙ МАРШРУТ обнаружен: $fromCity → $toCity');
+      print('🏠 [LOCAL] ❌ КПП Авелон-Успенка НЕ добавляется для локальных маршрутов');
+      return routePoints; // Возвращаем исходный маршрут БЕЗ КПП
+    }
+
+    // 🚫 ПРИОРИТЕТ 2: ПРОВЕРКА ДОНЕЦК-РОСТОВ БЕЗ ХАРЦЫЗСКА
+    if (trip_type.TripPricing.isDonetskRostovRoute(fromCity, toCity)) {
+      final passesKhartsyzsk = _routePassesThroughKhartsyzsk(routePoints);
+      if (!passesKhartsyzsk) {
+        print('🚗 [DONETSK-ROSTOV] Прямой маршрут Донецк → Ростов БЕЗ Харцызска');
+        print('🚗 [DONETSK-ROSTOV] ❌ КПП Авелон-Успенка НЕ добавляется (только через Харцызск)');
+        return routePoints; // Возвращаем исходный маршрут БЕЗ КПП
+      } else {
+        print('🚗 [DONETSK-ROSTOV] Маршрут Донецк → Ростов ЧЕРЕЗ Харцызск');
+        print('🚗 [DONETSK-ROSTOV] ✅ КПП Авелон-Успенка будет добавлено');
+      }
+    }
+
     if (routePoints.length < 2) {
       print('🛣️ [DEBUG] Недостаточно точек для анализа: ${routePoints.length}');
       return routePoints;
@@ -1942,22 +2010,90 @@ class _MainScreenState extends State<MainScreen> {
       // Маршрут ИЗ Донецка - проверяем направление
       final isMovingWest = endPoint.longitude < donetskLng && endPoint.latitude < (donetskLat + 2.0);
       
-      if (isMovingWest) {
-        print('🛣️ [DEBUG] Маршрут идёт на ЗАПАД от Донецка - не добавляем КПП (направление на Украину)');
+      // 🆕 ПРОВЕРКА на направление в Луганск (северо-восток) - НЕ добавляем КПП
+      final isMovingToLuhansk = endPoint.longitude > donetskLng && 
+                                endPoint.latitude > donetskLat &&
+                                _calculateDistanceBetweenPoints(
+                                  endPoint.latitude, endPoint.longitude,
+                                  48.5742, 39.3078  // координаты Луганска
+                                ) < 100; // в радиусе 100км от Луганска
+
+      // 🆕 ПРОВЕРКА на маршрут в Авило-Успенку - НЕ добавляем КПП (прямой маршрут без крюка)
+      final isMovingToAviloUspenka = _calculateDistanceBetweenPoints(
+        endPoint.latitude, endPoint.longitude,
+        47.698500, 38.678000  // координаты рабочей КПП Авило-Успенка
+      ) < 10; // в радиусе 10км от Авило-Успенки
+
+      // 🆕 ПРОВЕРКА на маршрут в Матвеев Курган - НЕ добавляем КПП (прямой маршрут без крюка)
+      final isMovingToMatveevKurgan = _calculateDistanceBetweenPoints(
+        endPoint.latitude, endPoint.longitude,
+        47.567712, 38.861757  // координаты Матвеев Курган
+      ) < 10; // в радиусе 10км от Матвеев Кургана
+      
+      // 🆕 ПРОВЕРКА на маршрут в Покровское - НЕ добавляем КПП (прямой маршрут без крюка)
+      final isMovingToPokrovskoe = _calculateDistanceBetweenPoints(
+        endPoint.latitude, endPoint.longitude,
+        47.415266, 38.896567  // координаты Покровское (Неклиновский р-н)
+      ) < 10; // в радиусе 10км от Покровского
+      
+      if (isMovingWest || isMovingToLuhansk || isMovingToAviloUspenka || isMovingToMatveevKurgan || isMovingToPokrovskoe) {
+        if (isMovingToAviloUspenka) {
+          print('🛣️ [DEBUG] Маршрут в АВИЛО-УСПЕНКУ - не добавляем КПП (прямой маршрут без крюка)');
+        } else if (isMovingToMatveevKurgan) {
+          print('🛣️ [DEBUG] Маршрут в МАТВЕЕВ КУРГАН - не добавляем КПП (прямой маршрут без крюка)');
+        } else if (isMovingToPokrovskoe) {
+          print('🛣️ [DEBUG] Маршрут в ПОКРОВСКОЕ - не добавляем КПП (прямой маршрут без крюка)');
+        } else {
+          print('🛣️ [DEBUG] Маршрут на ЗАПАД или в ЛУГАНСК - не добавляем КПП (гражданский маршрут)');
+        }
         return routePoints;
       }
       
-      print('🛣️ [DEBUG] Маршрут идёт на СЕВЕР/ВОСТОК/ЮГ от Донецка - добавляем КПП (направление на Россию)');
+      print('🛣️ [DEBUG] Маршрут на ЮГ в РОСТОВ - добавляем КПП (военный маршрут)');
     } else if (isToDonetsk) {
-      // Маршрут В Донецк - проверяем откуда (не должен быть с запада/Украины)
+      // Маршрут В Донецк - проверяем откуда
       final isFromWest = startPoint.longitude < donetskLng && startPoint.latitude < (donetskLat + 2.0);
       
-      if (isFromWest) {
-        print('🛣️ [DEBUG] Маршрут в Донецк с ЗАПАДА - не добавляем КПП (направление из Украины)');
+      // 🆕 ПРОВЕРКА на маршрут ИЗ Луганска (северо-восток) - НЕ добавляем КПП
+      final isFromLuhansk = startPoint.longitude > donetskLng && 
+                            startPoint.latitude > donetskLat &&
+                            _calculateDistanceBetweenPoints(
+                              startPoint.latitude, startPoint.longitude,
+                              48.5742, 39.3078  // координаты Луганска
+                            ) < 100; // в радиусе 100км от Луганска
+
+      // 🆕 ПРОВЕРКА на маршрут ИЗ Авило-Успенки - НЕ добавляем КПП (прямой маршрут без крюка)
+      final isFromAviloUspenka = _calculateDistanceBetweenPoints(
+        startPoint.latitude, startPoint.longitude,
+        47.698500, 38.678000  // координаты рабочей КПП Авило-Успенка
+      ) < 10; // в радиусе 10км от Авило-Успенки
+
+      // 🆕 ПРОВЕРКА на маршрут ИЗ Матвеев Кургана - НЕ добавляем КПП (прямой маршрут без крюка)
+      final isFromMatveevKurgan = _calculateDistanceBetweenPoints(
+        startPoint.latitude, startPoint.longitude,
+        47.567712, 38.861757  // координаты Матвеев Курган
+      ) < 10; // в радиусе 10км от Матвеев Кургана
+      
+      // 🆕 ПРОВЕРКА на маршрут ИЗ Покровского - НЕ добавляем КПП (прямой маршрут без крюка)
+      final isFromPokrovskoe = _calculateDistanceBetweenPoints(
+        startPoint.latitude, startPoint.longitude,
+        47.415266, 38.896567  // координаты Покровское (Неклиновский р-н)
+      ) < 10; // в радиусе 10км от Покровского
+      
+      if (isFromWest || isFromLuhansk || isFromAviloUspenka || isFromMatveevKurgan || isFromPokrovskoe) {
+        if (isFromAviloUspenka) {
+          print('🛣️ [DEBUG] Маршрут ИЗ АВИЛО-УСПЕНКИ - не добавляем КПП (прямой маршрут без крюка)');
+        } else if (isFromMatveevKurgan) {
+          print('🛣️ [DEBUG] Маршрут ИЗ МАТВЕЕВ КУРГАНА - не добавляем КПП (прямой маршрут без крюка)');
+        } else if (isFromPokrovskoe) {
+          print('🛣️ [DEBUG] Маршрут ИЗ ПОКРОВСКОГО - не добавляем КПП (прямой маршрут без крюка)');
+        } else {
+          print('🛣️ [DEBUG] Маршрут в Донецк с ЗАПАДА или ИЗ ЛУГАНСКА - не добавляем КПП (гражданский маршрут)');
+        }
         return routePoints;
       }
       
-      print('🛣️ [DEBUG] Маршрут В Донецк с СЕВЕРА/ВОСТОКА/ЮГА - добавляем КПП (направление из России)');
+      print('🛣️ [DEBUG] Маршрут в Донецк с ЮГА из РОСТОВА - добавляем КПП (военный маршрут)');
     }
 
     // ✅ ОБЯЗАТЕЛЬНЫЕ ТОЧКИ для военного маршрута из/в Донецк
@@ -2014,6 +2150,139 @@ class _MainScreenState extends State<MainScreen> {
     return enhancedRoute;
   }
 
+  /// 🛣️ Добавляет принудительные промежуточные города для маршрутов коридора Донецк-Луганск
+  /// Принуждает маршрут проходить через безопасный коридор: Макеевка → Харцызск → Енакиево → Дебальцево
+  /// Применяется к маршрутам: Донецк → Луганск, Донецк → Енакиево, Донецк → Дебальцево
+  List<Point> _addLuhanskWaypointsIfNeeded(List<Point> routePoints) {
+    if (routePoints.length < 2) {
+      print('🛣️ [CORRIDOR] Недостаточно точек для анализа: ${routePoints.length}');
+      return routePoints;
+    }
+
+    final startPoint = routePoints.first;
+    final endPoint = routePoints.last;
+
+    // Координаты ключевых городов коридора
+    const donetskLat = 48.015884;
+    const donetskLng = 37.80285;
+    const luhanskLat = 48.5742;
+    const luhanskLng = 39.3078;
+    const yenakievoLat = 48.233333;
+    const yenakievoLng = 38.216667;
+    const debaltsevoLat = 48.340900;
+    const debaltsevoLng = 38.406600;
+    
+    // Проверяем расстояния от начальной точки до Донецка
+    final startDistanceFromDonetsk = _calculateDistanceBetweenPoints(
+      startPoint.latitude, startPoint.longitude,
+      donetskLat, donetskLng,
+    );
+    
+    // Проверяем расстояния от конечной точки до городов коридора
+    final endDistanceFromLuhansk = _calculateDistanceBetweenPoints(
+      endPoint.latitude, endPoint.longitude,
+      luhanskLat, luhanskLng,
+    );
+    final endDistanceFromYenakievo = _calculateDistanceBetweenPoints(
+      endPoint.latitude, endPoint.longitude,
+      yenakievoLat, yenakievoLng,
+    );
+    final endDistanceFromDebaltsevo = _calculateDistanceBetweenPoints(
+      endPoint.latitude, endPoint.longitude,
+      debaltsevoLat, debaltsevoLng,
+    );
+
+    // Проверяем, что это маршрут из Донецка (в радиусе 20км)
+    final isFromDonetsk = startDistanceFromDonetsk <= 20.0;
+    
+    // Проверяем, что это маршрут к одному из городов коридора (в радиусе 20км)
+    final isToLuhansk = endDistanceFromLuhansk <= 20.0;
+    final isToYenakievo = endDistanceFromYenakievo <= 20.0;
+    final isToDebaltsevo = endDistanceFromDebaltsevo <= 20.0;
+    final isToCorridorCity = isToLuhansk || isToYenakievo || isToDebaltsevo;
+
+    if (!isFromDonetsk || !isToCorridorCity) {
+      String targetCity = 'неизвестен';
+      if (isToLuhansk) targetCity = 'Луганск';
+      if (isToYenakievo) targetCity = 'Енакиево'; 
+      if (isToDebaltsevo) targetCity = 'Дебальцево';
+      
+      print('🛣️ [CORRIDOR] НЕ маршрут коридора Донецк-Луганск: от Донецка ${startDistanceFromDonetsk.toStringAsFixed(2)}км, цель: $targetCity');
+      return routePoints;
+    }
+
+    String targetCity = 'Луганск';
+    if (isToYenakievo) targetCity = 'Енакиево';
+    if (isToDebaltsevo) targetCity = 'Дебальцево';
+    
+    print('🛣️ [CORRIDOR] ✅ Обнаружен маршрут коридора Донецк → $targetCity, добавляем принудительные waypoints');
+
+    // Обязательные промежуточные города с их координатами
+    const makeevka = Point(latitude: 48.044444, longitude: 37.926389);    // Макеевка
+    const khartsyzsk = Point(latitude: 48.049722, longitude: 38.156111);  // Харцызск  
+    const yenakievo = Point(latitude: 48.233333, longitude: 38.216667);   // Енакиево
+    const nizhnyayaKrynka = Point(latitude: 48.300000, longitude: 38.350000); // Нижняя Крынка
+    const debaltsevo = Point(latitude: 48.340900, longitude: 38.406600);  // Дебальцево
+
+    // Создаем маршрут с принудительными промежуточными точками в зависимости от цели
+    late List<Point> enhancedRoute;
+    
+    if (isToYenakievo) {
+      // Маршрут до Енакиево: Донецк → Макеевка → Харцызск → Енакиево
+      enhancedRoute = [
+        routePoints.first,  // Донецк (начальная точка)
+        makeevka,          // Макеевка (обязательная)
+        khartsyzsk,        // Харцызск (обязательная) 
+        routePoints.last,  // Енакиево (конечная точка)
+      ];
+    } else if (isToDebaltsevo) {
+      // Маршрут до Дебальцево: Донецк → Макеевка → Харцызск → Енакиево → Нижняя Крынка → Дебальцево
+      enhancedRoute = [
+        routePoints.first,  // Донецк (начальная точка)
+        makeevka,          // Макеевка (обязательная)
+        khartsyzsk,        // Харцызск (обязательная)
+        yenakievo,         // Енакиево (обязательная)
+        nizhnyayaKrynka,   // Нижняя Крынка (обязательная для Дебальцево)
+        routePoints.last,  // Дебальцево (конечная точка)
+      ];
+    } else {
+      // Маршрут до Луганска: полный коридор
+      enhancedRoute = [
+        routePoints.first,  // Донецк (начальная точка)
+        makeevka,          // Макеевка (обязательная)
+        khartsyzsk,        // Харцызск (обязательная)
+        yenakievo,         // Енакиево (обязательная)
+        debaltsevo,        // Дебальцево (обязательная)
+        routePoints.last,  // Луганск (конечная точка)
+      ];
+    }
+
+    print('🛣️ [CORRIDOR] ✅ Добавлены обязательные промежуточные города для $targetCity:');
+    
+    if (isToYenakievo) {
+      print('   📍 Макеевка: 48.044444, 37.926389');
+      print('   📍 Харцызск: 48.049722, 38.156111');
+      print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+      print('   🛣️ БЕЗОПАСНЫЙ МАРШРУТ: Донецк → Макеевка → Харцызск → Енакиево');
+    } else if (isToDebaltsevo) {
+      print('   📍 Макеевка: 48.044444, 37.926389');
+      print('   📍 Харцызск: 48.049722, 38.156111');
+      print('   📍 Енакиево: 48.233333, 38.216667');
+      print('   📍 Нижняя Крынка: 48.300000, 38.350000');
+      print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+      print('   🛣️ БЕЗОПАСНЫЙ МАРШРУТ: Донецк → Макеевка → Харцызск → Енакиево → Нижняя Крынка → Дебальцево');
+    } else {
+      print('   📍 Макеевка: 48.044444, 37.926389');
+      print('   📍 Харцызск: 48.049722, 38.156111');
+      print('   📍 Енакиево: 48.233333, 38.216667');
+      print('   📍 Дебальцево: 48.340900, 38.406600');
+      print('   🎯 Всего точек: ${routePoints.length} → ${enhancedRoute.length}');
+      print('   🛣️ БЕЗОПАСНЫЙ МАРШРУТ: Донецк → Макеевка → Харцызск → Енакиево → Дебальцево → Луганск');
+    }
+
+    return enhancedRoute;
+  }
+
   /// Вычисляет расстояние между двумя точками в км (формула гаверсинусов)
   double _calculateDistanceBetweenPoints(double lat1, double lng1, double lat2, double lng2) {
     const double earthRadius = 6371.0; // км
@@ -2027,9 +2296,28 @@ class _MainScreenState extends State<MainScreen> {
     final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
   }
-  
 
-
-
-
+  /// 🔍 Проверяет, проходит ли маршрут через Харцызск (в радиусе 10км)
+  bool _routePassesThroughKhartsyzsk(List<Point> routePoints) {
+    // Координаты Харцызска
+    const double khartsyzskLat = 48.049722;
+    const double khartsyzskLng = 38.156111;
+    const double radiusKm = 10.0; // Радиус поиска в км
+    
+    // Проверяем все промежуточные точки маршрута
+    for (final point in routePoints) {
+      final distance = _calculateDistanceBetweenPoints(
+        point.latitude, point.longitude,
+        khartsyzskLat, khartsyzskLng,
+      );
+      
+      if (distance <= radiusKm) {
+        print('🎯 [KHARTSYZSK] Найдена точка в радиусе ${distance.toStringAsFixed(2)}км от Харцызска');
+        return true;
+      }
+    }
+    
+    print('❌ [KHARTSYZSK] Маршрут НЕ проходит через Харцызск (ближайшая точка > ${radiusKm}км)');
+    return false;
+  }
 }

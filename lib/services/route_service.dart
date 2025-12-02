@@ -10,7 +10,12 @@ class RouteService {
 
   /// Получение всех доступных маршрутов
   List<String> getAvailableRoutes() {
-    return ['donetsk_to_rostov', 'rostov_to_donetsk'];
+    return [
+      'donetsk_to_rostov', 
+      'rostov_to_donetsk',
+      'donetsk_to_luhansk',    // 🆕 НОВОЕ
+      'luhansk_to_donetsk',    // 🆕 НОВОЕ
+    ];
   }
 
   /// Получение названия маршрута
@@ -20,6 +25,10 @@ class RouteService {
         return 'Донецк → Ростов-на-Дону';
       case 'rostov_to_donetsk':
         return 'Ростов-на-Дону → Донецк';
+      case 'donetsk_to_luhansk':      // 🆕 НОВОЕ
+        return 'Донецк → Луганск';
+      case 'luhansk_to_donetsk':      // 🆕 НОВОЕ
+        return 'Луганск → Донецк';
       default:
         return 'Неизвестный маршрут';
     }

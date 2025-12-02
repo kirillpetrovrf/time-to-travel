@@ -4,8 +4,59 @@ import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 
 /// Экран "О программе" с обязательной ссылкой на условия Yandex Maps
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
+
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  // Секретный тап для логотипа
+  int _logoTapCount = 0;
+  DateTime? _lastLogoTapTime;
+
+  /// Обработка секретных тапов на логотип (7 раз)
+  void _handleLogoSecretTap() {
+    final now = DateTime.now();
+
+    // Сброс счетчика если прошло больше 3 секунд с последнего тапа
+    if (_lastLogoTapTime != null && now.difference(_lastLogoTapTime!).inSeconds > 3) {
+      _logoTapCount = 0;
+    }
+
+    _logoTapCount++;
+    _lastLogoTapTime = now;
+
+    print('🔒 Секретный тап (Логотип) $_logoTapCount/7');
+
+    if (_logoTapCount >= 7) {
+      _logoTapCount = 0;
+      _showLogoSecretMessage();
+    }
+  }
+
+  /// Показать секретное сообщение при 7 тапах по логотипу
+  void _showLogoSecretMessage() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('🎉 Секретный режим'),
+        content: const Text(
+          'Поздравляем! Вы нашли секретную пасхалку разработчиков!\n\n'
+          'Time to Travel v1.0.0\n'
+          'Создано с ❤️ для пассажиров',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Круто!'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +79,14 @@ class AboutScreen extends StatelessWidget {
               Center(
                 child: Column(
                   children: [
-                    Icon(
-                      CupertinoIcons.car_detailed,
-                      size: 80,
-                      color: theme.primary,
+                    // Логотип с секретным тапом (7 раз для пасхалки)
+                    GestureDetector(
+                      onTap: _handleLogoSecretTap,
+                      child: Icon(
+                        CupertinoIcons.car_detailed,
+                        size: 80,
+                        color: theme.primary,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Text(

@@ -18,6 +18,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   User? _currentUser;
   bool _isLoading = true;
+  
+  // Секретный тап для входа диспетчера
+  int _secretTapCount = 0;
+  DateTime? _lastTapTime;
 
   @override
   void initState() {
@@ -44,6 +48,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  /// Обработка секретных тапов для входа диспетчера
+  void _handleSecretTap() {
+    final now = DateTime.now();
+
+    // Сброс счетчика если прошло больше 3 секунд с последнего тапа
+    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 3) {
+      _secretTapCount = 0;
+    }
+
+    _secretTapCount++;
+    _lastTapTime = now;
+
+    print('🔒 Секретный тап (Профиль) $_secretTapCount/7');
+
+    if (_secretTapCount >= 7) {
+      _secretTapCount = 0;
+      _showDispatcherLogin();
+    }
+  }
+
+  /// Показать диалог входа диспетчера
+  void _showDispatcherLogin() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Вход диспетчера'),
+        content: const Text(
+          'Введите пароль диспетчера для доступа к административной панели.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Отмена'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Войти'),
+            onPressed: () async {
+              Navigator.pop(context);
+              // Временный вход без пароля для демо
+              await AuthService.instance.upgradeToDispatcher();
+              // Обновляем данные пользователя
+              await _loadUserData();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -121,18 +175,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
-          // Аватар
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: theme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(40),
-            ),
-            child: Icon(
-              CupertinoIcons.person_fill,
-              size: 40,
-              color: theme.primary,
+          // Аватар (с секретным тапом для входа диспетчера)
+          GestureDetector(
+            onTap: _handleSecretTap,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: theme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(40),
+              ),
+              child: Icon(
+                CupertinoIcons.person_fill,
+                size: 40,
+                color: theme.primary,
+              ),
             ),
           ),
 
