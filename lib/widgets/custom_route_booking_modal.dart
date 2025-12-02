@@ -52,6 +52,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
   List<BaggageItem> _baggage = [];
   List<PetInfo> _pets = [];
   String _notes = '';
+  // Если не выбран - сохранится null, в деталях заказа покажется Седан (0₽)
   VehicleClass? _selectedVehicleClass;
 
   final TextEditingController _notesController = TextEditingController();
@@ -149,7 +150,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
       baggageJson: baggageJson,
       petsJson: petsJson,
       notes: _notes.isNotEmpty ? _notes : null,
-      vehicleClass: _selectedVehicleClass?.name,
+      vehicleClass: _selectedVehicleClass?.toString().split('.').last,
     );
 
     print('✅ [BOOKING] TaxiOrder создан с ID: ${order.orderId}');

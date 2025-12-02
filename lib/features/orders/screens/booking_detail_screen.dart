@@ -58,8 +58,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               _buildPassengerInfoCard(theme),
               const SizedBox(height: 16),
               _buildVehicleClassCard(theme),
-              if (_currentBooking.vehicleClass != null && _currentBooking.vehicleClass!.isNotEmpty)
-                const SizedBox(height: 16),
+              const SizedBox(height: 16),
               _buildBaggageCard(theme),
               const SizedBox(height: 16),
               if (_currentBooking.pets.isNotEmpty) ...[
@@ -437,28 +436,45 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   }
   
   Widget _buildVehicleClassCard(theme) {
-    if (_currentBooking.vehicleClass == null || _currentBooking.vehicleClass!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    
-    // Форматируем название класса транспорта
+    // Форматируем название класса транспорта и получаем цену доплаты
     String vehicleName;
-    switch (_currentBooking.vehicleClass) {
+    int extraPrice;
+    
+    // Если vehicleClass не указан (старые заказы), используем sedan по умолчанию
+    final vehicleClassStr = _currentBooking.vehicleClass ?? 'sedan';
+    
+    // DEBUG: Логируем что читается из базы
+    print('🚗 [DETAIL] ========== ОТОБРАЖЕНИЕ ТРАНСПОРТА ==========');
+    print('🚗 [DETAIL] _currentBooking.vehicleClass = ${_currentBooking.vehicleClass}');
+    print('🚗 [DETAIL] vehicleClassStr = $vehicleClassStr');
+    print('🚗 [DETAIL] Заказ ID: ${_currentBooking.id}');
+    
+    switch (vehicleClassStr) {
       case 'sedan':
         vehicleName = 'Седан (до 4 мест)';
+        extraPrice = 0;
         break;
       case 'wagon':
         vehicleName = 'Универсал (до 4 мест)';
+        extraPrice = 2000;
         break;
       case 'minivan':
         vehicleName = 'Минивэн (до 7 мест)';
+        extraPrice = 4000;
         break;
       case 'microbus':
         vehicleName = 'Микроавтобус (до 18 мест)';
+        extraPrice = 8000;
         break;
       default:
-        vehicleName = _currentBooking.vehicleClass!;
+        vehicleName = vehicleClassStr;
+        extraPrice = 0;
     }
+    
+    // DEBUG: Логируем финальные значения
+    print('🚗 [DETAIL] vehicleName = $vehicleName');
+    print('🚗 [DETAIL] extraPrice = $extraPrice');
+    print('🚗 [DETAIL] ==========================================');
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -485,9 +501,24 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            vehicleName,
-            style: TextStyle(fontSize: 16, color: theme.label, fontWeight: FontWeight.w500),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  vehicleName,
+                  style: TextStyle(fontSize: 16, color: theme.label, fontWeight: FontWeight.w500),
+                ),
+              ),
+              Text(
+                extraPrice > 0 ? '+$extraPrice ₽' : '+0 ₽',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: extraPrice > 0 ? theme.primary : theme.secondaryLabel,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ],
       ),

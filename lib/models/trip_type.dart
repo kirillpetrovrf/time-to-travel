@@ -20,17 +20,17 @@ enum VehicleClass {
   wagon(
     name: 'Универсал',
     description: '1-4 пассажира, больше багажа',
-    extraPrice: 500,
+    extraPrice: 2000,
   ),
   minivan(
     name: 'Минивэн',
     description: '1-6 пассажиров',
-    extraPrice: 1500,
+    extraPrice: 4000,
   ),
   microbus(
     name: 'Микроавтобус',
     description: '1-8 пассажиров',
-    extraPrice: 3000,
+    extraPrice: 8000,
   );
 
   const VehicleClass({

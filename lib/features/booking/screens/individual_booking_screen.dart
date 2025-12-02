@@ -63,6 +63,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   bool _baggageSelectionVisited = false;
 
   // НОВОЕ (ТЗ v3.0): Выбор транспорта для индивидуальных поездок
+  // Если не выбран - сохранится null, в деталях заказа покажется Седан (0₽)
   VehicleClass? _selectedVehicleClass;
 
   // Переключатель для детей
@@ -999,6 +1000,24 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
             ),
           ],
 
+          // Транспорт (если выбран не седан)
+          if (_selectedVehicleClass != null && _selectedVehicleClass != VehicleClass.sedan) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Транспорт',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+                Text(
+                  '+${_getVehiclePrice(_selectedVehicleClass!).toInt()} ₽',
+                  style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
+                ),
+              ],
+            ),
+          ],
+
           // Багаж (если есть)
           if (baggagePrice > 0) ...[
             const SizedBox(height: 4),
@@ -1479,6 +1498,11 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         ? 8000
         : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
 
+    // Дополнительная цена за тип транспорта
+    final vehiclePrice = _selectedVehicleClass != null
+        ? _getVehiclePrice(_selectedVehicleClass!)
+        : 0.0;
+
     // Дополнительные услуги
     final baggagePrice = _calculateBaggagePrice();
     final petPrice = _calculatePetPrice();
@@ -1486,15 +1510,16 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
     print('💰 [INDIVIDUAL] ========== РАСЧЕТ ИТОГОВОЙ ЦЕНЫ ==========');
     print('💰 [INDIVIDUAL] Базовая цена: ${basePrice}₽');
+    print('💰 [INDIVIDUAL] Транспорт: +${vehiclePrice.toInt()}₽');
     print('💰 [INDIVIDUAL] Багаж: ${baggagePrice.toInt()}₽');
     print('💰 [INDIVIDUAL] Животные: ${petPrice.toInt()}₽');
     print('💰 [INDIVIDUAL] VK скидка: -${vkDiscount.toInt()}₽');
     print(
-      '💰 [INDIVIDUAL] ИТОГО: ${(basePrice + baggagePrice + petPrice - vkDiscount).toInt()}₽',
+      '💰 [INDIVIDUAL] ИТОГО: ${(basePrice + vehiclePrice + baggagePrice + petPrice - vkDiscount).toInt()}₽',
     );
     print('💰 [INDIVIDUAL] ==========================================');
 
-    return (basePrice + baggagePrice + petPrice - vkDiscount).toInt();
+    return (basePrice + vehiclePrice + baggagePrice + petPrice - vkDiscount).toInt();
   }
 
   String _formatDate(DateTime date) {
@@ -1817,6 +1842,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       print('📍 [INDIVIDUAL]   Адрес откуда: $_pickupAddress');
       print('📍 [INDIVIDUAL]   Адрес куда: $_dropoffAddress');
 
+      print('🚗 [DEBUG] ========== ПЕРЕД СОЗДАНИЕМ BOOKING ==========');
+      print('🚗 [DEBUG] _selectedVehicleClass = $_selectedVehicleClass');
+      print('🚗 [DEBUG] _selectedVehicleClass?.toString() = ${_selectedVehicleClass?.toString()}');
+      print('🚗 [DEBUG] split result = ${_selectedVehicleClass?.toString().split('.').last}');
+      print('🚗 [DEBUG] ==========================================');
+
       final booking = Booking(
         id: '', // Будет установлен при создании
         clientId: user.id,
@@ -1837,7 +1868,14 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         baggage: _selectedBaggage,
         pets: _selectedPets,
         passengers: _passengers, // ← Добавляем пассажиров
+        vehicleClass: _selectedVehicleClass?.toString().split('.').last, // ← Сохраняем как 'wagon', 'sedan' etc
       );
+
+      print('🚗 [INDIVIDUAL] ========== СОХРАНЕНИЕ ТРАНСПОРТА ==========');
+      print('🚗 [INDIVIDUAL] _selectedVehicleClass = $_selectedVehicleClass');
+      print('🚗 [INDIVIDUAL] vehicleClass в Booking = ${_selectedVehicleClass?.toString().split('.').last}');
+      print('🚗 [INDIVIDUAL] booking.vehicleClass = ${booking.vehicleClass}');
+      print('🚗 [INDIVIDUAL] ==========================================');
 
       final bookingId = await BookingService().createBooking(booking);
 
@@ -2003,28 +2041,39 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       case VehicleClass.sedan:
         return 0.0;
       case VehicleClass.wagon:
-        return 300.0;
+        return 2000.0;
       case VehicleClass.minivan:
-        return 800.0;
+        return 4000.0;
       case VehicleClass.microbus:
-        return 1500.0;
+        return 8000.0;
     }
   }
 
   Future<void> _openVehicleSelection() async {
+    print('🚗 [INDIVIDUAL] Открываем экран выбора транспорта');
+    print('🚗 [INDIVIDUAL] Текущий выбор: $_selectedVehicleClass');
+    
     await Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => VehicleSelectionScreen(
           initialSelection: _selectedVehicleClass,
           onVehicleSelected: (VehicleClass? vehicle) {
+            print('🚗 [INDIVIDUAL] ========== ВЫБОР ТРАНСПОРТА ==========');
+            print('🚗 [INDIVIDUAL] Пользователь выбрал: $vehicle');
+            print('🚗 [INDIVIDUAL] Старое значение: $_selectedVehicleClass');
             setState(() {
               _selectedVehicleClass = vehicle;
+              print('🚗 [INDIVIDUAL] ✅ Новое значение установлено: $_selectedVehicleClass');
             });
+            print('🚗 [INDIVIDUAL] ==========================================');
           },
         ),
       ),
     );
+    
+    print('🚗 [INDIVIDUAL] Вернулись с экрана выбора транспорта');
+    print('🚗 [INDIVIDUAL] Итоговый выбор: $_selectedVehicleClass');
   }
 
   // ========== МЕТОДЫ ДЛЯ РАБОТЫ С ПАССАЖИРАМИ ==========

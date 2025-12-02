@@ -61,7 +61,11 @@ class BookingService {
       baggage: booking.baggage,
       pets: booking.pets,
       passengers: booking.passengers,
+      vehicleClass: booking.vehicleClass, // ← ДОБАВЛЯЕМ ПОЛЕ vehicleClass!
     );
+
+    print('🚗 [SERVICE] Исходный booking.vehicleClass: ${booking.vehicleClass}');
+    print('🚗 [SERVICE] bookingWithId.vehicleClass: ${bookingWithId.vehicleClass}');
 
     // Получаем существующие бронирования
     final existingBookingsJson = prefs.getString(_offlineBookingsKey);
@@ -76,6 +80,8 @@ class BookingService {
     final bookingJson = bookingWithId.toJson();
     print('💾 JSON бронирования: ${jsonEncode(bookingJson)}');
     print('💾 Багаж в JSON: ${bookingJson['baggage']}');
+    print('🚗 [JSON] vehicleClass в JSON: ${bookingJson['vehicleClass']}');
+    print('🚗 [JSON] booking.vehicleClass: ${bookingWithId.vehicleClass}');
     bookingsList.add(bookingJson);
 
     // Сохраняем обратно
@@ -129,16 +135,32 @@ class BookingService {
     final prefs = await SharedPreferences.getInstance();
     final bookingsJson = prefs.getString(_offlineBookingsKey);
 
+    print('🔍 [BOOKING] Поиск заказа по ID: $bookingId');
+
     if (bookingsJson != null) {
       final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
+      print('🔍 [BOOKING] Найдено заказов в SharedPreferences: ${bookingsList.length}');
 
       for (final bookingData in bookingsList) {
-        final booking = Booking.fromJson(bookingData as Map<String, dynamic>);
+        final jsonData = bookingData as Map<String, dynamic>;
+        
+        // Отладка: показываем vehicleClass в JSON ПЕРЕД парсингом
+        print('🔍 [BOOKING] JSON данные заказа ${jsonData['id']}: vehicleClass = ${jsonData['vehicleClass']}');
+        
+        final booking = Booking.fromJson(jsonData);
+        
+        // Отладка: показываем vehicleClass ПОСЛЕ парсинга
+        print('🔍 [BOOKING] ПОСЛЕ fromJson заказа ${booking.id}: vehicleClass = ${booking.vehicleClass}');
+        
         if (booking.id == bookingId) {
+          print('✅ [BOOKING] Найден заказ с ID: $bookingId, vehicleClass: ${booking.vehicleClass}');
           return booking;
         }
       }
+    } else {
+      print('❌ [BOOKING] SharedPreferences пуст, заказы не найдены');
     }
+    print('❌ [BOOKING] Заказ с ID $bookingId не найден');
     return null;
   }
 
