@@ -146,6 +146,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
           case '/home':
             child = HomeScreen();
             break;
+          // Удалили MapScreen - возвращаем на главную
           case '/booking-details':
             // Получаем bookingId из аргументов
             final bookingId = settings.arguments as String;

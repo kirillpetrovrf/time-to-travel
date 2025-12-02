@@ -407,6 +407,18 @@ class _MainTabState extends State<MainTab> {
         ),
         const SizedBox(height: 16),
 
+        // 🗺️ НОВАЯ КАРТА (дизайн из инструкций) - для всех пользователей
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: _QuickActionCard(
+            icon: CupertinoIcons.map_fill,
+            title: '🗺️ НОВАЯ КАРТА',
+            subtitle: 'Поиск адресов + элементы управления',
+            color: CupertinoColors.systemBlue,
+            onTap: () => Navigator.pushNamed(context, '/map'),
+          ),
+        ),
+
         if (_currentUser?.userType == UserType.client) ...[
           Row(
             children: [

@@ -52,7 +52,7 @@ class SearchFieldsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -62,7 +62,7 @@ class SearchFieldsPanel extends StatelessWidget {
             placeholder: fromPlaceholder,
             icon: CupertinoIcons.location_fill,
             iconColor: CupertinoColors.activeGreen,
-            mapButtonText: 'От',
+            mapButtonText: 'ОТ',
             suggestions: fromSuggestions,
             isActive: isFromFieldActive,
             showSuggestions: showFromSuggestions,
@@ -72,14 +72,14 @@ class SearchFieldsPanel extends StatelessWidget {
             onFieldTapped: onFromFieldTapped,
             onMapButtonTapped: onFromMapButtonTapped,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           // Поле "Куда" (точка Б)
           SearchFieldWithSuggestions(
             controller: toController,
             placeholder: toPlaceholder,
             icon: CupertinoIcons.flag_fill,
             iconColor: CupertinoColors.destructiveRed,
-            mapButtonText: 'До',
+            mapButtonText: 'ДО',
             suggestions: toSuggestions,
             isActive: isToFieldActive,
             showSuggestions: showToSuggestions,

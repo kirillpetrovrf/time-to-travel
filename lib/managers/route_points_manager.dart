@@ -2,53 +2,83 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/image.dart' as image_provider;
-import 'package:yandex_maps_mapkit/mapkit.dart';
+import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
 import '../widgets_taxi/point_type_selector.dart';
 
 class RoutePointsManager {
-  final MapObjectCollection mapObjects;
-  final void Function(List<Point>) onPointsChanged;
+  final mapkit.MapObjectCollection mapObjects;
+  final void Function(List<mapkit.Point>) onPointsChanged;
   
   RoutePointsManager({
     required this.mapObjects,
     required this.onPointsChanged,
   });
 
-  Point? _fromPoint;
-  Point? _toPoint;
+  mapkit.Point? _fromPoint;
+  mapkit.Point? _toPoint;
   
-  PlacemarkMapObject? _fromPlacemark;
-  PlacemarkMapObject? _toPlacemark;
+  mapkit.PlacemarkMapObject? _fromPlacemark;
+  mapkit.PlacemarkMapObject? _toPlacemark;
 
   image_provider.ImageProvider? _fromIcon;
   image_provider.ImageProvider? _toIcon;
 
   // Инициализация иконок
   Future<void> init() async {
-    _fromIcon = await _createCircleIcon(Colors.red);
-    _toIcon = await _createCircleIcon(Colors.blue);
+    _fromIcon = await _createCircleIconWithFlutterIcon(Icons.flag, Colors.red);
+    _toIcon = await _createCircleIconWithFlutterIcon(Icons.sports_score, Colors.black);
   }
 
-  // Создание круглой иконки заданного цвета
-  Future<image_provider.ImageProvider> _createCircleIcon(Color color) async {
+  // Создание белого круга с Flutter иконкой внутри
+  Future<image_provider.ImageProvider> _createCircleIconWithFlutterIcon(IconData iconData, Color iconColor) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
     
     final size = 256.0;  // Большой размер для видимости
     final radius = size / 2;
     
-    // Рисуем круг
+    // Белый круг
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(radius, radius), radius, paint);
     
-    // Белая обводка
+    // Серая обводка
     final strokePaint = Paint()
-      ..color = Colors.white
+      ..color = Colors.grey.shade400
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 10.0;  // Толстая обводка
-    canvas.drawCircle(Offset(radius, radius), radius - 5.0, strokePaint);
+      ..strokeWidth = 8.0;
+    canvas.drawCircle(Offset(radius, radius), radius - 4.0, strokePaint);
+    
+    // Добавляем Flutter иконку в центр
+    final iconSize = 180.0; // Увеличенный размер иконки
+    final iconPaint = Paint()
+      ..color = iconColor
+      ..style = PaintingStyle.fill;
+    
+    // Создаем TextPainter для рендеринга иконки
+    final iconPainter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(iconData.codePoint),
+        style: TextStyle(
+          fontSize: iconSize,
+          fontFamily: iconData.fontFamily,
+          color: iconColor,
+          package: iconData.fontPackage,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    
+    iconPainter.layout();
+    
+    // Центрируем иконку в круге
+    final iconOffset = Offset(
+      radius - iconPainter.width / 2,
+      radius - iconPainter.height / 2,
+    );
+    
+    iconPainter.paint(canvas, iconOffset);
     
     final picture = recorder.endRecording();
     final img = await picture.toImage(size.toInt(), size.toInt());
@@ -60,7 +90,7 @@ class RoutePointsManager {
     );
   }
 
-  void setPoint(RoutePointType type, Point point) {
+  void setPoint(RoutePointType type, mapkit.Point point) {
     print("🔧 Setting $type point to: ${point.latitude}, ${point.longitude}");
     
     if (type == RoutePointType.from) {
@@ -116,7 +146,7 @@ class RoutePointsManager {
           if (_fromIcon != null) {
             _fromPlacemark!.setIcon(_fromIcon!);
             _fromPlacemark!.setIconStyle(
-              IconStyle(
+              mapkit.IconStyle(
                 anchor: math.Point(0.5, 0.5),
                 scale: 0.5,
                 zIndex: 20.0,
@@ -159,7 +189,7 @@ class RoutePointsManager {
           if (_toIcon != null) {
             _toPlacemark!.setIcon(_toIcon!);
             _toPlacemark!.setIconStyle(
-              IconStyle(
+              mapkit.IconStyle(
                 anchor: math.Point(0.5, 0.5),
                 scale: 0.5,
                 zIndex: 20.0,
@@ -189,7 +219,7 @@ class RoutePointsManager {
   }
 
   void _notifyPointsChanged() {
-    final points = <Point>[];
+    final points = <mapkit.Point>[];
     if (_fromPoint != null) points.add(_fromPoint!);
     if (_toPoint != null) points.add(_toPoint!);
     
@@ -197,15 +227,15 @@ class RoutePointsManager {
     onPointsChanged(points);
   }
 
-  List<Point> get points {
-    final result = <Point>[];
+  List<mapkit.Point> get points {
+    final result = <mapkit.Point>[];
     if (_fromPoint != null) result.add(_fromPoint!);
     if (_toPoint != null) result.add(_toPoint!);
     return result;
   }
 
-  Point? get fromPoint => _fromPoint;
-  Point? get toPoint => _toPoint;
+  mapkit.Point? get fromPoint => _fromPoint;
+  mapkit.Point? get toPoint => _toPoint;
 
   void clearAllPoints() {
     print("🗑️ Clearing all route points");

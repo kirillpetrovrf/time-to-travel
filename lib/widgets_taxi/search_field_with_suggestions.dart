@@ -130,7 +130,8 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
       children: [
         // Основное поле ввода
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          height: 40, // Фиксированная высота под размер кнопки
+          padding: const EdgeInsets.only(left: 0, right: 12), // Убираем vertical padding и left padding
           decoration: BoxDecoration(
             color: widget.isActive 
                 ? (isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white)
@@ -149,26 +150,30 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
               GestureDetector(
                 onTap: widget.onMapButtonTapped,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: widget.iconColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: widget.iconColor.withOpacity(0.3),
-                      width: 1,
-                    ),
+                    color: const Color(0xFFF2F2F7),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CupertinoColors.systemGrey.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    widget.mapButtonText,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: widget.iconColor,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: Icon(
+                      widget.mapButtonText == 'ОТ' ? Icons.flag : Icons.sports_score,
+                      size: 24,
+                      color: widget.mapButtonText == 'ОТ' ? Colors.red : Colors.black,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Material(
                   color: Colors.transparent,
@@ -185,7 +190,7 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
                         color: isDark ? CupertinoColors.systemGrey2 : CupertinoColors.systemGrey,
                       ),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 6),
                     ),
                     onChanged: (value) {
                       // Игнорируем изменения когда текст устанавливается программно

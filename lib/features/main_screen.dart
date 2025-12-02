@@ -35,7 +35,7 @@ import '../models/baggage.dart';
 import '../models/pet_info_v3.dart';
 import 'orders/screens/booking_detail_screen.dart';
 import '../utils/polyline_extensions.dart';
-import '../widgets_taxi/geolocation_button.dart';
+
 import '../widgets_taxi/search_fields_panel.dart';
 import '../widgets_taxi/point_type_selector.dart';
 import '../widgets/custom_route_booking_modal.dart';
@@ -162,6 +162,7 @@ class _MainScreenState extends State<MainScreen> {
   // Variables for tap-to-place functionality from map_routing
   bool _isPointSelectionEnabled = true; // Flag to control point selection mode
   bool _routeCompleted = false; // Flag for route completion
+  bool _showDeleteMessage = false; // Flag for animated delete message
 
   // Routing variables from map_routing (lines 49-52, 92-99)
   var _drivingRoutes = <DrivingRoute>[];
@@ -1037,7 +1038,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Карта на весь экран
+          // 🗺️ 1. КАРТА НА ВЕСЬ ЭКРАН (базовый слой)
           FlutterMapWidget(
             onMapCreated: _setupMap,
             onMapDispose: () {
@@ -1049,7 +1050,8 @@ class _MainScreenState extends State<MainScreen> {
               _suggestSubscription?.cancel();
             },
           ),
-          // Панель с полями поиска поверх карты
+          
+          // 🔍 2. ПАНЕЛЬ ПОИСКА "ОТКУДА/КУДА" (поверх карты)
           Positioned(
             top: 0,
             left: 0,
@@ -1205,7 +1207,83 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           
-          // 💰 ПАНЕЛЬ С ЦЕНОЙ И РАССТОЯНИЕМ (внизу экрана)
+          // 🗑️ 3. КНОПКА СБРОСА МАРШРУТА (под панелью поиска)
+          Positioned(
+            top: 140,
+            left: 12,
+            right: 16,
+            child: Row(
+              children: [
+                  // Кнопка "корзины"
+                  FloatingActionButton(
+                    heroTag: "reset_route_button",
+                    mini: true,
+                    backgroundColor: CupertinoColors.white,
+                    onPressed: () async {
+                      // Показываем анимированный текст
+                      setState(() {
+                        _showDeleteMessage = true;
+                      });
+                      
+                      // Выполняем оба сброса сразу
+                      _forceResetAllFields();
+                      _routePointsManager.forceTripleClear();
+                      print("🔥 Все поля и маршруты сброшены");
+                      
+                      // Скрываем текст через 2 секунды
+                      await Future.delayed(const Duration(seconds: 2));
+                      if (mounted) {
+                        setState(() {
+                          _showDeleteMessage = false;
+                        });
+                      }
+                    },
+                    child: const Icon(
+                      Icons.delete_outline,
+                      color: CupertinoColors.systemRed,
+                    ),
+                  ),
+                  
+                  // 📝 Анимированный текст справа от кнопки
+                  Expanded(
+                    child: AnimatedOpacity(
+                      opacity: _showDeleteMessage ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: _showDeleteMessage
+                          ? Container(
+                              margin: const EdgeInsets.only(left: 12),
+                              height: 40,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF2F2F7),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: CupertinoColors.systemGrey.withOpacity(0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Все поля и маршруты сброшены',
+                                  style: TextStyle(
+                                    color: CupertinoColors.systemGrey,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // 💰 4. ПАНЕЛЬ С ЦЕНОЙ И РАССТОЯНИЕМ (внизу экрана)
           if (_calculation != null && _distanceKm != null)
             Positioned(
               left: 16,
@@ -1310,15 +1388,9 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           
-          // Кнопка геолокации
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: GeolocationButton(
-              onPressed: _moveToUserLocation,
-            ),
-          ),
-          // Кнопки зума - вертикально справа по центру экрана
+
+          
+          // 🔍 6. КНОПКИ МАСШТАБИРОВАНИЯ (правая сторона, по центру)
           Positioned(
             top: 0,
             bottom: 0,
@@ -1348,27 +1420,18 @@ class _MainScreenState extends State<MainScreen> {
                       color: Colors.black54,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
+                    heroTag: "geolocation",
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    onPressed: _moveToUserLocation,
+                    child: const Icon(
+                      Icons.my_location,
+                      color: Colors.black54,
+                    ),
+                  ),
                 ],
-              ),
-            ),
-          ),
-          // Кнопка сброса маршрута в левом нижнем углу
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: FloatingActionButton(
-              heroTag: "reset_route_button",
-              mini: true,
-              backgroundColor: Colors.white,
-              onPressed: () {
-                // Выполняем оба сброса сразу
-                _forceResetAllFields();
-                _routePointsManager.forceTripleClear();
-                print("📱 Маршрут полностью удалён! 🗑️");
-              },
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.red,
               ),
             ),
           ),
