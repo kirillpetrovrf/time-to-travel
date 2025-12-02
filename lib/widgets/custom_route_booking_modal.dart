@@ -42,6 +42,9 @@ class CustomRouteBookingModal extends StatefulWidget {
 }
 
 class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
+  // Для свободного маршрута всегда считаем это индивидуальной поездкой
+  // (весь багаж бесплатный). Выделено сюда, чтобы использовать в нескольких местах.
+  bool get _isIndividualTrip => true;
   int _currentStep = 0;
   final int _totalSteps = 9;
 
@@ -773,6 +776,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
                 CupertinoPageRoute(
                   builder: (context) => BaggageSelectionScreen(
                     passengerCount: _passengers.length,
+                    isIndividualTrip: true, // ← СВОБОДНЫЙ МАРШРУТ - весь багаж бесплатный
                     onBaggageSelected: (baggage) {
                       // Navigator.pop теперь вызывается внутри BaggageSelectionScreen
                       setState(() {
@@ -1409,7 +1413,10 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
     if (nonEmptyBaggage.isEmpty) return const SizedBox.shrink();
     
     final theme = context.themeManager.currentTheme;
-    final totalCost = BaggageUtils.calculateTotalBaggageCost(_baggage);
+    // Для свободного маршрута (индивидуальная поездка) весь багаж бесплатный.
+    final totalCost = _isIndividualTrip
+        ? 0.0
+        : BaggageUtils.calculateTotalBaggageCost(_baggage);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1431,7 +1438,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
                   color: CupertinoColors.secondaryLabel.resolveFrom(context),
                 ),
               ),
-              if (totalCost > 0)
+              if (!_isIndividualTrip && totalCost > 0)
                 Text(
                   '+${totalCost.toInt()}₽',
                   style: TextStyle(
@@ -1444,14 +1451,10 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
           ),
           const SizedBox(height: 8),
           ...nonEmptyBaggage.map((item) {
-            final cost = item.calculateCost();
-            String costStr = '';
-            if (item.quantity == 1) {
-              costStr = ' (бесплатно)';
-            } else {
-              costStr = ' (+${cost.toInt()}₽)';
-            }
-            
+            // Для индивидуальной поездки багаж отображается как бесплатный
+            final cost = _isIndividualTrip ? 0.0 : item.calculateCost();
+            final costStr = cost == 0 ? ' (бесплатно)' : ' (+${cost.toInt()}₽)';
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
@@ -1460,7 +1463,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
               ),
             );
           }),
-          if (totalCost == 0)
+          if (!_isIndividualTrip && totalCost == 0)
             const Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text(

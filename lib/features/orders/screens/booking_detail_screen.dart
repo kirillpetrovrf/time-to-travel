@@ -531,10 +531,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   /// ⚠️ ВНИМАНИЕ: Используется ТОЛЬКО для отображения, НЕ для расчета общей цены!
   /// Реальная цена высчитывается методом _calculateTotalBaggageCost()
   double _calculateBaggageCostForItem(BaggageItem item) {
-    // ПРОВЕРКА: Индивидуальный трансфер - весь багаж бесплатный
-    if (_currentBooking.tripType == TripType.individual) {
+    // ПРОВЕРКА: Индивидуальный трансфер и свободный маршрут - весь багаж бесплатный
+    if (_currentBooking.tripType == TripType.individual ||
+        _currentBooking.tripType == TripType.customRoute) {
       print(
-        '💵 [DETAIL] 🎁 ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - ${item.size.name.toUpperCase()} багаж БЕСПЛАТНЫЙ',
+        '💵 [DETAIL] 🎁 ИНДИВИДУАЛЬНЫЙ/СВОБОДНЫЙ МАРШРУТ - ${item.size.name.toUpperCase()} багаж БЕСПЛАТНЫЙ',
       );
       return 0.0;
     }
@@ -657,9 +658,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   double _calculateTotalBaggageCost() {
     print('💵 [DETAIL] ========== РАСЧЕТ ОБЩЕЙ СТОИМОСТИ БАГАЖА ==========');
 
-    // ПРОВЕРКА: Индивидуальный трансфер - весь багаж бесплатный
-    if (_currentBooking.tripType == TripType.individual) {
-      print('💵 [DETAIL] 🎁 ИНДИВИДУАЛЬНЫЙ ТРАНСФЕР - весь багаж БЕСПЛАТНЫЙ');
+    // ПРОВЕРКА: Индивидуальный трансфер и свободный маршрут - весь багаж бесплатный
+    if (_currentBooking.tripType == TripType.individual ||
+        _currentBooking.tripType == TripType.customRoute) {
+      print('💵 [DETAIL] 🎁 ИНДИВИДУАЛЬНЫЙ/СВОБОДНЫЙ МАРШРУТ - весь багаж БЕСПЛАТНЫЙ');
       return 0.0;
     }
 
@@ -722,8 +724,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
             )
           else ...[
-            // Информационное сообщение для индивидуального трансфера
-            if (_currentBooking.tripType == TripType.individual) ...[
+            // Информационное сообщение для индивидуального трансфера и свободного маршрута
+            if (_currentBooking.tripType == TripType.individual ||
+                _currentBooking.tripType == TripType.customRoute) ...[
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 12),
