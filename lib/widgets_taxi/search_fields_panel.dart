@@ -24,6 +24,8 @@ class SearchFieldsPanel extends StatelessWidget {
   final bool isToFieldActive;
   final bool showFromSuggestions;
   final bool showToSuggestions;
+  final GlobalKey? fromFlagButtonKey; // 🆕 GlobalKey для кнопки "ОТ"
+  final GlobalKey? toFlagButtonKey;   // 🆕 GlobalKey для кнопки "ДО"
 
   const SearchFieldsPanel({
     super.key,
@@ -47,6 +49,8 @@ class SearchFieldsPanel extends StatelessWidget {
     this.isToFieldActive = false,
     this.showFromSuggestions = false,
     this.showToSuggestions = false,
+    this.fromFlagButtonKey,  // 🆕
+    this.toFlagButtonKey,    // 🆕
   });
 
   @override
@@ -71,6 +75,7 @@ class SearchFieldsPanel extends StatelessWidget {
             onSubmitted: onFromSubmitted,  // 🆕
             onFieldTapped: onFromFieldTapped,
             onMapButtonTapped: onFromMapButtonTapped,
+            mapButtonKey: fromFlagButtonKey, // 🆕
           ),
           const SizedBox(height: 10),
           // Поле "Куда" (точка Б)
@@ -88,6 +93,7 @@ class SearchFieldsPanel extends StatelessWidget {
             onSubmitted: onToSubmitted,  // 🆕
             onFieldTapped: onToFieldTapped,
             onMapButtonTapped: onToMapButtonTapped,
+            mapButtonKey: toFlagButtonKey, // 🆕
           ),
         ],
       ),

@@ -6,10 +6,10 @@ import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/custom_navigation_bar.dart';
 import '../../admin/screens/admin_panel_screen.dart';
+import '../../home/screens/home_screen.dart'; // Для доступа к switchToTab
 import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
-import '../../main_screen.dart'; // 100% taxi_route_calculator код
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -141,13 +141,17 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  // Открыть экран свободного маршрута с калькулятором И КАРТОЙ
+  // Переключиться на вкладку "Свободный маршрут" (Tab 1)
   void _navigateToCustomRoute() {
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => const MainScreen(), // 100% taxi_route_calculator
-      ),
-    );
+    // Вместо создания нового экземпляра MainScreen,
+    // просто переключаемся на Tab 1, где живет постоянный экземпляр карты
+    final homeScreenState = HomeScreen.homeScreenKey.currentState;
+    if (homeScreenState != null) {
+      homeScreenState.switchToTab(1); // Tab 1 = MainScreen (Свободный маршрут)
+      print('✅ Переключились на Tab 1 (Свободный маршрут / Карта)');
+    } else {
+      print('❌ Ошибка: HomeScreen state не найден');
+    }
   }
 
   // Метод для популярных маршрутов - сразу показываем выбор типа поездки

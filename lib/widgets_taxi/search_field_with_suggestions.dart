@@ -18,6 +18,7 @@ class SearchFieldWithSuggestions extends StatefulWidget {
   final VoidCallback? onMapButtonTapped;
   final bool isActive;
   final bool showSuggestions;
+  final GlobalKey? mapButtonKey; // 🆕 GlobalKey для кнопки выбора на карте
 
   const SearchFieldWithSuggestions({
     super.key,
@@ -34,6 +35,7 @@ class SearchFieldWithSuggestions extends StatefulWidget {
     this.onMapButtonTapped,
     this.isActive = false,
     this.showSuggestions = false,
+    this.mapButtonKey, // 🆕
   });
 
   @override
@@ -148,6 +150,7 @@ class _SearchFieldWithSuggestionsState extends State<SearchFieldWithSuggestions>
             children: [
               // Кнопка выбора точки на карте с текстом
               GestureDetector(
+                key: widget.mapButtonKey, // 🆕 GlobalKey для tutorial
                 onTap: widget.onMapButtonTapped,
                 child: Container(
                   width: 40,

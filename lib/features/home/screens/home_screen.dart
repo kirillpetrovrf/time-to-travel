@@ -69,19 +69,19 @@ class _HomeScreenState extends State<HomeScreen> {
             break;
         }
       } else {
-        // Для клиентов
+        // Для клиентов (НОВЫЙ ПОРЯДОК!)
         switch (lastScreen) {
-          case '/custom_route':
-            tabIndex = 0; // Свободный маршрут - главный экран
-            break;
           case '/booking':
-            tabIndex = 1;
+            tabIndex = 0; // Бронирование - теперь первая вкладка
+            break;
+          case '/custom_route':
+            tabIndex = 1; // Свободный маршрут (карта) - вторая вкладка
             break;
           case '/orders':
             tabIndex = 2;
             break;
           case '/tracking':
-            tabIndex = 0; // Совместимость: старое "Отслеживание" → Свободный маршрут
+            tabIndex = 1; // Совместимость: старое "Отслеживание" → Карта
             break;
           case '/profile':
             tabIndex = 3;
@@ -139,13 +139,13 @@ class _HomeScreenState extends State<HomeScreen> {
           break;
       }
     } else {
-      // Для клиентов
+      // Для клиентов (НОВЫЙ ПОРЯДОК!)
       switch (index) {
         case 0:
-          route = '/custom_route';
+          route = '/booking'; // Бронирование - первая вкладка
           break;
         case 1:
-          route = '/booking';
+          route = '/custom_route'; // Свободный маршрут (карта) - вторая
           break;
         case 2:
           route = '/orders';
@@ -224,13 +224,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ]
                 : [
-                    // Для клиентов: Свободный маршрут, Бронирование, Мои заказы, Профиль
+                    // Для клиентов: Бронирование, Свободный маршрут (карта), Мои заказы, Профиль
                     BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.map, size: 24),
+                      icon: Icon(CupertinoIcons.car, size: 24),
                       label: '',
                     ),
                     BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.car, size: 24),
+                      icon: Icon(CupertinoIcons.map, size: 24),
                       label: '',
                     ),
                     BottomNavigationBarItem(
@@ -262,12 +262,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   return const DispatcherHomeScreen();
               }
             } else {
-              // Для клиентов: Свободный маршрут, Бронирование, Мои заказы, Профиль
+              // Для клиентов: Бронирование, Свободный маршрут (карта), Мои заказы, Профиль
               switch (index) {
                 case 0:
-                  return const MainScreen(); // Свободный маршрут - ГЛАВНЫЙ!
+                  return const BookingScreen(); // Бронирование - ПЕРВАЯ вкладка!
                 case 1:
-                  return const BookingScreen(); // Бронирование
+                  return const MainScreen(); // Свободный маршрут (карта)
                 case 2:
                   return OrdersScreen(
                     key: ValueKey('orders_$_ordersScreenKey'),
@@ -275,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 3:
                   return const ProfileScreen(); // Профиль
                 default:
-                  return const MainScreen();
+                  return const BookingScreen();
               }
             }
           },

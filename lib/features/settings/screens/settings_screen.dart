@@ -5,6 +5,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../theme/theme_manager.dart';
 import '../../notifications/screens/notifications_screen.dart';
+import '../../tutorial/tutorial_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Экран настроек приложения
@@ -21,6 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationPermission = false;
   bool _isLoading = true;
   int _pendingNotificationsCount = 0;
+  bool _showTutorialOnStartup = false;
 
   @override
   void initState() {
@@ -40,12 +42,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Считаем реальное количество уведомлений из заказов
     final notificationsCount = await _getNotificationsCount();
+    
+    // Загружаем состояние туториала
+    final tutorialCompleted = await TutorialPreferences.isTutorialCompleted();
 
     setState(() {
       _locationEnabled = locationEnabled;
       _locationPermission = locationPermission;
       _notificationPermission = notificationPermission;
       _pendingNotificationsCount = notificationsCount;
+      _showTutorialOnStartup = !tutorialCompleted; // Если не пройден, значит показывать
       _isLoading = false;
     });
   }
@@ -283,6 +289,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Time to Travel v1.0.2',
                     onTap: () => _showAboutDialog(),
                   ),
+                  
+                  // Тумблер для показа туториала
+                  _buildTutorialToggle(),
 
                   const SizedBox(height: 40),
 
@@ -460,6 +469,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: theme.secondaryLabel.withOpacity(0.5),
         ),
         onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildTutorialToggle() {
+    final themeManager = context.themeManager;
+    final theme = themeManager.currentTheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.secondarySystemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.separator.withOpacity(0.2)),
+      ),
+      child: CupertinoListTile(
+        leading: const Icon(
+          CupertinoIcons.question_circle_fill,
+          color: CupertinoColors.systemBlue,
+          size: 28,
+        ),
+        title: Text(
+          'Показывать подсказки',
+          style: TextStyle(color: theme.label),
+        ),
+        subtitle: Text(
+          _showTutorialOnStartup 
+              ? 'Туториал будет показан при запуске' 
+              : 'Туториал отключен',
+          style: TextStyle(
+            color: theme.secondaryLabel,
+            fontSize: 13,
+          ),
+        ),
+        trailing: CupertinoSwitch(
+          value: _showTutorialOnStartup,
+          onChanged: (value) async {
+            setState(() {
+              _showTutorialOnStartup = value;
+            });
+            
+            // Сохраняем в настройки
+            if (value) {
+              // Сбрасываем флаг "туториал пройден"
+              await TutorialPreferences.resetTutorial();
+            } else {
+              // Отмечаем как пройденный
+              await TutorialPreferences.setTutorialCompleted();
+            }
+            
+            // Показываем подтверждение
+            if (mounted) {
+              showCupertinoDialog(
+                context: context,
+                builder: (context) => CupertinoAlertDialog(
+                  title: Text(value ? '✅ Включено' : '❌ Отключено'),
+                  content: Text(
+                    value
+                        ? 'Туториал будет показан при следующем запуске приложения'
+                        : 'Туториал больше не будет показываться автоматически',
+                  ),
+                  actions: [
+                    CupertinoDialogAction(
+                      child: const Text('OK'),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+        ),
       ),
     );
   }

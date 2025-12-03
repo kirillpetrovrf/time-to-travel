@@ -46,6 +46,11 @@ import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle; // Hide Ic
 // import 'package:yandex_maps_mapkit/mapkit_factory.dart';
 import 'package:yandex_maps_mapkit/runtime.dart';
 
+// Tutorial imports
+import 'tutorial/tutorial_overlay.dart';
+import 'tutorial/tutorial_step.dart';
+import 'tutorial/tutorial_preferences.dart';
+
 enum ActiveField { none, from, to }
 
 class MainScreen extends StatefulWidget {
@@ -71,6 +76,17 @@ class _MainScreenState extends State<MainScreen> {
   // 🆕 Состояние калькулятора
   PriceCalculation? _calculation; // Результат расчёта
   double? _distanceKm;            // Расстояние в км
+
+  // Tutorial GlobalKeys
+  final GlobalKey _geolocationButtonKey = GlobalKey();
+  final GlobalKey _searchPanelKey = GlobalKey();
+  final GlobalKey _orderButtonKey = GlobalKey();
+  final GlobalKey _fromFlagButtonKey = GlobalKey(); // Кнопка "ОТ"
+  final GlobalKey _toFlagButtonKey = GlobalKey();   // Кнопка "ДО"
+  final GlobalKey _clearButtonKey = GlobalKey();     // Кнопка корзины
+  
+  // Tutorial state
+  bool _showTutorial = false;
 
   late final mapkit.MapObjectCollection _searchResultPlacemarksCollection;
 
@@ -359,6 +375,143 @@ class _MainScreenState extends State<MainScreen> {
     );
 
     _requestPermissionsIfNeeded();
+    _checkAndShowTutorial(); // Check if need to show tutorial
+  }
+
+  // Tutorial methods
+  Future<void> _checkAndShowTutorial() async {
+    print('🎓 [TUTORIAL] Проверка, нужно ли показывать туториал...');
+    final completed = await TutorialPreferences.isTutorialCompleted();
+    print('🎓 [TUTORIAL] Статус завершения: $completed');
+    if (!completed && mounted) {
+      print('🎓 [TUTORIAL] Туториал НЕ завершен, запускаем через 1 секунду...');
+      // Show tutorial after a short delay to ensure UI is ready
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          print('🎓 [TUTORIAL] Запуск туториала!');
+          _startTutorial();
+        } else {
+          print('🎓 [TUTORIAL] ❌ Widget не mounted, пропускаем туториал');
+        }
+      });
+    } else if (completed) {
+      print('🎓 [TUTORIAL] ✅ Туториал уже был завершен ранее');
+    } else {
+      print('🎓 [TUTORIAL] ❌ Widget не mounted');
+    }
+  }
+
+  void _startTutorial() {
+    print('🎓 [TUTORIAL] 🚀 _startTutorial() вызван');
+    setState(() {
+      _showTutorial = true;
+      print('🎓 [TUTORIAL] ✅ _showTutorial установлен в true');
+    });
+  }
+
+  void _completeTutorial() async {
+    print('🎓 [TUTORIAL] ✅ Туториал завершен, сохраняем статус...');
+    await TutorialPreferences.setTutorialCompleted();
+    setState(() {
+      _showTutorial = false;
+      print('🎓 [TUTORIAL] 🔴 _showTutorial установлен в false');
+    });
+  }
+
+  void _skipTutorial() async {
+    await TutorialPreferences.setTutorialCompleted();
+    setState(() {
+      _showTutorial = false;
+    });
+  }
+
+  // 🆕 Метод для автоматической установки тестовых точек маршрута
+  void _setDemoRoute() {
+    print('🎬 Tutorial: Устанавливаем демо-маршрут');
+    
+    // Получаем видимую область карты
+    final visibleRegion = _mapWindow?.map.visibleRegion;
+    if (visibleRegion == null) {
+      print('⚠️ Tutorial: Карта ещё не готова');
+      return;
+    }
+    
+    // Вычисляем центр видимой области
+    final centerLat = (visibleRegion.bottomLeft.latitude + visibleRegion.topRight.latitude) / 2;
+    final centerLon = (visibleRegion.bottomLeft.longitude + visibleRegion.topRight.longitude) / 2;
+    
+    // Вычисляем размер видимой области
+    final latDelta = visibleRegion.topRight.latitude - visibleRegion.bottomLeft.latitude;
+    final lonDelta = visibleRegion.topRight.longitude - visibleRegion.bottomLeft.longitude;
+    
+    // Создаём две точки на расстоянии ~30% от центра влево-вверх и вправо-вниз
+    final fromPoint = mapkit.Point(
+      latitude: centerLat - latDelta * 0.15, 
+      longitude: centerLon - lonDelta * 0.15
+    );
+    final toPoint = mapkit.Point(
+      latitude: centerLat + latDelta * 0.15, 
+      longitude: centerLon + lonDelta * 0.15
+    );
+    
+    print('📍 Tutorial: Демо точки в видимой области');
+    print('   FROM: ${fromPoint.latitude}, ${fromPoint.longitude}');
+    print('   TO: ${toPoint.latitude}, ${toPoint.longitude}');
+    
+    // Устанавливаем точки
+    _routePointsManager.setPoint(RoutePointType.from, fromPoint);
+    _routePointsManager.setPoint(RoutePointType.to, toPoint);
+    
+    // Обновляем текстовые поля
+    setState(() {
+      _isSettingTextProgrammatically = true;
+      _textFieldControllerFrom.text = 'Точка А';
+      _textFieldControllerTo.text = 'Точка Б';
+      _isSettingTextProgrammatically = false;
+      _selectedPointType = RoutePointType.to;
+      _routeCompleted = true;
+    });
+    
+    print('✅ Tutorial: Демо-маршрут установлен');
+  }
+
+  List<TutorialStep> _getTutorialSteps() {
+    return [
+      TutorialStep(
+        title: 'Добро пожаловать!',
+        description: 'Вводи адреса вручную, чтобы заказать машину.',
+        targetKey: _searchPanelKey,
+        arrowDirection: TutorialArrowDirection.top,
+      ),
+      TutorialStep(
+        title: 'Выбор точек на карте',
+        description: 'Сейчас мы автоматически установим маршрут для демонстрации. '
+            'Нажимай на кнопки флагов 🚩🏁, чтобы указать адрес подачи и назначения.',
+        targetKey: _fromFlagButtonKey,
+        additionalTargetKeys: [_toFlagButtonKey],
+        arrowDirection: TutorialArrowDirection.top,
+        onStepShown: _setDemoRoute, // 🆕 Автоматически создаём маршрут
+      ),
+      TutorialStep(
+        title: 'Сброс маршрута',
+        description: 'Нажми на корзину, чтобы удалить построенный маршрут и начать заново.',
+        targetKey: _clearButtonKey,
+        arrowDirection: TutorialArrowDirection.top,
+      ),
+      TutorialStep(
+        title: 'Моя геолокация',
+        description: 'Нажми эту кнопку, чтобы быстро определить твоё текущее местоположение на карте.',
+        targetKey: _geolocationButtonKey,
+        arrowDirection: TutorialArrowDirection.bottom,
+      ),
+      TutorialStep(
+        title: 'Заказать поездку',
+        description: 'Теперь видна кнопка заказа! После построения маршрута нажми эту кнопку для оформления заказа. '
+            'Ты увидишь стоимость поездки и сможешь выбрать дополнительные услуги.',
+        targetKey: _orderButtonKey,
+        arrowDirection: TutorialArrowDirection.top,
+      ),
+    ];
   }
 
   @override
@@ -1073,6 +1226,7 @@ class _MainScreenState extends State<MainScreen> {
               }
 
                   return SearchFieldsPanel(
+                    key: _searchPanelKey,
                     fromController: _textFieldControllerFrom,
                     toController: _textFieldControllerTo,
                     fromSuggestions: _activeField == ActiveField.from ? suggestions : [],
@@ -1081,6 +1235,8 @@ class _MainScreenState extends State<MainScreen> {
                     isToFieldActive: _activeField == ActiveField.to,
                     showFromSuggestions: _activeField == ActiveField.from && suggestions.isNotEmpty,
                     showToSuggestions: _activeField == ActiveField.to && suggestions.isNotEmpty,
+                    fromFlagButtonKey: _fromFlagButtonKey, // 🆕 GlobalKey для tutorial
+                    toFlagButtonKey: _toFlagButtonKey,     // 🆕 GlobalKey для tutorial
                     onFromFieldTapped: () {
                       setState(() {
                         _activeField = ActiveField.from;
@@ -1216,6 +1372,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                   // Кнопка "корзины"
                   FloatingActionButton(
+                    key: _clearButtonKey, // 🆕 GlobalKey для tutorial
                     heroTag: "reset_route_button",
                     mini: true,
                     backgroundColor: CupertinoColors.white,
@@ -1364,6 +1521,7 @@ class _MainScreenState extends State<MainScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
+                        key: _orderButtonKey,
                         onPressed: _onOrderButtonPressed,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: CupertinoColors.systemRed,
@@ -1422,6 +1580,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(height: 8),
                   FloatingActionButton(
+                    key: _geolocationButtonKey,
                     heroTag: "geolocation",
                     mini: true,
                     backgroundColor: Colors.white,
@@ -1435,6 +1594,14 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
+
+          // 🎓 7. TUTORIAL OVERLAY (если активен)
+          if (_showTutorial)
+            TutorialOverlay(
+              steps: _getTutorialSteps(),
+              onComplete: _completeTutorial,
+              onSkip: _skipTutorial,
+            ),
         ],
       ),
     );
