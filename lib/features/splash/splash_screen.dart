@@ -73,8 +73,8 @@ class _SplashScreenState extends State<SplashScreen>
     // Запуск анимации логотипа
     _logoController.forward();
 
-    // Ожидание завершения анимации + дополнительная задержка
-    await Future.delayed(const Duration(milliseconds: 3000));
+    // Дополнительная задержка для завершения анимации
+    await Future.delayed(const Duration(milliseconds: 2000));
 
     // Проверка авторизации и переход на соответствующий экран
     _navigateToNextScreen();
@@ -138,65 +138,65 @@ class _SplashScreenState extends State<SplashScreen>
                   Color(
                     0xFFDC2626,
                   ).withOpacity(_backgroundOpacityAnimation.value), // Красный
-                  Color(
-                    0xFF000000,
-                  ).withOpacity(_backgroundOpacityAnimation.value), // Черный
-                ],
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Логотип с анимацией
-                  Transform.scale(
-                    scale: _logoScaleAnimation.value,
-                    child: Opacity(
-                      opacity: _logoOpacityAnimation.value,
-                      child: TimeToTravelLogo(
-                        size: 120,
-                        primaryColor: TimeToTravelColors.redPrimary,
-                        secondaryColor: TimeToTravelColors.textPrimary,
-                      ),
-                    ),
+                      Color(
+                        0xFF000000,
+                      ).withOpacity(_backgroundOpacityAnimation.value), // Черный
+                    ],
                   ),
-
-                  const SizedBox(height: 40),
-
-                  // Название приложения
-                  Opacity(
-                    opacity: _logoOpacityAnimation.value,
-                    child: Text(
-                      'TIME TO TRAVEL',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: TimeToTravelColors.textPrimary,
-                        letterSpacing: 2.0,
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Логотип с анимацией
+                      Transform.scale(
+                        scale: _logoScaleAnimation.value,
+                        child: Opacity(
+                          opacity: _logoOpacityAnimation.value,
+                          child: TimeToTravelLogo(
+                            size: 120,
+                            primaryColor: TimeToTravelColors.redPrimary,
+                            secondaryColor: TimeToTravelColors.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
 
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 40),
 
-                  // Подзаголовок
-                  Opacity(
-                    opacity: _logoOpacityAnimation.value * 0.8,
-                    child: Text(
-                      'Пассажирские перевозки',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: TimeToTravelColors.textSecondary,
-                        letterSpacing: 1.0,
+                      // Название приложения
+                      Opacity(
+                        opacity: _logoOpacityAnimation.value,
+                        child: Text(
+                          'TIME TO TRAVEL',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: TimeToTravelColors.textPrimary,
+                            letterSpacing: 2.0,
+                          ),
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(height: 16),
+
+                      // Подзаголовок
+                      Opacity(
+                        opacity: _logoOpacityAnimation.value * 0.8,
+                        child: Text(
+                          'Пассажирские перевозки',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: TimeToTravelColors.textSecondary,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+                ),
+              );
+            },
+        ),
     );
   }
 }

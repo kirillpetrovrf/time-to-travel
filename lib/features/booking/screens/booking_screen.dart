@@ -6,8 +6,6 @@ import '../../../theme/theme_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/custom_navigation_bar.dart';
 import '../../admin/screens/admin_panel_screen.dart';
-import '../../home/screens/home_screen.dart'; // Для доступа к switchToTab
-import 'route_selection_screen.dart';
 import 'group_booking_screen.dart';
 import 'individual_booking_screen.dart';
 
@@ -56,6 +54,8 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Widget _buildClientView(CustomTheme theme) {
+    print('� [BOOKING SCREEN] Рендерим BookingScreen (MapKit уже активирован на SplashScreen)');
+    
     return CupertinoPageScaffold(
       backgroundColor: theme.systemBackground,
       child: Column(
@@ -69,56 +69,43 @@ class _BookingScreenState extends State<BookingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 20),
-
-                  // Заголовок
-                  Text(
-                    'Выберите тип маршрута',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: theme.label,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-
                   const SizedBox(height: 40),
 
-                  // Популярные маршруты
-                  _RouteTypeCard(
-                    icon: CupertinoIcons.star_fill,
-                    title: 'Популярные маршруты',
-                    description:
-                        'Готовые маршруты с фиксированными остановками',
+                  // Групповая поездка
+                  _TripTypeOption(
+                    icon: CupertinoIcons.group,
+                    title: 'Групповая поездка',
+                    description: 'Поделитесь автомобилем с другими пассажирами',
+                    price: '2000 ₽',
                     features: [
-                      'Донецк → Ростов-на-Дону',
-                      'Ростов-на-Дону → Донецк',
-                      'Популярные промежуточные города',
-                      'Групповые поездки: 2000 ₽ за место',
-                      'Индивидуальные поездки: от 8000 за авто ₽',
+                      'Фиксированное расписание',
+                      'Комфортабельные автомобили',
+                      'Опытные водители',
                     ],
                     theme: theme,
-                    onTap: () => _showPopularRoutesModal(),
+                    onTap: () {
+                      _navigateToBookingWithoutRoute('group');
+                    },
                   ),
 
                   const SizedBox(height: 16),
 
-                  // Свободный маршрут
-                  _RouteTypeCard(
-                    icon: CupertinoIcons.location,
-                    title: 'Свободный маршрут',
-                    description:
-                        'Выберите любые точки отправления и назначения',
+                  // Индивидуальная поездка
+                  _TripTypeOption(
+                    icon: CupertinoIcons.car,
+                    title: 'Индивидуальная поездка',
+                    description: 'Персональный автомобиль только для вас',
+                    price: 'от 8000 ₽',
                     features: [
-                      'Все доступные остановки',
-                      'Максимальная гибкость',
-                      'Индивидуальная настройка',
+                      'Гибкое расписание',
+                      'Личный водитель',
+                      'Возможность остановок по пути',
                     ],
                     theme: theme,
-                    onTap: () => _navigateToCustomRoute(),
+                    onTap: () {
+                      _navigateToBookingWithoutRoute('individual');
+                    },
                   ),
-
-                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -128,119 +115,10 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  void _showRouteSelection(String routeType) {
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => RouteSelectionScreen(
-          routeDirection: 'donetsk_to_rostov', // По умолчанию
-          onRouteSelected: (fromStop, toStop) {
-            _showTripTypeSelection(fromStop, toStop, routeType);
-          },
-        ),
-      ),
-    );
-  }
-
-  // Переключиться на вкладку "Свободный маршрут" (Tab 1)
-  void _navigateToCustomRoute() {
-    // Вместо создания нового экземпляра MainScreen,
-    // просто переключаемся на Tab 1, где живет постоянный экземпляр карты
-    final homeScreenState = HomeScreen.homeScreenKey.currentState;
-    if (homeScreenState != null) {
-      homeScreenState.switchToTab(1); // Tab 1 = MainScreen (Свободный маршрут)
-      print('✅ Переключились на Tab 1 (Свободный маршрут / Карта)');
-    } else {
-      print('❌ Ошибка: HomeScreen state не найден');
-    }
-  }
-
-  // Метод для популярных маршрутов - сразу показываем выбор типа поездки
-  void _showPopularRoutesModal() {
-    // Открываем как полноэкранную страницу
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => _TripTypeSelectionModalSimple(
-          onTripTypeSelected: (tripType) {
-            _navigateToBookingWithoutRoute(tripType);
-          },
-        ),
-      ),
-    );
-  }
-
-  void _showTripTypeSelection(
-    RouteStop fromStop,
-    RouteStop toStop,
-    String routeType,
-  ) {
-    // Открываем как полноэкранную страницу
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => _TripTypeSelectionModal(
-          fromStop: fromStop,
-          toStop: toStop,
-          routeType: routeType,
-          onTripTypeSelected: (tripType) {
-            _navigateToBooking(fromStop, toStop, tripType);
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _navigateToBooking(
-    RouteStop fromStop,
-    RouteStop toStop,
-    String tripType,
-  ) async {
-    print('🚀 [НАВИГАЦИЯ] Начало _navigateToBooking, tripType: $tripType');
-
-    // Закрываем модальное окно
-    print('🚀 [НАВИГАЦИЯ] Закрываем модальное окно');
-    Navigator.of(context).pop();
-
-    // Небольшая задержка для завершения анимации
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    if (!mounted) {
-      print('❌ [НАВИГАЦИЯ] Виджет unmounted');
-      return;
-    }
-
-    print('🚀 [НАВИГАЦИЯ] Открываем экран бронирования');
-
-    // Открываем экран бронирования
-    await Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => tripType == 'group'
-            ? GroupBookingScreen(fromStop: fromStop, toStop: toStop)
-            : IndividualBookingScreen(fromStop: fromStop, toStop: toStop),
-      ),
-    );
-
-    print('✅ [НАВИГАЦИЯ] Вернулись с экрана бронирования');
-  }
-
-  // Новый метод для навигации без выбранного маршрута
+  // Метод для навигации без выбранного маршрута
   Future<void> _navigateToBookingWithoutRoute(String tripType) async {
     print(
       '🚀 [НАВИГАЦИЯ] Начало _navigateToBookingWithoutRoute, tripType: $tripType',
-    );
-
-    // Закрываем модальное окно
-    print('🚀 [НАВИГАЦИЯ] Закрываем модальное окно');
-    Navigator.of(context).pop();
-
-    // Небольшая задержка для завершения анимации
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    if (!mounted) {
-      print('❌ [НАВИГАЦИЯ] Виджет unmounted');
-      return;
-    }
-
-    print(
-      '🚀 [НАВИГАЦИЯ] Открываем экран бронирования без предвыбранного маршрута',
     );
 
     // Открываем экран бронирования БЕЗ fromStop и toStop
@@ -315,113 +193,6 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RouteTypeCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final List<String> features;
-  final CustomTheme theme;
-  final VoidCallback onTap;
-
-  const _RouteTypeCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.features,
-    required this.theme,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: theme.secondarySystemBackground,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.separator),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: theme.primary, size: 24),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: theme.label,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: theme.secondaryLabel,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  color: theme.tertiaryLabel,
-                  size: 20,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...features
-                .map(
-                  (feature) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          CupertinoIcons.checkmark_circle_fill,
-                          color: CupertinoColors.systemGreen,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            feature,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: theme.secondaryLabel,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
-          ],
-        ),
       ),
     );
   }
@@ -760,190 +531,6 @@ class _RouteOptionCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TripTypeSelectionModal extends StatelessWidget {
-  final RouteStop fromStop;
-  final RouteStop toStop;
-  final String routeType;
-  final Function(String) onTripTypeSelected;
-
-  const _TripTypeSelectionModal({
-    required this.fromStop,
-    required this.toStop,
-    required this.routeType,
-    required this.onTripTypeSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final themeManager = context.themeManager;
-    final theme = themeManager.currentTheme;
-
-    return CupertinoPageScaffold(
-      backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(CupertinoIcons.back, color: theme.primary),
-              const SizedBox(width: 4),
-              Text('Назад', style: TextStyle(color: theme.primary)),
-            ],
-          ),
-        ),
-        middle: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Выберите тип поездки',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: theme.label,
-              ),
-            ),
-            Text(
-              '${fromStop.name} → ${toStop.name}',
-              style: TextStyle(fontSize: 13, color: theme.secondaryLabel),
-            ),
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Групповая поездка
-              _TripTypeOption(
-                icon: CupertinoIcons.group,
-                title: 'Групповая поездка',
-                description: 'Поделитесь автомобилем с другими пассажирами',
-                price: '2000 ₽',
-                features: [
-                  'Фиксированное расписание',
-                  'Комфортабельные автомобили',
-                  'Опытные водители',
-                ],
-                theme: theme,
-                onTap: () {
-                  onTripTypeSelected('group');
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Индивидуальная поездка
-              _TripTypeOption(
-                icon: CupertinoIcons.car,
-                title: 'Индивидуальная поездка',
-                description: 'Персональный автомобиль только для вас',
-                price: 'от 8000 ₽',
-                features: [
-                  'Гибкое расписание',
-                  'Личный водитель',
-                  'Возможность остановок по пути',
-                ],
-                theme: theme,
-                onTap: () {
-                  onTripTypeSelected('individual');
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Простое модальное окно выбора типа поездки (БЕЗ выбора направления)
-class _TripTypeSelectionModalSimple extends StatelessWidget {
-  final Function(String) onTripTypeSelected;
-
-  const _TripTypeSelectionModalSimple({required this.onTripTypeSelected});
-
-  @override
-  Widget build(BuildContext context) {
-    final themeManager = context.themeManager;
-    final theme = themeManager.currentTheme;
-
-    return CupertinoPageScaffold(
-      backgroundColor: theme.systemBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.secondarySystemBackground,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(CupertinoIcons.back, color: theme.primary),
-              const SizedBox(width: 4),
-              Text('Назад', style: TextStyle(color: theme.primary)),
-            ],
-          ),
-        ),
-        middle: Text(
-          'Выберите тип поездки',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: theme.label,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Групповая поездка
-              _TripTypeOption(
-                icon: CupertinoIcons.group,
-                title: 'Групповая поездка',
-                description: 'Поделитесь автомобилем с другими пассажирами',
-                price: '2000 ₽',
-                features: [
-                  'Фиксированное расписание',
-                  'Комфортабельные автомобили',
-                  'Опытные водители',
-                ],
-                theme: theme,
-                onTap: () {
-                  onTripTypeSelected('group');
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Индивидуальная поездка
-              _TripTypeOption(
-                icon: CupertinoIcons.car,
-                title: 'Индивидуальная поездка',
-                description: 'Персональный автомобиль только для вас',
-                price: 'от 8000 ₽',
-                features: [
-                  'Гибкое расписание',
-                  'Личный водитель',
-                  'Возможность остановок по пути',
-                ],
-                theme: theme,
-                onTap: () {
-                  onTripTypeSelected('individual');
-                },
-              ),
-            ],
-          ),
         ),
       ),
     );

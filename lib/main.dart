@@ -10,6 +10,7 @@ import 'services/booking_service.dart';
 import 'services/orders_sync_service.dart';
 import 'services/offline_routes_service.dart';
 import 'services/route_management_service.dart';
+import 'services/yandex_search_service.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/splash/splash_screen.dart';
@@ -70,8 +71,14 @@ void main() async {
       apiKey: "2f1d6a75-b751-4077-b305-c6abaea0b542",
     );
     print('✅ Yandex MapKit инициализирован через Flutter Plugin API');
+    
+    // ✅ НОВОЕ: Инициализация YandexSearchService для автокомплита адресов
+    // Это решает проблему когда автокомплит не работает в IndividualBookingScreen
+    // если пользователь не посетил сначала вкладку с картой
+    await YandexSearchService.initialize();
+    print('✅ YandexSearchService готов к использованию в любом месте приложения');
   } catch (e) {
-    print('❌ Ошибка инициализации MapKit: $e');
+    print('❌ Ошибка инициализации MapKit/SearchService: $e');
   }
 
   runApp(const TimeToTravelApp());

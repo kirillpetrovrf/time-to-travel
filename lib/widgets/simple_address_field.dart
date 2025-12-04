@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle;
 import 'package:yandex_maps_mapkit/search.dart';
+import '../services/yandex_search_service.dart';
 
 /// Упрощенный автокомплит для админ панели
 class SimpleAddressField extends StatefulWidget {
@@ -24,7 +25,6 @@ class SimpleAddressField extends StatefulWidget {
 
 class _SimpleAddressFieldState extends State<SimpleAddressField> {
   late final TextEditingController _controller;
-  SearchManager? _searchManager;
   SearchSuggestSession? _suggestSession;
   SearchSuggestSessionSuggestListener? _suggestListener;
   
@@ -41,7 +41,7 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
     
     print('🔧 SimpleAddressField.initState() начинается...');
     
-    // Откладываем инициализацию на следующий кадр, чтобы убедиться, что MapKit полностью готов
+    // ✅ НОВЫЙ КОД: Используем глобальный YandexSearchService
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeYandexSearchServices();
     });
@@ -49,7 +49,7 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
 
   Future<void> _initializeYandexSearchServices() async {
     try {
-      print('🔧 Инициализация Yandex Search Services...');
+      print('🔧 Инициализация SimpleAddressField...');
       
       // Проверяем, что widget все еще mounted
       if (!mounted) {
@@ -57,15 +57,10 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
         return;
       }
       
-      print('🔧 Создаем SearchManager...');
-      _searchManager = SearchFactory.instance.createSearchManager(SearchManagerType.Combined);
-      print('✅ SearchManager создан: $_searchManager');
+      // ✅ Получаем SuggestSession из глобального сервиса
+      _suggestSession = YandexSearchService.instance.createSuggestSession();
+      print('✅ SuggestSession получен из YandexSearchService: $_suggestSession');
       
-      print('🔧 Создаем SuggestSession...');
-      _suggestSession = _searchManager!.createSuggestSession();
-      print('✅ SuggestSession создан: $_suggestSession');
-      
-      print('🔧 Создаем SuggestListener...');
       _suggestListener = SearchSuggestSessionSuggestListener(
         onResponse: _onSuggestResponse,
         onError: _onSuggestError,
@@ -77,16 +72,6 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
     } catch (e, stackTrace) {
       print('❌ Ошибка инициализации SimpleAddressField: $e');
       print('   Stack trace: $stackTrace');
-      
-      // Попытаемся еще раз через 2 секунды
-      if (mounted) {
-        Timer(const Duration(seconds: 2), () {
-          if (mounted) {
-            print('🔄 Повторная попытка инициализации SimpleAddressField...');
-            _initializeYandexSearchServices();
-          }
-        });
-      }
     }
   }
 

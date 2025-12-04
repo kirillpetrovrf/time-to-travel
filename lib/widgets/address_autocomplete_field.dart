@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle;
 import 'package:yandex_maps_mapkit/search.dart';
 import 'package:yandex_maps_mapkit/runtime.dart' as yandex;
+import '../services/yandex_search_service.dart';
 
 class AddressAutocompleteField extends StatefulWidget {
   final String label;
@@ -27,7 +28,6 @@ class AddressAutocompleteField extends StatefulWidget {
 
 class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
   late final TextEditingController _controller;
-  late final SearchManager _searchManager;
   late final SearchSuggestSession _suggestSession;
   late final SearchSuggestSessionSuggestListener _suggestListener;
   
@@ -43,22 +43,22 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     _controller = TextEditingController(text: widget.initialValue);
     _controller.addListener(_onTextChanged);
     
-    // Инициализируем SearchManager как в рабочих примерах
+    // ✅ НОВЫЙ КОД: Используем глобальный YandexSearchService
+    // Это решает проблему когда автокомплит не работает если пользователь
+    // не посетил сначала вкладку с картой
     try {
-      _searchManager = SearchFactory.instance.createSearchManager(SearchManagerType.Combined);
-      _suggestSession = _searchManager.createSuggestSession();
+      _suggestSession = YandexSearchService.instance.createSuggestSession();
       
-      // ✅ Создаём listener в том же порядке что и рабочий код
       _suggestListener = SearchSuggestSessionSuggestListener(
         onResponse: _onSuggestResponse,
         onError: _onSuggestError,
       );
       
-      debugPrint('✅ [AUTOCOMPLETE] SearchManager инициализирован успешно');
+      debugPrint('✅ [AUTOCOMPLETE] SuggestSession получен из YandexSearchService');
       debugPrint('✅ [AUTOCOMPLETE] SuggestSession: $_suggestSession');
       debugPrint('✅ [AUTOCOMPLETE] Listener: $_suggestListener');
     } catch (e, stackTrace) {
-      debugPrint('❌ [AUTOCOMPLETE] Ошибка инициализации SearchManager: $e');
+      debugPrint('❌ [AUTOCOMPLETE] Ошибка получения SuggestSession: $e');
       debugPrint('❌ [AUTOCOMPLETE] Stack trace: $stackTrace');
     }
   }
@@ -174,7 +174,6 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
           : text;
       
       debugPrint('🔍 [AUTOCOMPLETE] Поиск: "$searchText"');
-      debugPrint('🔍 [AUTOCOMPLETE] SearchManager: $_searchManager');
       debugPrint('🔍 [AUTOCOMPLETE] SuggestSession: $_suggestSession');
       debugPrint('🔍 [AUTOCOMPLETE] Listener: $_suggestListener');
 

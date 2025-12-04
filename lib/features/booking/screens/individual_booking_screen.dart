@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle, Direction;
+import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
+import 'package:common/common.dart';
 import '../../../models/route_stop.dart';
 import '../../../models/trip_type.dart';
 import '../../../models/booking.dart';
@@ -43,6 +45,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   String? _dropoffAddress;
   Point? _dropoffCoordinates;
 
+  // Карта для отображения выбранных адресов
+  MapWindow? _mapWindow;
+  MapObjectCollection? _markersCollection;
+  CircleMapObject? _pickupMarker;  // Изменено на CircleMapObject для больших кругов
+  CircleMapObject? _dropoffMarker;  // Изменено на CircleMapObject для больших кругов
+
   // Для прокрутки и фокусировки на полях адресов
   final ScrollController _scrollController = ScrollController();
   final FocusNode _pickupFocusNode = FocusNode();
@@ -78,6 +86,153 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     _loadRouteStops();
     // Добавляем одного взрослого по умолчанию
     _passengers = [PassengerInfo(type: PassengerType.adult)];
+  }
+
+  void _onMapCreated(MapWindow mapWindow) {
+    _mapWindow = mapWindow;
+    
+    // Создаём коллекцию для маркеров
+    _markersCollection = _mapWindow!.map.mapObjects.addCollection();
+    
+    debugPrint('🗺️ [VARIANT 8] Карта создана в IndividualBookingScreen');
+    debugPrint('🗺️ [VARIANT 8] MapKit активирован для autocomplete callbacks');
+    debugPrint('🗺️ [VARIANT 8] Управление картой АКТИВНО (по умолчанию)');
+    
+    // Устанавливаем начальную позицию (Донецк)
+    _mapWindow?.map.move(
+      CameraPosition(
+        Point(latitude: 48.0159, longitude: 37.8028),
+        zoom: 10,
+        azimuth: 0,
+        tilt: 0,
+      ),
+    );
+  }
+
+  // Обновление маркеров на карте
+  void _updateMapMarkers() async {
+    debugPrint('🗺️ [UPDATE] Вызван _updateMapMarkers');
+    debugPrint('🗺️ [UPDATE] _markersCollection: ${_markersCollection != null ? "OK" : "NULL"}');
+    
+    if (_markersCollection == null) {
+      debugPrint('🗺️ [UPDATE] _markersCollection is NULL - выход');
+      return;
+    }
+
+    // Удаляем старые маркеры
+    if (_pickupMarker != null) {
+      _markersCollection!.remove(_pickupMarker!);
+      _pickupMarker = null;
+      debugPrint('🗺️ [UPDATE] Удален старый маркер отправления');
+    }
+    if (_dropoffMarker != null) {
+      _markersCollection!.remove(_dropoffMarker!);
+      _dropoffMarker = null;
+      debugPrint('🗺️ [UPDATE] Удален старый маркер назначения');
+    }
+
+    // Добавляем маркер отправления (ЗЕЛЁНЫЙ КРУГ)
+    if (_pickupCoordinates != null) {
+      _pickupMarker = _markersCollection!.addCircle(
+        Circle(_pickupCoordinates!, radius: 150.0),  // Радиус 150 метров
+      )
+        ..fillColor = const Color(0xFF4CAF50).withOpacity(0.8)  // Зелёная заливка
+        ..strokeColor = Colors.white  // Белая обводка
+        ..strokeWidth = 5.0;
+      
+      debugPrint('📍 Добавлен ЗЕЛЁНЫЙ маркер отправления: ${_pickupAddress} (${_pickupCoordinates})');
+    }
+
+    // Добавляем маркер назначения (КРАСНЫЙ КРУГ)
+    if (_dropoffCoordinates != null) {
+      _dropoffMarker = _markersCollection!.addCircle(
+        Circle(_dropoffCoordinates!, radius: 150.0),  // Радиус 150 метров
+      )
+        ..fillColor = const Color(0xFFF44336).withOpacity(0.8)  // Красная заливка
+        ..strokeColor = Colors.white  // Белая обводка
+        ..strokeWidth = 5.0;
+      
+      debugPrint('📍 Добавлен КРАСНЫЙ маркер назначения: ${_dropoffAddress} (${_dropoffCoordinates})');
+    }
+
+    // Перемещаем камеру к выбранным точкам
+    debugPrint('🗺️ [UPDATE] Вызываем _moveCameraToPoints...');
+    _moveCameraToPoints();
+    debugPrint('🗺️ [UPDATE] _moveCameraToPoints завершен');
+  }
+
+  // Перемещение камеры к выбранным точкам
+  void _moveCameraToPoints() {
+    debugPrint('🎯 [CAMERA] Вызван _moveCameraToPoints');
+    debugPrint('🎯 [CAMERA] _mapWindow: ${_mapWindow != null ? "OK" : "NULL"}');
+    debugPrint('🎯 [CAMERA] _pickupCoordinates: $_pickupCoordinates');
+    debugPrint('🎯 [CAMERA] _dropoffCoordinates: $_dropoffCoordinates');
+    
+    if (_mapWindow == null) {
+      debugPrint('🎯 [CAMERA] MapWindow is NULL - выход');
+      return;
+    }
+
+    if (_pickupCoordinates != null && _dropoffCoordinates != null) {
+      // Если есть обе точки - показываем обе с помощью BoundingBox с отступами
+      debugPrint('🎯 [CAMERA] Обе точки установлены, показываем обе');
+      
+      final minLat = _pickupCoordinates!.latitude < _dropoffCoordinates!.latitude 
+          ? _pickupCoordinates!.latitude 
+          : _dropoffCoordinates!.latitude;
+      final maxLat = _pickupCoordinates!.latitude > _dropoffCoordinates!.latitude 
+          ? _pickupCoordinates!.latitude 
+          : _dropoffCoordinates!.latitude;
+      final minLon = _pickupCoordinates!.longitude < _dropoffCoordinates!.longitude 
+          ? _pickupCoordinates!.longitude 
+          : _dropoffCoordinates!.longitude;
+      final maxLon = _pickupCoordinates!.longitude > _dropoffCoordinates!.longitude 
+          ? _pickupCoordinates!.longitude 
+          : _dropoffCoordinates!.longitude;
+
+      // Добавляем отступ 10% от размера области
+      final latDelta = (maxLat - minLat) * 0.1;
+      final lonDelta = (maxLon - minLon) * 0.1;
+
+      final boundingBox = BoundingBox(
+        Point(latitude: minLat - latDelta, longitude: minLon - lonDelta),
+        Point(latitude: maxLat + latDelta, longitude: maxLon + lonDelta),
+      );
+      
+      final geometry = Geometry.fromBoundingBox(boundingBox);
+      final cameraPosition = _mapWindow!.map.cameraPositionForGeometry(geometry);
+      
+      debugPrint('📷 Перемещаем камеру к обеим точкам: zoom=${cameraPosition.zoom}');
+      
+      _mapWindow!.map.moveWithAnimation(
+        cameraPosition,
+        const mapkit.Animation(mapkit.AnimationType.Smooth, duration: 0.5),
+      );
+    } else if (_pickupCoordinates != null) {
+      // Если только точка отправления - центрируем на ней
+      debugPrint('📷 Перемещаем камеру к точке отправления');
+      _mapWindow!.map.moveWithAnimation(
+        CameraPosition(
+          _pickupCoordinates!,
+          zoom: 14,
+          azimuth: 0,
+          tilt: 0,
+        ),
+        const mapkit.Animation(mapkit.AnimationType.Smooth, duration: 0.5),
+      );
+    } else if (_dropoffCoordinates != null) {
+      // Если только точка назначения - центрируем на ней
+      debugPrint('📷 Перемещаем камеру к точке назначения');
+      _mapWindow!.map.moveWithAnimation(
+        CameraPosition(
+          _dropoffCoordinates!,
+          zoom: 14,
+          azimuth: 0,
+          tilt: 0,
+        ),
+        const mapkit.Animation(mapkit.AnimationType.Smooth, duration: 0.5),
+      );
+    }
   }
 
   Future<void> _loadRouteStops() async {
@@ -128,19 +283,35 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           'Индивидуальный трансфер',
           style: TextStyle(color: theme.label),
         ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            // СНАЧАЛА переключаем таб, ПОТОМ закрываем модальное окно
+            final homeScreenState = HomeScreen.homeScreenKey.currentState;
+            if (homeScreenState != null) {
+              homeScreenState.switchToTab(1); // Переключаемся на карту (под модальным окном)
+              Navigator.pop(context); // Закрываем модальное окно - теперь видна карта!
+              print('✅ Переключились на Tab 1 и закрыли модальное окно');
+            } else {
+              print('❌ Ошибка: HomeScreen state не найден');
+            }
+          },
+          child: Icon(
+            CupertinoIcons.location_circle,
+            color: theme.primary,
+            size: 28,
+          ),
+        ),
       ),
       child: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Направление
-                    _buildSectionTitle('Направление', theme),
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Направление
+              _buildSectionTitle('Направление', theme),
                     _buildDirectionPicker(theme),
 
                     const SizedBox(height: 24),
@@ -225,13 +396,10 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                             ),
                     ),
 
-                    // Отступ снизу для системных кнопок навигации
-                    const SizedBox(height: 80),
-                  ],
-                ),
-              ),
-            ),
-          ],
+              // Отступ снизу для системных кнопок навигации
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     );
@@ -377,6 +545,16 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       _pickupCoordinates = null;
       _dropoffAddress = null;
       _dropoffCoordinates = null;
+      
+      // Очищаем маркеры на карте
+      if (_pickupMarker != null) {
+        _markersCollection?.remove(_pickupMarker!);
+        _pickupMarker = null;
+      }
+      if (_dropoffMarker != null) {
+        _markersCollection?.remove(_dropoffMarker!);
+        _dropoffMarker = null;
+      }
     });
   }
 
@@ -444,6 +622,16 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     _pickupCoordinates = null;
                     _dropoffAddress = null;
                     _dropoffCoordinates = null;
+                    
+                    // Очищаем маркеры
+                    if (_pickupMarker != null) {
+                      _markersCollection?.remove(_pickupMarker!);
+                      _pickupMarker = null;
+                    }
+                    if (_dropoffMarker != null) {
+                      _markersCollection?.remove(_dropoffMarker!);
+                      _dropoffMarker = null;
+                    }
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -526,6 +714,16 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     _pickupCoordinates = null;
                     _dropoffAddress = null;
                     _dropoffCoordinates = null;
+                    
+                    // Очищаем маркеры
+                    if (_pickupMarker != null) {
+                      _markersCollection?.remove(_pickupMarker!);
+                      _pickupMarker = null;
+                    }
+                    if (_dropoffMarker != null) {
+                      _markersCollection?.remove(_dropoffMarker!);
+                      _dropoffMarker = null;
+                    }
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -591,11 +789,15 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                   focusNode: _pickupFocusNode,
                   initialValue: _pickupAddress,
                   onAddressSelected: (address, coordinates) {
+                    debugPrint('🔥🔥🔥 [PICKUP] Колбэк вызван! address=$address, coordinates=$coordinates');
                     setState(() {
                       _pickupAddress = address;
                       _pickupCoordinates = coordinates;
+                      debugPrint('🔥 [PICKUP] State установлен: _pickupAddress=$_pickupAddress, _pickupCoordinates=$_pickupCoordinates');
                     });
-                    debugPrint('📍 [INDIVIDUAL] Адрес отправления: $address');
+                    debugPrint('� [PICKUP] Вызываем _updateMapMarkers()');
+                    _updateMapMarkers();
+                    debugPrint('🔥 [PICKUP] _updateMapMarkers() завершен');
                   },
                 ),
               ],
@@ -603,6 +805,33 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           ),
 
         const SizedBox(height: 16),
+
+        // Карта с выбранными адресами (всегда существует для MapKit)
+        Visibility(
+          visible: _pickupCoordinates != null || _dropoffCoordinates != null,
+          maintainState: true, // Карта остается в памяти даже когда невидима
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.separator.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: AspectRatio(
+              aspectRatio: 16 / 9, // Правильные пропорции карты
+              child: FlutterMapWidget(
+                onMapCreated: _onMapCreated,
+                onMapDispose: () {
+                  _markersCollection = null;
+                  _mapWindow = null;
+                },
+              ),
+            ),
+          ),
+        ),
 
         // Куда - с автозаполнением
         if (_selectedToStop != null)
@@ -641,11 +870,15 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                   focusNode: _dropoffFocusNode,
                   initialValue: _dropoffAddress,
                   onAddressSelected: (address, coordinates) {
+                    debugPrint('🔥🔥🔥 [DROPOFF] Колбэк вызван! address=$address, coordinates=$coordinates');
                     setState(() {
                       _dropoffAddress = address;
                       _dropoffCoordinates = coordinates;
+                      debugPrint('🔥 [DROPOFF] State установлен: _dropoffAddress=$_dropoffAddress, _dropoffCoordinates=$_dropoffCoordinates');
                     });
-                    debugPrint('📍 [INDIVIDUAL] Адрес назначения: $address');
+                    debugPrint('� [DROPOFF] Вызываем _updateMapMarkers()');
+                    _updateMapMarkers();
+                    debugPrint('🔥 [DROPOFF] _updateMapMarkers() завершен');
                   },
                 ),
               ],
