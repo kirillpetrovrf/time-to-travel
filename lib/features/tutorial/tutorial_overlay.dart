@@ -147,6 +147,7 @@ class _TutorialOverlayState extends State<TutorialOverlay>
   Widget build(BuildContext context) {
     final targetRect = _getTargetRect();
     final allTargetRects = _getAllTargetRects(); // 🆕 Получаем все прямоугольники
+    final step = widget.steps[_currentStep]; // 🆕 Текущий шаг
 
     return Material(
       color: Colors.transparent,
@@ -184,8 +185,8 @@ class _TutorialOverlayState extends State<TutorialOverlay>
             Positioned(
               left: 0,
               right: 0,
-              top: _currentStep == widget.steps.length - 1 ? 0 : null, // 🔧 Для последнего шага - вверху
-              bottom: _currentStep == widget.steps.length - 1 ? null : 0, // 🔧 Для остальных - внизу
+              top: step.arrowDirection == TutorialArrowDirection.bottom ? 0 : null, // Карточка вверху если стрелка вниз
+              bottom: step.arrowDirection == TutorialArrowDirection.bottom ? null : 0, // Карточка внизу если стрелка вверх
               child: FadeTransition(
                 opacity: _fadeAnimation,
                 child: _buildHintBox(context, targetRect),
@@ -200,16 +201,16 @@ class _TutorialOverlayState extends State<TutorialOverlay>
   Widget _buildHintBox(BuildContext context, Rect? targetRect) {
     final step = widget.steps[_currentStep];
     
-    // 🆕 Для кнопки "Заказать" всегда показываем окно вверху
-    final isOrderButton = _currentStep == widget.steps.length - 1;
+    // 🆕 Определяем позицию карточки по arrowDirection
+    final showOnTop = step.arrowDirection == TutorialArrowDirection.bottom;
 
     return SafeArea( // 🔧 Добавлен SafeArea для безопасного отступа от краёв экрана
       child: Align(
-        alignment: isOrderButton ? Alignment.topCenter : Alignment.bottomCenter,
+        alignment: showOnTop ? Alignment.topCenter : Alignment.bottomCenter,
         child: Container(
           margin: EdgeInsets.only(
-            top: isOrderButton ? 20 : 0, // 🔧 Уменьшен отступ для лучшей видимости
-            bottom: isOrderButton ? 0 : 40,
+            top: showOnTop ? 20 : 0, // 🔧 Уменьшен отступ для лучшей видимости
+            bottom: showOnTop ? 0 : 40,
             left: 20,
             right: 20,
           ),

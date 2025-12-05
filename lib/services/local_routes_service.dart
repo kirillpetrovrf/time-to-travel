@@ -33,7 +33,7 @@ class LocalRoutesService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Увеличена версия для миграции
       onCreate: (db, version) async {
         if (kDebugMode) {
           print('📦 [LOCAL_ROUTES] Создание таблицы predefined_routes...');
@@ -45,6 +45,7 @@ class LocalRoutesService {
             fromCity TEXT NOT NULL,
             toCity TEXT NOT NULL,
             price REAL NOT NULL,
+            groupId TEXT,
             createdAt INTEGER NOT NULL,
             updatedAt INTEGER NOT NULL,
             isSynced INTEGER NOT NULL DEFAULT 0
@@ -56,8 +57,34 @@ class LocalRoutesService {
           CREATE INDEX idx_cities ON predefined_routes (fromCity, toCity)
         ''');
         
+        // Создаем индекс для поиска по группам
+        await db.execute('''
+          CREATE INDEX idx_group ON predefined_routes (groupId)
+        ''');
+        
         if (kDebugMode) {
           print('✅ [LOCAL_ROUTES] Таблица predefined_routes создана');
+        }
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (kDebugMode) {
+          print('🔄 [LOCAL_ROUTES] Миграция БД с версии $oldVersion на $newVersion');
+        }
+        
+        if (oldVersion < 2) {
+          // Добавляем колонку groupId
+          await db.execute('''
+            ALTER TABLE predefined_routes ADD COLUMN groupId TEXT
+          ''');
+          
+          // Создаем индекс для поиска по группам
+          await db.execute('''
+            CREATE INDEX idx_group ON predefined_routes (groupId)
+          ''');
+          
+          if (kDebugMode) {
+            print('✅ [LOCAL_ROUTES] Добавлена колонка groupId');
+          }
         }
       },
     );
@@ -120,6 +147,47 @@ class LocalRoutesService {
     } catch (e) {
       if (kDebugMode) {
         print('❌ [LOCAL_ROUTES] Ошибка загрузки маршрутов: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Получение всех маршрутов по группе
+  Future<List<PredefinedRoute>> getRoutesByGroup(String? groupId) async {
+    if (kDebugMode) {
+      print('📄 [LOCAL_ROUTES] Загрузка маршрутов для группы: $groupId');
+    }
+    
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps;
+      
+      if (groupId == null || groupId.isEmpty) {
+        // Если groupId пустой, возвращаем маршруты без группы
+        maps = await db.query(
+          'predefined_routes',
+          where: 'groupId IS NULL OR groupId = ?',
+          whereArgs: [''],
+        );
+      } else {
+        // Возвращаем маршруты конкретной группы
+        maps = await db.query(
+          'predefined_routes',
+          where: 'groupId = ?',
+          whereArgs: [groupId],
+        );
+      }
+      
+      final routes = maps.map((map) => _mapToRoute(map)).toList();
+      
+      if (kDebugMode) {
+        print('✅ [LOCAL_ROUTES] Загружено ${routes.length} маршрутов для группы "$groupId"');
+      }
+      
+      return routes;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ [LOCAL_ROUTES] Ошибка загрузки маршрутов для группы: $e');
       }
       return [];
     }
@@ -357,6 +425,7 @@ class LocalRoutesService {
       'fromCity': route.fromCity,
       'toCity': route.toCity,
       'price': route.price,
+      'groupId': route.groupId, // Добавлено поле группы
       'createdAt': route.createdAt.millisecondsSinceEpoch,
       'updatedAt': route.updatedAt.millisecondsSinceEpoch,
       'isSynced': 0, // По умолчанию маршрут не синхронизирован
@@ -370,6 +439,7 @@ class LocalRoutesService {
       fromCity: map['fromCity'],
       toCity: map['toCity'],
       price: map['price'].toDouble(),
+      groupId: map['groupId'], // Добавлено поле группы
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt']),
     );

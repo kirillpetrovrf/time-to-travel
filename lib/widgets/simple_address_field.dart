@@ -11,11 +11,14 @@ class SimpleAddressField extends StatefulWidget {
   final String label;
   final String? initialValue;
   final Function(String address) onAddressSelected;
+  /// 🆕 Callback с координатами (опциональный)
+  final Function(String address, Point? coordinates)? onAddressWithCoordinatesSelected;
 
   const SimpleAddressField({
     super.key,
     required this.label,
     required this.onAddressSelected,
+    this.onAddressWithCoordinatesSelected,
     this.initialValue,
   });
 
@@ -183,12 +186,86 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
 
   void _selectSuggestion(SuggestItem suggestion) {
     final address = suggestion.displayText ?? '';
+    final coordinates = suggestion.center; // 🆕 Получаем координаты из SuggestItem
+    final searchText = suggestion.searchText; // Для поиска по Search API
+    
     _controller.text = address;
     widget.onAddressSelected(address);
+    
+    // 🆕 Если есть callback с координатами - проверяем наличие координат
+    if (widget.onAddressWithCoordinatesSelected != null) {
+      if (coordinates != null) {
+        // Координаты есть в suggestion - сразу вызываем callback
+        widget.onAddressWithCoordinatesSelected!(address, coordinates);
+        print('📍 SimpleAddressField: выбран адрес "$address" с координатами: ${coordinates.latitude}, ${coordinates.longitude}');
+      } else {
+        // Координат нет - запускаем Search API для их получения
+        print('🔍 SimpleAddressField: координаты не найдены в suggestion, запускаем Search API для "$searchText"');
+        _searchForCoordinates(address, searchText);
+      }
+    }
     
     setState(() {
       _showSuggestions = false;
     });
+  }
+
+  // 🆕 Поиск координат через Search API (когда suggestion.center == null)
+  void _searchForCoordinates(String address, String searchText) {
+    try {
+      final searchManager = YandexSearchService.instance.searchManager;
+      
+      // Создаем Geometry из BoundingBox для России
+      final boundingBox = BoundingBox(
+        const Point(latitude: 41.0, longitude: 19.0),
+        const Point(latitude: 82.0, longitude: 180.0),
+      );
+      final geometry = Geometry.fromBoundingBox(boundingBox);
+      
+      final searchOptions = SearchOptions(
+        searchTypes: SearchType(SearchType.Geo.value),
+        resultPageSize: 1,
+      );
+      
+      print('🚀 SimpleAddressField: запуск Search API для "$searchText"');
+      
+      searchManager.submit(
+        geometry,
+        searchOptions,
+        SearchSessionSearchListener(
+          onSearchResponse: (response) {
+            if (!mounted) return;
+            
+            final items = response.collection.children;
+            if (items.isNotEmpty) {
+              final geoObj = items.first.asGeoObject();
+              final point = geoObj?.geometry.firstOrNull?.asPoint();
+              
+              if (point != null) {
+                print('✅ SimpleAddressField: Search API вернул координаты: ${point.latitude}, ${point.longitude}');
+                widget.onAddressWithCoordinatesSelected!(address, point);
+              } else {
+                print('⚠️ SimpleAddressField: Search API не вернул координаты');
+                widget.onAddressWithCoordinatesSelected!(address, null);
+              }
+            } else {
+              print('⚠️ SimpleAddressField: Search API вернул пустой результат');
+              widget.onAddressWithCoordinatesSelected!(address, null);
+            }
+          },
+          onSearchError: (error) {
+            print('❌ SimpleAddressField: Ошибка Search API: $error');
+            if (mounted) {
+              widget.onAddressWithCoordinatesSelected!(address, null);
+            }
+          },
+        ),
+        text: searchText,
+      );
+    } catch (e) {
+      print('❌ SimpleAddressField: Exception при Search API: $e');
+      widget.onAddressWithCoordinatesSelected!(address, null);
+    }
   }
 
   @override

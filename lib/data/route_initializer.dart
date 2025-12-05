@@ -4,6 +4,50 @@ import '../services/route_management_service.dart';
 /// Инициализация предустановленных маршрутов такси из ДНР
 class RouteInitializer {
   
+  /// Создать маршрут с групповой ценой
+  static PredefinedRoute _createRoute(
+    String from,
+    String to,
+    double price,
+    String groupId,
+    DateTime now,
+  ) {
+    return PredefinedRoute(
+      id: '',
+      fromCity: from,
+      toCity: to,
+      price: price,
+      groupId: groupId,
+      useGroupPrice: true,      // Использует цену группы
+      customPrice: false,        // НЕ переопределена
+      isReverse: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+  
+  /// Создать маршрут с индивидуальной ценой (исключение)
+  static PredefinedRoute _createRouteWithCustomPrice(
+    String from,
+    String to,
+    double price,
+    String groupId,
+    DateTime now,
+  ) {
+    return PredefinedRoute(
+      id: '',
+      fromCity: from,
+      toCity: to,
+      price: price,
+      groupId: groupId,
+      useGroupPrice: false,     // НЕ использует цену группы
+      customPrice: true,         // Переопределена вручную
+      isReverse: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+  
   /// Полный список всех реальных маршрутов такси из ДНР (44 маршрута - ТОЛЬКО из пользовательского списка)
   static List<PredefinedRoute> get initialRoutes {
     final now = DateTime.now();

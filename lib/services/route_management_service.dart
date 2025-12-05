@@ -136,6 +136,7 @@ class RouteManagementService {
     required String fromCity,
     required String toCity,
     required double price,
+    String? groupId, // Добавляем параметр groupId
   }) async {
     try {
       final now = DateTime.now();
@@ -148,6 +149,7 @@ class RouteManagementService {
         price: price,
         createdAt: now,
         updatedAt: now,
+        groupId: groupId, // Добавляем groupId
       );
 
       final validation = PredefinedRouteHelper.validateRoute(
@@ -166,6 +168,11 @@ class RouteManagementService {
 
       if (kDebugMode) {
         print('RouteManagementService: Adding route ${route.fromCity} → ${route.toCity} (${route.price}₽)');
+        print('🔍 [DEBUG] RouteManagementService.addRoute():');
+        print('   fromCity: ${route.fromCity}');
+        print('   toCity: ${route.toCity}');
+        print('   price: ${route.price}');
+        print('   groupId: ${route.groupId}');
       }
 
       // Сохраняем в SQLite (автоматически помечается как несинхронизированный)
@@ -449,6 +456,178 @@ class RouteManagementService {
       if (kDebugMode) {
         print('RouteManagementService: Failed to delete route $routeId from Firebase: $e');
       }
+    }
+  }
+
+  // ========================================
+  // 🆕 МЕТОДЫ ДЛЯ РАБОТЫ С ГРУППАМИ
+  // ========================================
+
+  /// Получить все маршруты группы
+  Future<List<PredefinedRoute>> getRoutesByGroup(String groupId) async {
+    try {
+      if (kDebugMode) {
+        print('RouteManagementService: Загружаем маршруты группы $groupId...');
+      }
+
+      // Загружаем из SQLite
+      final allRoutes = await _offlineService.getAllRoutes();
+      final groupRoutes = allRoutes
+          .where((route) => route.groupId == groupId)
+          .toList();
+
+      if (kDebugMode) {
+        print('RouteManagementService: Найдено ${groupRoutes.length} маршрутов в группе $groupId');
+      }
+
+      return groupRoutes;
+    } catch (e) {
+      if (kDebugMode) {
+        print('RouteManagementService: Ошибка получения маршрутов группы: $e');
+      }
+      return [];
+    }
+  }
+
+  /// Обновить цены всех маршрутов группы
+  Future<void> updateGroupRoutes(String groupId, double newPrice) async {
+    try {
+      if (kDebugMode) {
+        print('RouteManagementService: Обновляем цены группы $groupId на $newPrice₽...');
+      }
+
+      // Получаем все маршруты группы
+      final routes = await getRoutesByGroup(groupId);
+
+      // Обновляем только те, которые используют групповую цену
+      int updatedCount = 0;
+
+      for (final route in routes) {
+        if (route.useGroupPrice && !route.customPrice) {
+          // Обновляем в SQLite
+          await _offlineService.updateRoute(
+            route.copyWith(
+              price: newPrice,
+              updatedAt: DateTime.now(),
+            ),
+          );
+          updatedCount++;
+        }
+      }
+
+      // Очищаем кэш
+      clearCache();
+
+      if (kDebugMode) {
+        print('RouteManagementService: ✅ Обновлено $updatedCount маршрутов в группе $groupId');
+      }
+
+      // TODO: Синхронизация с Firebase
+    } catch (e) {
+      if (kDebugMode) {
+        print('RouteManagementService: ❌ Ошибка обновления маршрутов группы: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Изменить цену конкретного маршрута (индивидуально)
+  Future<void> updateRoutePrice(String routeId, double newPrice) async {
+    try {
+      if (kDebugMode) {
+        print('RouteManagementService: Обновляем цену маршрута $routeId на $newPrice₽...');
+      }
+
+      // Получаем маршрут
+      final allRoutes = await _offlineService.getAllRoutes();
+      final route = allRoutes.firstWhere((r) => r.id == routeId);
+
+      // Обновляем маршрут
+      await _offlineService.updateRoute(
+        route.copyWith(
+          price: newPrice,
+          useGroupPrice: false,
+          customPrice: true,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // Очищаем кэш
+      clearCache();
+
+      if (kDebugMode) {
+        print('RouteManagementService: ✅ Цена маршрута $routeId обновлена на $newPrice₽');
+      }
+
+      // TODO: Синхронизация с Firebase
+    } catch (e) {
+      if (kDebugMode) {
+        print('RouteManagementService: ❌ Ошибка обновления цены маршрута: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Вернуть маршрут к групповой цене
+  Future<void> resetRouteToGroupPrice(String routeId, double groupPrice) async {
+    try {
+      if (kDebugMode) {
+        print('RouteManagementService: Возвращаем маршрут $routeId к групповой цене $groupPrice₽...');
+      }
+
+      // Получаем маршрут
+      final allRoutes = await _offlineService.getAllRoutes();
+      final route = allRoutes.firstWhere((r) => r.id == routeId);
+
+      // Обновляем маршрут
+      await _offlineService.updateRoute(
+        route.copyWith(
+          price: groupPrice,
+          useGroupPrice: true,
+          customPrice: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // Очищаем кэш
+      clearCache();
+
+      if (kDebugMode) {
+        print('RouteManagementService: ✅ Маршрут $routeId возвращён к групповой цене');
+      }
+
+      // TODO: Синхронизация с Firebase
+    } catch (e) {
+      if (kDebugMode) {
+        print('RouteManagementService: ❌ Ошибка сброса цены маршрута: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Создать обратный маршрут
+  Future<String> createReverseRoute(PredefinedRoute originalRoute) async {
+    try {
+      final reverseRoute = originalRoute.createReverse();
+
+      // Сохраняем в SQLite
+      await _offlineService.addRoute(reverseRoute);
+
+      // Очищаем кэш
+      clearCache();
+
+      if (kDebugMode) {
+        print('RouteManagementService: ✅ Создан обратный маршрут: ${reverseRoute.fromCity} → ${reverseRoute.toCity}');
+      }
+
+      // TODO: Синхронизация с Firebase
+
+      return reverseRoute.id;
+    } catch (e) {
+      if (kDebugMode) {
+        print('RouteManagementService: ❌ Ошибка создания обратного маршрута: $e');
+      }
+      rethrow;
     }
   }
 }

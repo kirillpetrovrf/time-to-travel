@@ -7,7 +7,7 @@ import 'schedule_admin_screen.dart';
 import 'locations_admin_screen.dart';
 import 'baggage_pricing_admin_screen.dart';
 import 'fixed_prices_admin_screen.dart';
-import 'admin_routes_screen.dart';
+// import 'admin_routes_screen.dart'; // Скрыто - старое управление маршрутами
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -19,15 +19,16 @@ class AdminPanelScreen extends StatefulWidget {
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
   int _currentIndex = 0;
 
-  final Map<int, String> _segments = {
-    0: 'Маршруты',
-    1: 'Предуст.',
-    2: 'Фикс. цены',
-    3: 'Цены',
-    4: 'Расписание',
-    5: 'Места',
-    6: 'Багаж',
-  };
+  // Убрана вкладка "Предуст." - оставлены только рабочие разделы
+  // "Фикс. цены" теперь первая (это управление маршрутами с картой)
+  final List<Map<String, dynamic>> _menuItems = [
+    {'index': 0, 'title': 'Фикс. цены', 'icon': CupertinoIcons.money_dollar},
+    {'index': 1, 'title': 'Маршруты', 'icon': CupertinoIcons.map},
+    {'index': 2, 'title': 'Цены', 'icon': CupertinoIcons.tag},
+    {'index': 3, 'title': 'Расписание', 'icon': CupertinoIcons.clock},
+    {'index': 4, 'title': 'Места', 'icon': CupertinoIcons.location},
+    {'index': 5, 'title': 'Багаж', 'icon': CupertinoIcons.cube_box},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -39,74 +40,48 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            // Заголовок админ панели
+            // Заголовок + меню в одном компактном блоке
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFFFF), // Белый цвет
+                color: theme.secondarySystemBackground,
                 border: Border(
                   bottom: BorderSide(
-                    color: theme.separator.withOpacity(0.3),
+                    color: theme.separator,
                     width: 0.5,
                   ),
                 ),
               ),
-              child: Text(
-                'Административная панель',
-                style: TextStyle(
-                  color: theme.label,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  inherit: false,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            // Сегментированный контрол
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFFFF), // Белый цвет
-                border: Border(
-                  bottom: BorderSide(
-                    color: theme.separator.withOpacity(0.3),
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: CupertinoSlidingSegmentedControl<int>(
-                backgroundColor: theme.tertiarySystemBackground,
-                thumbColor: theme.secondarySystemBackground,
-                groupValue: _currentIndex,
-                onValueChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _currentIndex = value;
-                    });
-                  }
-                },
-                children: _segments.map(
-                  (key, value) => MapEntry(
-                    key,
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        value,
-                        style: TextStyle(
-                          color: _currentIndex == key
-                              ? theme.label
-                              : theme.secondaryLabel,
-                          fontSize: 13,
-                        ),
-                      ),
+              child: Column(
+                children: [
+                  // Заголовок
+                  Text(
+                    'Панель диспетчера',
+                    style: TextStyle(
+                      color: theme.label,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  // Первый ряд - 3 кнопки
+                  Row(
+                    children: _menuItems.sublist(0, 3).map((item) {
+                      return Expanded(
+                        child: _buildMenuButton(theme, item),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  // Второй ряд - 3 кнопки
+                  Row(
+                    children: _menuItems.sublist(3, 6).map((item) {
+                      return Expanded(
+                        child: _buildMenuButton(theme, item),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
             ),
             // Контент выбранного экрана
@@ -117,24 +92,71 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 
+  // Кнопка меню - компактная в стиле приложения
+  Widget _buildMenuButton(dynamic theme, Map<String, dynamic> item) {
+    final bool isSelected = _currentIndex == item['index'];
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentIndex = item['index'];
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? theme.primary.withOpacity(0.12)
+              : theme.systemBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? theme.primary : theme.separator,
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              item['icon'] as IconData,
+              size: 20,
+              color: isSelected ? theme.primary : theme.secondaryLabel,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              item['title'] as String,
+              style: TextStyle(
+                color: isSelected ? theme.primary : theme.secondaryLabel,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCurrentScreen() {
     switch (_currentIndex) {
       case 0:
-        return const RoutesAdminScreen();
+        return const FixedPricesAdminScreen(); // Фикс. цены теперь первая (с картой)
       case 1:
-        return const AdminRoutesScreen(); // Новая админ-панель для предустановленных маршрутов
+        return const RoutesAdminScreen(); // Маршруты
       case 2:
-        return const FixedPricesAdminScreen();
+        return const PricingAdminScreen(); // Цены
       case 3:
-        return const PricingAdminScreen();
+        return const ScheduleAdminScreen(); // Расписание
       case 4:
-        return const ScheduleAdminScreen();
+        return const LocationsAdminScreen(); // Места
       case 5:
-        return const LocationsAdminScreen();
-      case 6:
-        return const BaggagePricingAdminScreen();
+        return const BaggagePricingAdminScreen(); // Багаж
       default:
-        return const RoutesAdminScreen();
+        return const FixedPricesAdminScreen();
     }
   }
 }

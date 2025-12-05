@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle, Direction;
 import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
+import 'package:yandex_maps_mapkit/directions.dart'; // 🆕 Для построения маршрута
 import 'package:common/common.dart';
 import '../../../models/route_stop.dart';
 import '../../../models/trip_type.dart';
@@ -20,6 +21,8 @@ import '../../orders/screens/booking_detail_screen.dart';
 import 'baggage_selection_screen_v3.dart';
 import '../widgets/simple_pet_selection_sheet.dart';
 import 'vehicle_selection_screen.dart';
+import '../../../managers/route_points_manager.dart'; // 🆕 Для нормальных маркеров
+import '../../../widgets_taxi/point_type_selector.dart'; // 🆕 RoutePointType
 
 class IndividualBookingScreen extends StatefulWidget {
   final RouteStop? fromStop;
@@ -48,8 +51,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   // Карта для отображения выбранных адресов
   MapWindow? _mapWindow;
   MapObjectCollection? _markersCollection;
-  CircleMapObject? _pickupMarker;  // Изменено на CircleMapObject для больших кругов
-  CircleMapObject? _dropoffMarker;  // Изменено на CircleMapObject для больших кругов
+  RoutePointsManager? _routePointsManager; // 🆕 Для нормальных маркеров (флаги вместо кругов)
+  
+  // 🆕 Для построения маршрута (как в route_management_widget)
+  MapObjectCollection? _routesCollection;
+  DrivingRouter? _drivingRouter;
+  DrivingSession? _drivingSession;
 
   // Для прокрутки и фокусировки на полях адресов
   final ScrollController _scrollController = ScrollController();
@@ -88,15 +95,29 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     _passengers = [PassengerInfo(type: PassengerType.adult)];
   }
 
-  void _onMapCreated(MapWindow mapWindow) {
+  void _onMapCreated(MapWindow mapWindow) async {
     _mapWindow = mapWindow;
     
     // Создаём коллекцию для маркеров
     _markersCollection = _mapWindow!.map.mapObjects.addCollection();
     
-    debugPrint('🗺️ [VARIANT 8] Карта создана в IndividualBookingScreen');
-    debugPrint('🗺️ [VARIANT 8] MapKit активирован для autocomplete callbacks');
-    debugPrint('🗺️ [VARIANT 8] Управление картой АКТИВНО (по умолчанию)');
+    // 🆕 Создаём коллекцию для маршрутов (polyline)
+    _routesCollection = _mapWindow!.map.mapObjects.addCollection();
+    
+    // 🆕 Инициализируем RoutePointsManager для красивых маркеров (флаги)
+    _routePointsManager = RoutePointsManager(
+      mapObjects: _markersCollection!,
+      onPointsChanged: (points) {
+        debugPrint('🎯 [INDIVIDUAL] Точки изменились: ${points.length}');
+      },
+    );
+    await _routePointsManager!.init();
+    
+    // 🆕 Инициализируем DrivingRouter для построения маршрутов
+    _drivingRouter = DirectionsFactory.instance.createDrivingRouter(DrivingRouterType.Combined);
+    
+    debugPrint('🗺️ [INDIVIDUAL] Карта создана в IndividualBookingScreen');
+    debugPrint('🗺️ [INDIVIDUAL] MapKit, RoutePointsManager и DrivingRouter активированы');
     
     // Устанавливаем начальную позицию (Донецк)
     _mapWindow?.map.move(
@@ -112,53 +133,40 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   // Обновление маркеров на карте
   void _updateMapMarkers() async {
     debugPrint('🗺️ [UPDATE] Вызван _updateMapMarkers');
-    debugPrint('🗺️ [UPDATE] _markersCollection: ${_markersCollection != null ? "OK" : "NULL"}');
+    debugPrint('🗺️ [UPDATE] _routePointsManager: ${_routePointsManager != null ? "OK" : "NULL"}');
     
-    if (_markersCollection == null) {
-      debugPrint('🗺️ [UPDATE] _markersCollection is NULL - выход');
+    if (_routePointsManager == null) {
+      debugPrint('🗺️ [UPDATE] _routePointsManager is NULL - выход');
       return;
     }
 
-    // Удаляем старые маркеры
-    if (_pickupMarker != null) {
-      _markersCollection!.remove(_pickupMarker!);
-      _pickupMarker = null;
-      debugPrint('🗺️ [UPDATE] Удален старый маркер отправления');
-    }
-    if (_dropoffMarker != null) {
-      _markersCollection!.remove(_dropoffMarker!);
-      _dropoffMarker = null;
-      debugPrint('🗺️ [UPDATE] Удален старый маркер назначения');
-    }
-
-    // Добавляем маркер отправления (ЗЕЛЁНЫЙ КРУГ)
+    // 🆕 Используем RoutePointsManager для красивых маркеров
+    // Устанавливаем маркер отправления (красный флаг)
     if (_pickupCoordinates != null) {
-      _pickupMarker = _markersCollection!.addCircle(
-        Circle(_pickupCoordinates!, radius: 150.0),  // Радиус 150 метров
-      )
-        ..fillColor = const Color(0xFF4CAF50).withOpacity(0.8)  // Зелёная заливка
-        ..strokeColor = Colors.white  // Белая обводка
-        ..strokeWidth = 5.0;
-      
-      debugPrint('📍 Добавлен ЗЕЛЁНЫЙ маркер отправления: ${_pickupAddress} (${_pickupCoordinates})');
+      _routePointsManager!.setPoint(RoutePointType.from, _pickupCoordinates!);
+      debugPrint('� Установлен маркер FROM: ${_pickupAddress} (${_pickupCoordinates})');
+    } else {
+      _routePointsManager!.removePoint(RoutePointType.from);
     }
 
-    // Добавляем маркер назначения (КРАСНЫЙ КРУГ)
+    // Устанавливаем маркер назначения (чёрный флаг финиша)
     if (_dropoffCoordinates != null) {
-      _dropoffMarker = _markersCollection!.addCircle(
-        Circle(_dropoffCoordinates!, radius: 150.0),  // Радиус 150 метров
-      )
-        ..fillColor = const Color(0xFFF44336).withOpacity(0.8)  // Красная заливка
-        ..strokeColor = Colors.white  // Белая обводка
-        ..strokeWidth = 5.0;
-      
-      debugPrint('📍 Добавлен КРАСНЫЙ маркер назначения: ${_dropoffAddress} (${_dropoffCoordinates})');
+      _routePointsManager!.setPoint(RoutePointType.to, _dropoffCoordinates!);
+      debugPrint('🏁 Установлен маркер TO: ${_dropoffAddress} (${_dropoffCoordinates})');
+    } else {
+      _routePointsManager!.removePoint(RoutePointType.to);
     }
 
     // Перемещаем камеру к выбранным точкам
     debugPrint('🗺️ [UPDATE] Вызываем _moveCameraToPoints...');
     _moveCameraToPoints();
     debugPrint('🗺️ [UPDATE] _moveCameraToPoints завершен');
+    
+    // 🆕 Строим маршрут если обе точки установлены
+    if (_pickupCoordinates != null && _dropoffCoordinates != null) {
+      debugPrint('🛣️ [UPDATE] Обе точки установлены, строим маршрут...');
+      _requestDrivingRoute();
+    }
   }
 
   // Перемещение камеры к выбранным точкам
@@ -233,6 +241,62 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         const mapkit.Animation(mapkit.AnimationType.Smooth, duration: 0.5),
       );
     }
+  }
+
+  // 🆕 Запрос построения маршрута между двумя точками
+  void _requestDrivingRoute() {
+    if (_pickupCoordinates == null || _dropoffCoordinates == null || _drivingRouter == null) {
+      debugPrint('⚠️ [INDIVIDUAL] Невозможно построить маршрут: отсутствуют данные');
+      return;
+    }
+    
+    debugPrint('🚗 [INDIVIDUAL] Запрос маршрута: $_pickupCoordinates → $_dropoffCoordinates');
+    
+    _drivingSession?.cancel();
+    
+    const drivingOptions = DrivingOptions(routesCount: 1);
+    const vehicleOptions = DrivingVehicleOptions();
+    
+    final requestPoints = [
+      RequestPoint(_pickupCoordinates!, RequestPointType.Waypoint, null, null, null),
+      RequestPoint(_dropoffCoordinates!, RequestPointType.Waypoint, null, null, null),
+    ];
+    
+    try {
+      _drivingSession = _drivingRouter!.requestRoutes(
+        drivingOptions,
+        vehicleOptions,
+        DrivingSessionRouteListener(
+          onDrivingRoutes: (routes) {
+            if (routes.isNotEmpty) {
+              _drawRoute(routes.first);
+              debugPrint('✅ [INDIVIDUAL] Маршрут построен');
+            }
+          },
+          onDrivingRoutesError: (error) {
+            debugPrint('❌ [INDIVIDUAL] Ошибка построения маршрута: $error');
+          },
+        ),
+        points: requestPoints,
+      );
+    } catch (e) {
+      debugPrint('❌ [INDIVIDUAL] Exception при requestRoutes: $e');
+    }
+  }
+  
+  // 🆕 Отрисовка маршрута на карте
+  void _drawRoute(DrivingRoute route) {
+    _routesCollection?.clear();
+    
+    final polyline = _routesCollection?.addPolylineWithGeometry(route.geometry);
+    if (polyline != null) {
+      polyline.setStrokeColor(const Color.fromARGB(255, 0, 122, 255)); // Синий цвет маршрута
+      polyline.strokeWidth = 5.0;
+      polyline.outlineColor = const Color.fromARGB(128, 255, 255, 255);
+      polyline.outlineWidth = 1.0;
+    }
+    
+    debugPrint('✅ [INDIVIDUAL] Маршрут отрисован');
   }
 
   Future<void> _loadRouteStops() async {
@@ -547,14 +611,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       _dropoffCoordinates = null;
       
       // Очищаем маркеры на карте
-      if (_pickupMarker != null) {
-        _markersCollection?.remove(_pickupMarker!);
-        _pickupMarker = null;
-      }
-      if (_dropoffMarker != null) {
-        _markersCollection?.remove(_dropoffMarker!);
-        _dropoffMarker = null;
-      }
+      _routePointsManager?.removePoint(RoutePointType.from);
+      _routePointsManager?.removePoint(RoutePointType.to);
     });
   }
 
@@ -624,14 +682,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     _dropoffCoordinates = null;
                     
                     // Очищаем маркеры
-                    if (_pickupMarker != null) {
-                      _markersCollection?.remove(_pickupMarker!);
-                      _pickupMarker = null;
-                    }
-                    if (_dropoffMarker != null) {
-                      _markersCollection?.remove(_dropoffMarker!);
-                      _dropoffMarker = null;
-                    }
+                    _routePointsManager?.removePoint(RoutePointType.from);
+                    _routePointsManager?.removePoint(RoutePointType.to);
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -716,14 +768,8 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     _dropoffCoordinates = null;
                     
                     // Очищаем маркеры
-                    if (_pickupMarker != null) {
-                      _markersCollection?.remove(_pickupMarker!);
-                      _pickupMarker = null;
-                    }
-                    if (_dropoffMarker != null) {
-                      _markersCollection?.remove(_dropoffMarker!);
-                      _dropoffMarker = null;
-                    }
+                    _routePointsManager?.removePoint(RoutePointType.from);
+                    _routePointsManager?.removePoint(RoutePointType.to);
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -821,7 +867,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
             ),
             clipBehavior: Clip.antiAlias,
             child: AspectRatio(
-              aspectRatio: 16 / 9, // Правильные пропорции карты
+              aspectRatio: 1.2, // Пропорции как в админ-панели
               child: FlutterMapWidget(
                 onMapCreated: _onMapCreated,
                 onMapDispose: () {

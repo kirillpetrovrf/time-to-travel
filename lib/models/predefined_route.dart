@@ -6,6 +6,12 @@ class PredefinedRoute {
   final double price;
   final DateTime createdAt;
   final DateTime updatedAt;
+  
+  // 🆕 НОВЫЕ ПОЛЯ ДЛЯ СИСТЕМЫ ГРУПП:
+  final String? groupId; // ID группы (может быть null для старых маршрутов)
+  final bool useGroupPrice; // Использовать цену из группы
+  final bool customPrice; // Цена переопределена вручную
+  final bool isReverse; // Обратный маршрут (автогенерированный)
 
   PredefinedRoute({
     required this.id,
@@ -14,6 +20,10 @@ class PredefinedRoute {
     required this.price,
     required this.createdAt,
     required this.updatedAt,
+    this.groupId,
+    this.useGroupPrice = true,
+    this.customPrice = false,
+    this.isReverse = false,
   });
 
   /// Создает маршрут из Firebase документа
@@ -25,6 +35,10 @@ class PredefinedRoute {
       price: (data['price'] ?? 0.0).toDouble(),
       createdAt: data['createdAt']?.toDate() ?? DateTime.now(),
       updatedAt: data['updatedAt']?.toDate() ?? DateTime.now(),
+      groupId: data['groupId'],
+      useGroupPrice: data['useGroupPrice'] ?? true,
+      customPrice: data['customPrice'] ?? false,
+      isReverse: data['isReverse'] ?? false,
     );
   }
 
@@ -36,6 +50,10 @@ class PredefinedRoute {
       'price': price,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'groupId': groupId,
+      'useGroupPrice': useGroupPrice,
+      'customPrice': customPrice,
+      'isReverse': isReverse,
     };
   }
 
@@ -73,6 +91,10 @@ class PredefinedRoute {
     double? price,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? groupId,
+    bool? useGroupPrice,
+    bool? customPrice,
+    bool? isReverse,
   }) {
     return PredefinedRoute(
       id: id ?? this.id,
@@ -81,6 +103,10 @@ class PredefinedRoute {
       price: price ?? this.price,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      groupId: groupId ?? this.groupId,
+      useGroupPrice: useGroupPrice ?? this.useGroupPrice,
+      customPrice: customPrice ?? this.customPrice,
+      isReverse: isReverse ?? this.isReverse,
     );
   }
 
@@ -93,6 +119,10 @@ class PredefinedRoute {
       price: price,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      groupId: groupId,
+      useGroupPrice: useGroupPrice,
+      customPrice: customPrice,
+      isReverse: true, // Помечаем как обратный маршрут
     );
   }
 
