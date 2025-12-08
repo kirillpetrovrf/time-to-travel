@@ -1214,15 +1214,40 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   Widget _buildPricingSummary(theme) {
     final totalPrice = _calculatePrice();
 
-    // Если время не выбрано, показываем базовую цену
-    final basePrice = _selectedTime.isEmpty
-        ? 8000
-        : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
-
-    final nightSurcharge =
-        _isNightTime() && _selectedDirection == Direction.donetskToRostov
-        ? 2000
-        : 0;
+    // Получаем названия городов
+    final fromCity = _selectedFromStop?.name;
+    final toCity = _selectedToStop?.name;
+    
+    // 🆕 Проверяем фиксированный тариф для маршрута
+    final fixedPrice = TripPricing.getFixedRoutePrice(fromCity, toCity);
+    
+    int basePrice;
+    int nightSurcharge = 0;
+    
+    if (fixedPrice != null) {
+      // Есть фиксированный тариф
+      basePrice = fixedPrice.toInt();
+      
+      // Ночная доплата для маршрутов до Успенки
+      if (_isUspenkaRoute(fromCity, toCity) && _isNightTime()) {
+        nightSurcharge = 1000; // 5000 → 6000 ночью
+      }
+    } else {
+      // Стандартный расчёт
+      basePrice = _selectedTime.isEmpty
+          ? 8000
+          : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
+      
+      nightSurcharge = _isNightTime() && _selectedDirection == Direction.donetskToRostov
+          ? 2000
+          : 0;
+      
+      // Вычитаем ночную надбавку из базовой цены для отображения
+      if (nightSurcharge > 0) {
+        basePrice -= nightSurcharge;
+      }
+    }
+    
     final baggagePrice = _calculateBaggagePrice();
     final petPrice = _calculatePetPrice();
     final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
@@ -1252,7 +1277,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                 style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
               ),
               Text(
-                '${basePrice - nightSurcharge} ₽',
+                '$basePrice ₽',
                 style: TextStyle(fontSize: 16, color: theme.secondaryLabel),
               ),
             ],
@@ -1772,10 +1797,31 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
   }
 
   int _calculatePrice() {
-    // Базовая цена (если время не выбрано, используем 8000₽)
-    final basePrice = _selectedTime.isEmpty
-        ? 8000
-        : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
+    // Получаем названия городов
+    final fromCity = _selectedFromStop?.name;
+    final toCity = _selectedToStop?.name;
+    
+    // 🆕 Проверяем фиксированный тариф для маршрута
+    final fixedPrice = TripPricing.getFixedRoutePrice(fromCity, toCity);
+    
+    int basePrice;
+    if (fixedPrice != null) {
+      // Есть фиксированный тариф для этого маршрута
+      basePrice = fixedPrice.toInt();
+      
+      // 🌙 Проверяем ночной тариф для маршрутов до Успенки (+1000₽ ночью)
+      if (_isUspenkaRoute(fromCity, toCity) && _isNightTime()) {
+        basePrice += 1000; // 5000 → 6000 ночью
+        print('💰 [INDIVIDUAL] 🌙 Ночной тариф до Успенки: +1000₽');
+      }
+      print('💰 [INDIVIDUAL] 📍 Фиксированный тариф для $fromCity → $toCity: ${basePrice}₽');
+    } else {
+      // Стандартный расчёт (если фиксированный тариф не найден)
+      basePrice = _selectedTime.isEmpty
+          ? 8000
+          : TripPricing.getIndividualTripPrice(_selectedTime, _selectedDirection);
+      print('💰 [INDIVIDUAL] 📍 Стандартный тариф: ${basePrice}₽');
+    }
 
     // Дополнительная цена за тип транспорта
     final vehiclePrice = _selectedVehicleClass != null
@@ -1788,6 +1834,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     final vkDiscount = _hasVKDiscount ? 30.0 : 0.0;
 
     print('💰 [INDIVIDUAL] ========== РАСЧЕТ ИТОГОВОЙ ЦЕНЫ ==========');
+    print('💰 [INDIVIDUAL] Маршрут: $fromCity → $toCity');
     print('💰 [INDIVIDUAL] Базовая цена: ${basePrice}₽');
     print('💰 [INDIVIDUAL] Транспорт: +${vehiclePrice.toInt()}₽');
     print('💰 [INDIVIDUAL] Багаж: ${baggagePrice.toInt()}₽');
@@ -1799,6 +1846,15 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
     print('💰 [INDIVIDUAL] ==========================================');
 
     return (basePrice + vehiclePrice + baggagePrice + petPrice - vkDiscount).toInt();
+  }
+  
+  /// Проверяет, является ли маршрут до/от Успенки
+  bool _isUspenkaRoute(String? fromCity, String? toCity) {
+    if (fromCity == null || toCity == null) return false;
+    final from = fromCity.toLowerCase();
+    final to = toCity.toLowerCase();
+    return from.contains('успенка') || to.contains('успенка') ||
+           from.contains('кпп') || to.contains('кпп');
   }
 
   String _formatDate(DateTime date) {
