@@ -28,31 +28,42 @@ Future<Response> _getOrders(RequestContext context) async {
   try {
     final db = context.read<DatabaseService>();
     final orderRepo = OrderRepository(db);
+    final userRepo = UserRepository(db);
     final jwtHelper = JwtHelper.fromEnv(Platform.environment);
 
     // Получаем токен (опционально)
     final authHeader = context.request.headers['authorization'];
     String? userId;
+    String? userRole;
 
     if (authHeader != null && authHeader.startsWith('Bearer ')) {
       final token = authHeader.substring(7);
       final payload = jwtHelper.verifyToken(token);
       userId = payload?['userId'] as String?;
+      userRole = payload?['role'] as String?;
+      
+      // Для авторизованных пользователей проверяем существование
+      if (userId != null) {
+        final user = await userRepo.findById(userId);
+        if (user != null) {
+          userRole = user.role; // Берём роль из БД
+        }
+      }
     }
 
     // Получаем query параметры
     final uri = context.request.uri;
     final phone = uri.queryParameters['phone'];
     final status = uri.queryParameters['status'];
-    final limit = int.tryParse(uri.queryParameters['limit'] ?? '50');
+    final limit = int.tryParse(uri.queryParameters['limit'] ?? '100');
 
     List<Order> orders;
 
-    // Поиск по телефону
+    // Поиск по телефону (для всех)
     if (phone != null) {
       orders = await orderRepo.findByPhone(phone);
     }
-    // Поиск по статусу
+    // Поиск по статусу (для всех)
     else if (status != null) {
       final orderStatus = _parseOrderStatus(status);
       if (orderStatus == null) {
@@ -63,13 +74,18 @@ Future<Response> _getOrders(RequestContext context) async {
       }
       orders = await orderRepo.findByStatus(orderStatus, limit: limit);
     }
-    // Заказы пользователя (если аутентифицирован)
+    // ✅ ДИСПЕТЧЕРЫ И АДМИНЫ - видят ВСЕ заказы
+    else if (userRole == 'dispatcher' || userRole == 'admin') {
+      orders = await orderRepo.findAll(limit: limit);
+    }
+    // Обычные пользователи - свои заказы
     else if (userId != null) {
       orders = await orderRepo.findByUserId(userId, limit: limit);
     }
-    // Все заказы (для неавторизованных - пустой список)
+    // ✅ НЕ авторизованные - ВСЕ заказы (для обратной совместимости)
+    // Это позволит диспетчеру без токена видеть заказы
     else {
-      orders = [];
+      orders = await orderRepo.findAll(limit: limit);
     }
 
     return Response.json(
