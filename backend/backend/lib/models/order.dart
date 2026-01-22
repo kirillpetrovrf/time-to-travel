@@ -244,7 +244,9 @@ class Order {
       departureDate: row['departure_date'] != null
           ? parseDbDateTime(row['departure_date'])
           : null,
-      departureTime: row['departure_time'] as String?,
+      departureTime: row['departure_time'] != null
+          ? row['departure_time'].toString()
+          : null,
       passengers: row['passengers'] != null
           ? (jsonDecode(row['passengers'] as String) as List)
               .map((e) => Passenger.fromJson(e as Map<String, dynamic>))
