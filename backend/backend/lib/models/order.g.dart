@@ -76,6 +76,8 @@ Order _$OrderFromJson(Map<String, dynamic> json) => Order(
     _$VehicleClassEnumMap,
     json['vehicleClass'],
   ),
+  tripType: $enumDecodeNullable(_$TripTypeEnumMap, json['tripType']),
+  direction: $enumDecodeNullable(_$DirectionEnumMap, json['direction']),
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
 );
@@ -105,6 +107,8 @@ Map<String, dynamic> _$OrderToJson(Order instance) => <String, dynamic>{
   'pets': instance.pets,
   'notes': instance.notes,
   'vehicleClass': _$VehicleClassEnumMap[instance.vehicleClass],
+  'tripType': _$TripTypeEnumMap[instance.tripType],
+  'direction': _$DirectionEnumMap[instance.direction],
   'createdAt': instance.createdAt.toIso8601String(),
   'updatedAt': instance.updatedAt.toIso8601String(),
 };
@@ -122,6 +126,17 @@ const _$VehicleClassEnumMap = {
   VehicleClass.comfort: 'comfort',
   VehicleClass.business: 'business',
   VehicleClass.minivan: 'minivan',
+};
+
+const _$TripTypeEnumMap = {
+  TripType.group: 'group',
+  TripType.individual: 'individual',
+  TripType.customRoute: 'customRoute',
+};
+
+const _$DirectionEnumMap = {
+  Direction.donetskToRostov: 'donetskToRostov',
+  Direction.rostovToDonetsk: 'rostovToDonetsk',
 };
 
 CreateOrderDto _$CreateOrderDtoFromJson(Map<String, dynamic> json) =>
@@ -154,6 +169,8 @@ CreateOrderDto _$CreateOrderDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       notes: json['notes'] as String?,
       vehicleClass: json['vehicleClass'] as String?,
+      tripType: json['tripType'] as String?,
+      direction: json['direction'] as String?,
     );
 
 Map<String, dynamic> _$CreateOrderDtoToJson(CreateOrderDto instance) =>
@@ -178,6 +195,8 @@ Map<String, dynamic> _$CreateOrderDtoToJson(CreateOrderDto instance) =>
       'pets': instance.pets,
       'notes': instance.notes,
       'vehicleClass': instance.vehicleClass,
+      'tripType': instance.tripType,
+      'direction': instance.direction,
     };
 
 UpdateOrderDto _$UpdateOrderDtoFromJson(Map<String, dynamic> json) =>

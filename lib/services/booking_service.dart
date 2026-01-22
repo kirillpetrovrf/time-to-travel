@@ -93,6 +93,8 @@ class BookingService {
         totalPrice: booking.totalPrice.toDouble(),
         notes: booking.notes,
         metadata: metadata,
+        tripType: booking.tripType.toString().split('.').last,      // ✅ НОВОЕ
+        direction: booking.direction.toString().split('.').last,    // ✅ НОВОЕ
       );
       
       debugPrint('✅ Заказ успешно создан на backend с ID: ${createdOrder.id}');
@@ -334,11 +336,43 @@ class BookingService {
       
       // Конвертируем ApiOrder → Booking
       final backendBookings = ordersResponse.orders.map((apiOrder) {
+        // ✅ НОВОЕ: Сначала пытаемся прочитать tripType из основного поля
+        TripType tripType = TripType.customRoute;
+        if (apiOrder.tripType != null) {
+          tripType = TripType.values.firstWhere(
+            (e) => e.toString().split('.').last == apiOrder.tripType,
+            orElse: () => TripType.customRoute,
+          );
+        } else if (apiOrder.metadata?['tripType'] != null) {
+          // Fallback: читаем из metadata (для совместимости со старыми заказами)
+          final tripTypeStr = apiOrder.metadata!['tripType'] as String;
+          tripType = TripType.values.firstWhere(
+            (e) => e.toString().split('.').last == tripTypeStr,
+            orElse: () => TripType.customRoute,
+          );
+        }
+        
+        // ✅ НОВОЕ: Сначала пытаемся прочитать direction из основного поля
+        Direction direction = Direction.donetskToRostov;
+        if (apiOrder.direction != null) {
+          direction = Direction.values.firstWhere(
+            (e) => e.toString().split('.').last == apiOrder.direction,
+            orElse: () => Direction.donetskToRostov,
+          );
+        } else if (apiOrder.metadata?['direction'] != null) {
+          // Fallback: читаем из metadata (для совместимости со старыми заказами)
+          final directionStr = apiOrder.metadata!['direction'] as String;
+          direction = Direction.values.firstWhere(
+            (e) => e.toString().split('.').last == directionStr,
+            orElse: () => Direction.donetskToRostov,
+          );
+        }
+        
         return Booking(
           id: apiOrder.id,
           clientId: apiOrder.userId,
-          tripType: TripType.customRoute, // TODO: извлечь из metadata
-          direction: Direction.donetskToRostov, // TODO: извлечь из metadata
+          tripType: tripType,
+          direction: direction,
           departureDate: apiOrder.departureTime,
           departureTime: '${apiOrder.departureTime.hour.toString().padLeft(2, '0')}:${apiOrder.departureTime.minute.toString().padLeft(2, '0')}',
           passengerCount: apiOrder.passengerCount,

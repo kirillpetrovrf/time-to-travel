@@ -34,6 +34,8 @@ class ApiOrder {
   final String? notes;
   final String? phone;
   final Map<String, dynamic>? metadata; // Для багажа, животных и т.д.
+  final String? tripType;    // ✅ НОВОЕ: 'group', 'individual', 'customRoute'
+  final String? direction;   // ✅ НОВОЕ: 'donetskToRostov', 'rostovToDonetsk'
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -50,6 +52,8 @@ class ApiOrder {
     this.notes,
     this.phone,
     this.metadata,
+    this.tripType,     // ✅ НОВОЕ
+    this.direction,    // ✅ НОВОЕ
     required this.createdAt,
     required this.updatedAt,
   });
@@ -101,6 +105,8 @@ class ApiOrder {
       notes: data['notes'] as String?,
       phone: data['clientPhone'] as String?,
       metadata: data['metadata'] as Map<String, dynamic>?,
+      tripType: data['tripType'] as String?,      // ✅ НОВОЕ
+      direction: data['direction'] as String?,    // ✅ НОВОЕ
       createdAt: data['createdAt'] != null 
           ? DateTime.parse(data['createdAt'] as String)
           : DateTime.now(),
@@ -195,12 +201,16 @@ class OrdersApiService {
     String? notes,
     String? phone,
     Map<String, dynamic>? metadata,
+    String? tripType,      // ✅ НОВОЕ: 'group', 'individual', 'customRoute'
+    String? direction,     // ✅ НОВОЕ: 'donetskToRostov', 'rostovToDonetsk'
   }) async {
     try {
       debugPrint('📤 [API] Отправка заказа на backend...');
       debugPrint('   От: $fromAddress');
       debugPrint('   До: $toAddress');
       debugPrint('   Цена: $totalPrice');
+      debugPrint('   Тип: $tripType');
+      debugPrint('   Направление: $direction');
       
       final response = await _apiClient.post(
         ApiConfig.ordersEndpoint,
@@ -215,6 +225,8 @@ class OrdersApiService {
           if (notes != null) 'notes': notes,
           if (phone != null) 'phone': phone,
           if (metadata != null) 'metadata': metadata,
+          if (tripType != null) 'tripType': tripType,       // ✅ НОВОЕ
+          if (direction != null) 'direction': direction,    // ✅ НОВОЕ
         },
         requiresAuth: false, // ✅ Заказы можно создавать БЕЗ авторизации
       );

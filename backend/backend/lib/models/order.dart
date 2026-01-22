@@ -45,6 +45,49 @@ enum OrderStatus {
   }
 }
 
+/// Типы поездок
+enum TripType {
+  group,         // Групповая поездка
+  individual,    // Индивидуальный трансфер
+  customRoute;   // Свободный маршрут (такси)
+
+  String toDb() => name;
+
+  static TripType? fromDb(String? tripType) {
+    if (tripType == null) return null;
+    switch (tripType) {
+      case 'group':
+        return TripType.group;
+      case 'individual':
+        return TripType.individual;
+      case 'customRoute':
+        return TripType.customRoute;
+      default:
+        return null;
+    }
+  }
+}
+
+/// Направления
+enum Direction {
+  donetskToRostov,   // Донецк → Ростов-на-Дону
+  rostovToDonetsk;   // Ростов-на-Дону → Донецк
+
+  String toDb() => name;
+
+  static Direction? fromDb(String? direction) {
+    if (direction == null) return null;
+    switch (direction) {
+      case 'donetskToRostov':
+        return Direction.donetskToRostov;
+      case 'rostovToDonetsk':
+        return Direction.rostovToDonetsk;
+      default:
+        return null;
+    }
+  }
+}
+
 /// Классы автомобилей
 enum VehicleClass {
   economy,
@@ -171,6 +214,10 @@ class Order {
   // Класс автомобиля
   final VehicleClass? vehicleClass;
 
+  // ✅ НОВОЕ: Тип поездки и направление
+  final TripType? tripType;
+  final Direction? direction;
+
   // Метаданные
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -200,6 +247,8 @@ class Order {
     this.pets,
     this.notes,
     this.vehicleClass,
+    this.tripType,
+    this.direction,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -270,6 +319,8 @@ class Order {
           : null,
       notes: row['notes'] as String?,
       vehicleClass: VehicleClass.fromDb(row['vehicle_class'] as String?),
+      tripType: TripType.fromDb(row['trip_type'] as String?),
+      direction: Direction.fromDb(row['direction'] as String?),
       createdAt: parseDbDateTime(row['created_at']),
       updatedAt: parseDbDateTime(row['updated_at']),
     );
@@ -370,6 +421,10 @@ class CreateOrderDto {
   final List<Pet>? pets;
   final String? notes;
   final String? vehicleClass;
+  
+  // ✅ НОВОЕ: Тип поездки и направление
+  final String? tripType;     // 'group', 'individual', 'customRoute'
+  final String? direction;    // 'donetskToRostov', 'rostovToDonetsk'
 
   const CreateOrderDto({
     this.fromLat,
@@ -392,6 +447,8 @@ class CreateOrderDto {
     this.pets,
     this.notes,
     this.vehicleClass,
+    this.tripType,
+    this.direction,
   });
 
   factory CreateOrderDto.fromJson(Map<String, dynamic> json) =>

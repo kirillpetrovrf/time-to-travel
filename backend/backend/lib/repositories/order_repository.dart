@@ -48,7 +48,8 @@ class OrderRepository {
         client_name, client_phone,
         departure_date, departure_time,
         passengers, baggage, pets,
-        notes, vehicle_class
+        notes, vehicle_class,
+        trip_type, direction
       ) VALUES (
         @orderId, @userId,
         @fromLat, @fromLon, @toLat, @toLon,
@@ -58,7 +59,8 @@ class OrderRepository {
         @clientName, @clientPhone,
         @departureDate, @departureTime,
         @passengers, @baggage, @pets,
-        @notes, @vehicleClass
+        @notes, @vehicleClass,
+        @tripType, @direction
       )
       ''',
       parameters: {
@@ -85,6 +87,8 @@ class OrderRepository {
         'pets': dto.pets != null ? jsonEncode(dto.pets!.map((p) => p.toJson()).toList()) : null,
         'notes': dto.notes,
         'vehicleClass': dto.vehicleClass,
+        'tripType': dto.tripType,    // ✅ НОВОЕ
+        'direction': dto.direction,   // ✅ НОВОЕ
       },
     );
 
