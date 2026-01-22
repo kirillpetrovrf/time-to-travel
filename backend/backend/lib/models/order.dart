@@ -209,21 +209,35 @@ class Order {
   Map<String, dynamic> toJson() => _$OrderToJson(this);
 
   factory Order.fromDb(Map<String, dynamic> row) {
+    // Helper для парсинга числовых значений (PostgreSQL DECIMAL возвращается как String)
+    double? parseOptionalNum(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+    
+    double parseRequiredNum(dynamic value) {
+      if (value is num) return value.toDouble();
+      if (value is String) return double.parse(value);
+      throw FormatException('Cannot parse $value as double');
+    }
+    
     return Order(
       id: row['id'] as String,
       orderId: row['order_id'] as String,
       userId: row['user_id'] as String?,
-      fromLat: row['from_lat'] != null ? (row['from_lat'] as num).toDouble() : null,
-      fromLon: row['from_lon'] != null ? (row['from_lon'] as num).toDouble() : null,
-      toLat: row['to_lat'] != null ? (row['to_lat'] as num).toDouble() : null,
-      toLon: row['to_lon'] != null ? (row['to_lon'] as num).toDouble() : null,
+      fromLat: parseOptionalNum(row['from_lat']),
+      fromLon: parseOptionalNum(row['from_lon']),
+      toLat: parseOptionalNum(row['to_lat']),
+      toLon: parseOptionalNum(row['to_lon']),
       fromAddress: row['from_address'] as String,
       toAddress: row['to_address'] as String,
-      distanceKm: row['distance_km'] != null ? (row['distance_km'] as num).toDouble() : null,
-      rawPrice: row['raw_price'] != null ? (row['raw_price'] as num).toDouble() : null,
-      finalPrice: (row['final_price'] as num).toDouble(),
-      baseCost: row['base_cost'] != null ? (row['base_cost'] as num).toDouble() : null,
-      costPerKm: row['cost_per_km'] != null ? (row['cost_per_km'] as num).toDouble() : null,
+      distanceKm: parseOptionalNum(row['distance_km']),
+      rawPrice: parseOptionalNum(row['raw_price']),
+      finalPrice: parseRequiredNum(row['final_price']),
+      baseCost: parseOptionalNum(row['base_cost']),
+      costPerKm: parseOptionalNum(row['cost_per_km']),
       status: OrderStatus.fromDb(row['status'] as String),
       clientName: row['client_name'] as String?,
       clientPhone: row['client_phone'] as String?,
