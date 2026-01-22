@@ -33,9 +33,12 @@ class ApiOrder {
   final OrderStatus status;
   final String? notes;
   final String? phone;
-  final Map<String, dynamic>? metadata; // Для багажа, животных и т.д.
-  final String? tripType;    // ✅ НОВОЕ: 'group', 'individual', 'customRoute'
-  final String? direction;   // ✅ НОВОЕ: 'donetskToRostov', 'rostovToDonetsk'
+  final Map<String, dynamic>? metadata; // Для дополнительных данных
+  final String? tripType;    // 'group', 'individual', 'customRoute'
+  final String? direction;   // 'donetskToRostov', 'rostovToDonetsk'
+  final List<Map<String, dynamic>>? passengers;  // ✅ НОВОЕ: [{"type":"adult"}, ...]
+  final List<Map<String, dynamic>>? baggage;     // ✅ НОВОЕ: [{"size":"s", ...}, ...]
+  final List<Map<String, dynamic>>? pets;        // ✅ НОВОЕ: [{"category":"upTo5kg", ...}, ...]
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -52,8 +55,11 @@ class ApiOrder {
     this.notes,
     this.phone,
     this.metadata,
-    this.tripType,     // ✅ НОВОЕ
-    this.direction,    // ✅ НОВОЕ
+    this.tripType,
+    this.direction,
+    this.passengers,   // ✅ НОВОЕ
+    this.baggage,      // ✅ НОВОЕ
+    this.pets,         // ✅ НОВОЕ
     required this.createdAt,
     required this.updatedAt,
   });
@@ -105,8 +111,17 @@ class ApiOrder {
       notes: data['notes'] as String?,
       phone: data['clientPhone'] as String?,
       metadata: data['metadata'] as Map<String, dynamic>?,
-      tripType: data['tripType'] as String?,      // ✅ НОВОЕ
-      direction: data['direction'] as String?,    // ✅ НОВОЕ
+      tripType: data['tripType'] as String?,
+      direction: data['direction'] as String?,
+      passengers: data['passengers'] != null 
+          ? (data['passengers'] as List).cast<Map<String, dynamic>>()
+          : null,  // ✅ НОВОЕ
+      baggage: data['baggage'] != null 
+          ? (data['baggage'] as List).cast<Map<String, dynamic>>()
+          : null,  // ✅ НОВОЕ
+      pets: data['pets'] != null 
+          ? (data['pets'] as List).cast<Map<String, dynamic>>()
+          : null,  // ✅ НОВОЕ
       createdAt: data['createdAt'] != null 
           ? DateTime.parse(data['createdAt'] as String)
           : DateTime.now(),
@@ -201,8 +216,11 @@ class OrdersApiService {
     String? notes,
     String? phone,
     Map<String, dynamic>? metadata,
-    String? tripType,      // ✅ НОВОЕ: 'group', 'individual', 'customRoute'
-    String? direction,     // ✅ НОВОЕ: 'donetskToRostov', 'rostovToDonetsk'
+    String? tripType,      // 'group', 'individual', 'customRoute'
+    String? direction,     // 'donetskToRostov', 'rostovToDonetsk'
+    List<Map<String, dynamic>>? passengers,  // ✅ НОВОЕ: [{"type":"adult"}, {"type":"child"}]
+    List<Map<String, dynamic>>? baggage,     // ✅ НОВОЕ: [{"size":"s","quantity":2}]
+    List<Map<String, dynamic>>? pets,        // ✅ НОВОЕ: [{"category":"upTo5kg"}]
   }) async {
     try {
       debugPrint('📤 [API] Отправка заказа на backend...');
@@ -211,6 +229,9 @@ class OrdersApiService {
       debugPrint('   Цена: $totalPrice');
       debugPrint('   Тип: $tripType');
       debugPrint('   Направление: $direction');
+      debugPrint('   Пассажиры: ${passengers?.length ?? 0}');
+      debugPrint('   Багаж: ${baggage?.length ?? 0}');
+      debugPrint('   Животные: ${pets?.length ?? 0}');
       
       final response = await _apiClient.post(
         ApiConfig.ordersEndpoint,
@@ -225,8 +246,11 @@ class OrdersApiService {
           if (notes != null) 'notes': notes,
           if (phone != null) 'phone': phone,
           if (metadata != null) 'metadata': metadata,
-          if (tripType != null) 'tripType': tripType,       // ✅ НОВОЕ
-          if (direction != null) 'direction': direction,    // ✅ НОВОЕ
+          if (tripType != null) 'tripType': tripType,
+          if (direction != null) 'direction': direction,
+          if (passengers != null) 'passengers': passengers,  // ✅ НОВОЕ
+          if (baggage != null) 'baggage': baggage,          // ✅ НОВОЕ
+          if (pets != null) 'pets': pets,                    // ✅ НОВОЕ
         },
         requiresAuth: false, // ✅ Заказы можно создавать БЕЗ авторизации
       );

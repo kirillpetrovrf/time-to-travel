@@ -53,27 +53,36 @@ class BookingService {
       // 2. Подготавливаем метаданные (багаж, животные, пассажиры, класс авто)
       final metadata = <String, dynamic>{};
       
+      // Конвертируем багаж в формат для API
+      List<Map<String, dynamic>>? baggageList;
       if (booking.baggage.isNotEmpty) {
-        metadata['baggage'] = booking.baggage.map((b) => {
+        baggageList = booking.baggage.map((b) => {
           'size': b.size.toString().split('.').last,
           'quantity': b.quantity,
           'pricePerExtraItem': b.pricePerExtraItem,
           'customDescription': b.customDescription,
         }).toList();
+        metadata['baggage'] = baggageList;  // Для совместимости
       }
       
+      // Конвертируем животных в формат для API
+      List<Map<String, dynamic>>? petsList;
       if (booking.pets.isNotEmpty) {
-        metadata['pets'] = booking.pets.map((p) => {
+        petsList = booking.pets.map((p) => {
           'category': p.category.toString().split('.').last,
           'breed': p.breed,
           'cost': p.cost,
         }).toList();
+        metadata['pets'] = petsList;  // Для совместимости
       }
       
+      // Конвертируем пассажиров в формат для API
+      List<Map<String, dynamic>>? passengersList;
       if (booking.passengers.isNotEmpty) {
-        metadata['passengers'] = booking.passengers.map((p) => {
+        passengersList = booking.passengers.map((p) => {
           'type': p.type.toString().split('.').last,
         }).toList();
+        metadata['passengers'] = passengersList;  // Для совместимости
       }
       
       if (booking.vehicleClass != null) {
@@ -93,8 +102,11 @@ class BookingService {
         totalPrice: booking.totalPrice.toDouble(),
         notes: booking.notes,
         metadata: metadata,
-        tripType: booking.tripType.toString().split('.').last,      // ✅ НОВОЕ
-        direction: booking.direction.toString().split('.').last,    // ✅ НОВОЕ
+        tripType: booking.tripType.toString().split('.').last,
+        direction: booking.direction.toString().split('.').last,
+        passengers: passengersList,   // ✅ НОВОЕ
+        baggage: baggageList,          // ✅ НОВОЕ
+        pets: petsList,                // ✅ НОВОЕ
       );
       
       debugPrint('✅ Заказ успешно создан на backend с ID: ${createdOrder.id}');
@@ -368,6 +380,72 @@ class BookingService {
           );
         }
         
+        // ✅ Конвертируем passengers из API
+        final passengers = <PassengerInfo>[];
+        if (apiOrder.passengers != null) {
+          for (final p in apiOrder.passengers!) {
+            final typeStr = p['type'] as String;
+            final passengerType = PassengerType.values.firstWhere(
+              (e) => e.toString().split('.').last == typeStr,
+              orElse: () => PassengerType.adult,
+            );
+            
+            ChildSeatType? seatType;
+            if (p['seatType'] != null) {
+              final seatTypeStr = p['seatType'] as String;
+              seatType = ChildSeatType.values.firstWhere(
+                (e) => e.toString().split('.').last == seatTypeStr,
+                orElse: () => ChildSeatType.none,
+              );
+            }
+            
+            passengers.add(PassengerInfo(
+              type: passengerType,
+              seatType: seatType,
+              useOwnSeat: p['useOwnSeat'] as bool? ?? false,
+              ageMonths: p['ageMonths'] as int?,
+            ));
+          }
+        }
+        
+        // ✅ Конвертируем baggage из API
+        final baggage = <BaggageItem>[];
+        if (apiOrder.baggage != null) {
+          for (final b in apiOrder.baggage!) {
+            final sizeStr = b['size'] as String;
+            final baggageSize = BaggageSize.values.firstWhere(
+              (e) => e.toString().split('.').last == sizeStr,
+              orElse: () => BaggageSize.s,
+            );
+            
+            baggage.add(BaggageItem(
+              size: baggageSize,
+              quantity: b['quantity'] as int? ?? 1,
+              pricePerExtraItem: (b['pricePerExtraItem'] as num?)?.toDouble() ?? 0.0,
+              customDescription: b['customDescription'] as String?,
+            ));
+          }
+        }
+        
+        // ✅ Конвертируем pets из API
+        final pets = <PetInfo>[];
+        if (apiOrder.pets != null) {
+          for (final p in apiOrder.pets!) {
+            final categoryStr = p['category'] as String;
+            final petCategory = PetCategory.values.firstWhere(
+              (e) => e.toString().split('.').last == categoryStr,
+              orElse: () => PetCategory.upTo5kgWithCarrier,
+            );
+            
+            pets.add(PetInfo(
+              category: petCategory,
+              breed: p['breed'] as String? ?? '',
+              description: p['description'] as String?,
+              agreementAccepted: true,  // Если заказ создан, значит согласие было
+            ));
+          }
+        }
+        
         return Booking(
           id: apiOrder.id,
           clientId: apiOrder.userId,
@@ -386,9 +464,9 @@ class BookingService {
           createdAt: apiOrder.createdAt,
           notes: apiOrder.notes,
           trackingPoints: const [],
-          baggage: const [],
-          pets: const [],
-          passengers: const [],
+          passengers: passengers,  // ✅ НОВОЕ
+          baggage: baggage,        // ✅ НОВОЕ
+          pets: pets,              // ✅ НОВОЕ
           vehicleClass: apiOrder.metadata?['vehicleClass'] as String?,
         );
       }).toList();

@@ -117,12 +117,20 @@ enum VehicleClass {
 /// Пассажир
 @JsonSerializable()
 class Passenger {
-  final String name;
-  final int? age;
+  final String? name;          // Опционально - может быть не указано
+  final int? age;              // Опционально - общий возраст
+  final String type;           // 'adult' или 'child' - ОБЯЗАТЕЛЬНО
+  final String? seatType;      // Для детей: 'cradle', 'seat', 'booster', 'none'
+  final bool? useOwnSeat;      // Своё кресло (true) или водителя (false)
+  final int? ageMonths;        // Возраст в месяцах для детей
 
   const Passenger({
-    required this.name,
+    this.name,
     this.age,
+    required this.type,
+    this.seatType,
+    this.useOwnSeat,
+    this.ageMonths,
   });
 
   factory Passenger.fromJson(Map<String, dynamic> json) =>
@@ -134,14 +142,20 @@ class Passenger {
 /// Багаж
 @JsonSerializable()
 class Baggage {
-  final String type; // suitcase, bag, box
-  final String size; // small, medium, large
-  final int count;
+  final String? type;              // Старый формат - опционально
+  final String size;               // 's', 'm', 'l', 'custom' - ОБЯЗАТЕЛЬНО
+  final int? count;                // Старый формат - опционально
+  final int quantity;              // Количество единиц (1-10) - ОБЯЗАТЕЛЬНО
+  final double? pricePerExtraItem; // Цена за дополнительную единицу
+  final String? customDescription; // Для size='custom'
 
   const Baggage({
-    required this.type,
+    this.type,
     required this.size,
-    this.count = 1,
+    this.count,
+    required this.quantity,
+    this.pricePerExtraItem,
+    this.customDescription,
   });
 
   factory Baggage.fromJson(Map<String, dynamic> json) =>
@@ -153,14 +167,22 @@ class Baggage {
 /// Питомец
 @JsonSerializable()
 class Pet {
-  final String type; // dog, cat, other
-  final String? name;
-  final double? weight;
+  final String? type;        // Старый формат - опционально
+  final String? name;        // Старый формат - опционально
+  final double? weight;      // Старый формат - опционально
+  final String category;     // 'upTo5kgWithCarrier', 'upTo5kgWithoutCarrier', 'over6kg' - ОБЯЗАТЕЛЬНО
+  final String breed;        // Описание животного - ОБЯЗАТЕЛЬНО
+  final double cost;         // Стоимость перевозки - ОБЯЗАТЕЛЬНО
+  final String? description; // Дополнительное описание
 
   const Pet({
-    required this.type,
+    this.type,
     this.name,
     this.weight,
+    required this.category,
+    required this.breed,
+    required this.cost,
+    this.description,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) => _$PetFromJson(json);

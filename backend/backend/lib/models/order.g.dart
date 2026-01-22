@@ -7,37 +7,59 @@ part of 'order.dart';
 // **************************************************************************
 
 Passenger _$PassengerFromJson(Map<String, dynamic> json) => Passenger(
-  name: json['name'] as String,
+  name: json['name'] as String?,
   age: (json['age'] as num?)?.toInt(),
+  type: json['type'] as String,
+  seatType: json['seatType'] as String?,
+  useOwnSeat: json['useOwnSeat'] as bool?,
+  ageMonths: (json['ageMonths'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$PassengerToJson(Passenger instance) => <String, dynamic>{
   'name': instance.name,
   'age': instance.age,
+  'type': instance.type,
+  'seatType': instance.seatType,
+  'useOwnSeat': instance.useOwnSeat,
+  'ageMonths': instance.ageMonths,
 };
 
 Baggage _$BaggageFromJson(Map<String, dynamic> json) => Baggage(
-  type: json['type'] as String,
+  type: json['type'] as String?,
   size: json['size'] as String,
-  count: (json['count'] as num?)?.toInt() ?? 1,
+  count: (json['count'] as num?)?.toInt(),
+  quantity: (json['quantity'] as num).toInt(),
+  pricePerExtraItem: (json['pricePerExtraItem'] as num?)?.toDouble(),
+  customDescription: json['customDescription'] as String?,
 );
 
 Map<String, dynamic> _$BaggageToJson(Baggage instance) => <String, dynamic>{
   'type': instance.type,
   'size': instance.size,
   'count': instance.count,
+  'quantity': instance.quantity,
+  'pricePerExtraItem': instance.pricePerExtraItem,
+  'customDescription': instance.customDescription,
 };
 
 Pet _$PetFromJson(Map<String, dynamic> json) => Pet(
-  type: json['type'] as String,
+  type: json['type'] as String?,
   name: json['name'] as String?,
   weight: (json['weight'] as num?)?.toDouble(),
+  category: json['category'] as String,
+  breed: json['breed'] as String,
+  cost: (json['cost'] as num).toDouble(),
+  description: json['description'] as String?,
 );
 
 Map<String, dynamic> _$PetToJson(Pet instance) => <String, dynamic>{
   'type': instance.type,
   'name': instance.name,
   'weight': instance.weight,
+  'category': instance.category,
+  'breed': instance.breed,
+  'cost': instance.cost,
+  'description': instance.description,
 };
 
 Order _$OrderFromJson(Map<String, dynamic> json) => Order(
