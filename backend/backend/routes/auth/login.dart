@@ -99,7 +99,7 @@ Future<void> _saveRefreshToken(
 
   await db.execute(
     '''
-    INSERT INTO refresh_tokens (user_id, token, expires_at)
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
     VALUES (@userId, @token, @expiresAt)
     ''',
     parameters: {
