@@ -14,6 +14,29 @@ class OrderRepository {
     final now = DateTime.now();
     final orderId = 'ORDER-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch % 1000}';
 
+    // Парсим дату и время
+    DateTime? parsedDateTime;
+    String? dbDate;
+    String? dbTime;
+    
+    // Пробуем распарсить departureTime как DateTime (приложение отправляет ISO string)
+    if (dto.departureTime != null) {
+      try {
+        parsedDateTime = DateTime.parse(dto.departureTime!);
+        dbDate = '${parsedDateTime.year}-${parsedDateTime.month.toString().padLeft(2, '0')}-${parsedDateTime.day.toString().padLeft(2, '0')}';
+        dbTime = '${parsedDateTime.hour.toString().padLeft(2, '0')}:${parsedDateTime.minute.toString().padLeft(2, '0')}:${parsedDateTime.second.toString().padLeft(2, '0')}';
+      } catch (e) {
+        // Если не ISO string, используем как есть (формат HH:MM)
+        dbTime = dto.departureTime;
+      }
+    }
+    
+    // Если есть отдельная дата, используем её
+    if (dto.departureDate != null) {
+      final d = dto.departureDate!;
+      dbDate = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
     final id = await db.insert(
       '''
       INSERT INTO orders (
@@ -55,8 +78,8 @@ class OrderRepository {
         'status': 'pending',
         'clientName': dto.clientName,
         'clientPhone': dto.clientPhone,
-        'departureDate': dto.departureDate?.toIso8601String(),
-        'departureTime': dto.departureTime,
+        'departureDate': dbDate, // ✅ Формат YYYY-MM-DD для DATE
+        'departureTime': dbTime, // ✅ Формат HH:MM:SS для TIME
         'passengers': dto.passengers != null ? jsonEncode(dto.passengers!.map((p) => p.toJson()).toList()) : null,
         'baggage': dto.baggage != null ? jsonEncode(dto.baggage!.map((b) => b.toJson()).toList()) : null,
         'pets': dto.pets != null ? jsonEncode(dto.pets!.map((p) => p.toJson()).toList()) : null,
