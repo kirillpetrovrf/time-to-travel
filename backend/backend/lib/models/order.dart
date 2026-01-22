@@ -317,20 +317,28 @@ class Order {
   }
 }
 
-/// DTO для создания заказа
+/// DTO для создания заказа (упрощённый для современного API)
 @JsonSerializable()
 class CreateOrderDto {
-  final double fromLat;
-  final double fromLon;
-  final double toLat;
-  final double toLon;
+  // Координаты опциональны (можно вычислить из адресов позже)
+  final double? fromLat;
+  final double? fromLon;
+  final double? toLat;
+  final double? toLon;
+  
+  // Адреса обязательны
   final String fromAddress;
   final String toAddress;
-  final double distanceKm;
-  final double rawPrice;
+  
+  // Расчёты опциональны (можно вычислить позже)
+  final double? distanceKm;
+  final double? rawPrice;
+  final double? baseCost;
+  final double? costPerKm;
+  
+  // Цена обязательна
   final double finalPrice;
-  final double baseCost;
-  final double costPerKm;
+  
   final String? clientName;
   final String? clientPhone;
   final DateTime? departureDate;
@@ -342,17 +350,17 @@ class CreateOrderDto {
   final String? vehicleClass;
 
   const CreateOrderDto({
-    required this.fromLat,
-    required this.fromLon,
-    required this.toLat,
-    required this.toLon,
+    this.fromLat,
+    this.fromLon,
+    this.toLat,
+    this.toLon,
     required this.fromAddress,
     required this.toAddress,
-    required this.distanceKm,
-    required this.rawPrice,
+    this.distanceKm,
+    this.rawPrice,
     required this.finalPrice,
-    required this.baseCost,
-    required this.costPerKm,
+    this.baseCost,
+    this.costPerKm,
     this.clientName,
     this.clientPhone,
     this.departureDate,
