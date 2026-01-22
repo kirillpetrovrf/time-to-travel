@@ -248,17 +248,23 @@ class Order {
           ? row['departure_time'].toString()
           : null,
       passengers: row['passengers'] != null
-          ? (jsonDecode(row['passengers'] as String) as List)
+          ? (row['passengers'] is String
+              ? (jsonDecode(row['passengers'] as String) as List)
+              : (row['passengers'] as List))
               .map((e) => Passenger.fromJson(e as Map<String, dynamic>))
               .toList()
           : null,
       baggage: row['baggage'] != null
-          ? (jsonDecode(row['baggage'] as String) as List)
+          ? (row['baggage'] is String
+              ? (jsonDecode(row['baggage'] as String) as List)
+              : (row['baggage'] as List))
               .map((e) => Baggage.fromJson(e as Map<String, dynamic>))
               .toList()
           : null,
       pets: row['pets'] != null
-          ? (jsonDecode(row['pets'] as String) as List)
+          ? (row['pets'] is String
+              ? (jsonDecode(row['pets'] as String) as List)
+              : (row['pets'] as List))
               .map((e) => Pet.fromJson(e as Map<String, dynamic>))
               .toList()
           : null,
