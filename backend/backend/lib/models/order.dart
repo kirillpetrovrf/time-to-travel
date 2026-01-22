@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/db_helpers.dart';
 
 part 'order.g.dart';
 
@@ -227,7 +228,7 @@ class Order {
       clientName: row['client_name'] as String?,
       clientPhone: row['client_phone'] as String?,
       departureDate: row['departure_date'] != null
-          ? DateTime.parse(row['departure_date'] as String)
+          ? parseDbDateTime(row['departure_date'])
           : null,
       departureTime: row['departure_time'] as String?,
       passengers: row['passengers'] != null
@@ -247,8 +248,8 @@ class Order {
           : null,
       notes: row['notes'] as String?,
       vehicleClass: VehicleClass.fromDb(row['vehicle_class'] as String?),
-      createdAt: DateTime.parse(row['created_at'] as String),
-      updatedAt: DateTime.parse(row['updated_at'] as String),
+      createdAt: parseDbDateTime(row['created_at']),
+      updatedAt: parseDbDateTime(row['updated_at']),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/db_helpers.dart';
 
 part 'user.g.dart';
 
@@ -49,8 +50,8 @@ class User {
       role: row['role'] as String? ?? 'client',
       isVerified: row['is_verified'] as bool? ?? false,
       isActive: row['is_active'] as bool? ?? true,
-      createdAt: DateTime.parse(row['created_at'] as String),
-      updatedAt: DateTime.parse(row['updated_at'] as String),
+      createdAt: parseDbDateTime(row['created_at']),
+      updatedAt: parseDbDateTime(row['updated_at']),
     );
   }
 
