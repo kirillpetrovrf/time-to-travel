@@ -322,7 +322,39 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       } else if (_selectedFromStop?.id == 'rostov') {
         _selectedDirection = Direction.rostovToDonetsk;
       }
+      
+      // 🆕 Автозаполнение адреса для КПП Успенка
+      _autoFillKppUspenkaAddress();
     });
+  }
+
+  /// 🆕 Автозаполнение адреса для КПП Успенка
+  /// Если выбрано направление с КПП Успенка, автоматически заполняем адрес
+  void _autoFillKppUspenkaAddress() {
+    const kppUspenkaId = 'kpp_uspenka';
+    const kppUspenkaAddress = 'КПП Успенка (Авило-Успенка)';
+    // Координаты рабочей КПП Авило-Успенка
+    const kppUspenkaCoordinates = Point(latitude: 47.699184, longitude: 38.679496);
+    
+    // Если FROM = КПП Успенка → заполняем адрес отправления
+    if (_selectedFromStop?.id == kppUspenkaId) {
+      _pickupAddress = kppUspenkaAddress;
+      _pickupCoordinates = kppUspenkaCoordinates;
+      debugPrint('🚗 [AUTO] Автозаполнение PICKUP: $kppUspenkaAddress');
+      
+      // Устанавливаем маркер на карте
+      _routePointsManager?.setPoint(RoutePointType.from, kppUspenkaCoordinates);
+    }
+    
+    // Если TO = КПП Успенка → заполняем адрес назначения
+    if (_selectedToStop?.id == kppUspenkaId) {
+      _dropoffAddress = kppUspenkaAddress;
+      _dropoffCoordinates = kppUspenkaCoordinates;
+      debugPrint('🚗 [AUTO] Автозаполнение DROPOFF: $kppUspenkaAddress');
+      
+      // Устанавливаем маркер на карте
+      _routePointsManager?.setPoint(RoutePointType.to, kppUspenkaCoordinates);
+    }
   }
 
   @override
@@ -613,6 +645,9 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
       // Очищаем маркеры на карте
       _routePointsManager?.removePoint(RoutePointType.from);
       _routePointsManager?.removePoint(RoutePointType.to);
+      
+      // 🆕 Автозаполнение адреса для КПП Успенка
+      _autoFillKppUspenkaAddress();
     });
   }
 
@@ -684,6 +719,9 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     // Очищаем маркеры
                     _routePointsManager?.removePoint(RoutePointType.from);
                     _routePointsManager?.removePoint(RoutePointType.to);
+                    
+                    // 🆕 Автозаполнение адреса для КПП Успенка
+                    _autoFillKppUspenkaAddress();
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -770,6 +808,9 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                     // Очищаем маркеры
                     _routePointsManager?.removePoint(RoutePointType.from);
                     _routePointsManager?.removePoint(RoutePointType.to);
+                    
+                    // 🆕 Автозаполнение адреса для КПП Успенка
+                    _autoFillKppUspenkaAddress();
                   });
                 },
                 scrollController: FixedExtentScrollController(
@@ -1189,7 +1230,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Комендантский час',
+                  'Ночной тариф',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: theme.label,
@@ -1197,7 +1238,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Выезд после 22:00 — доплата +2 000 ₽',
+                  'Выезд с 22:00 до 04:00 — доплата +2 000 ₽',
                   style: TextStyle(
                     fontSize: 14,
                     color: theme.secondaryLabel.withOpacity(0.8),
@@ -1414,13 +1455,14 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
 
   bool _isNightTime() {
     // _selectedTime теперь String формата '22:00'
+    // Ночной тариф: 22:00 - 03:59
     if (_selectedTime.isEmpty) return false;
 
     final parts = _selectedTime.split(':');
     if (parts.length != 2) return false;
 
     final hour = int.tryParse(parts[0]) ?? 0;
-    return hour >= 22;
+    return hour >= 22 || hour < 4;
   }
 
   Widget _buildBaggageSection(theme) {

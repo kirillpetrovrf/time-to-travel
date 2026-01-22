@@ -6,6 +6,45 @@ import 'package:yandex_maps_mapkit/mapkit.dart' hide Icon, TextStyle;
 import 'package:yandex_maps_mapkit/search.dart';
 import '../services/yandex_search_service.dart';
 
+/// 🔧 Координаты КПП для корректировки
+/// Старая закрытая КПП Успенка (запрещена) - координаты для сравнения
+const double _oldUspenkaLat = 47.697816;
+const double _oldUspenkaLng = 38.666213;
+
+/// Рабочая КПП Авило-Успенка - координаты для замены
+const double _workingUspenkaLat = 47.699184;
+const double _workingUspenkaLng = 38.679496;
+
+/// Радиус для определения близости к старой КПП (в градусах, ~3км)
+const double _uspenkaRadius = 0.03;
+
+/// 🔧 Корректирует координаты для КПП Успенка
+/// Если адрес содержит "Успенка" и координаты близки к старой закрытой КПП,
+/// заменяет их на координаты рабочей КПП Авило-Успенка
+Point? _correctUspenkaCoordinates(String address, Point? coordinates) {
+  if (coordinates == null) return null;
+  
+  final addressLower = address.toLowerCase();
+  
+  // Проверяем, что это адрес с Успенкой
+  if (!addressLower.contains('успенка') && !addressLower.contains('авило')) {
+    return coordinates;
+  }
+  
+  // Проверяем, близки ли координаты к старой закрытой КПП
+  final latDiff = (coordinates.latitude - _oldUspenkaLat).abs();
+  final lngDiff = (coordinates.longitude - _oldUspenkaLng).abs();
+  
+  if (latDiff < _uspenkaRadius && lngDiff < _uspenkaRadius) {
+    print('🔄 [USPENKA FIX] Обнаружены координаты старой закрытой КПП Успенка!');
+    print('   Старые: ${coordinates.latitude}, ${coordinates.longitude}');
+    print('   Новые (рабочая КПП): $_workingUspenkaLat, $_workingUspenkaLng');
+    return const Point(latitude: _workingUspenkaLat, longitude: _workingUspenkaLng);
+  }
+  
+  return coordinates;
+}
+
 /// Упрощенный автокомплит для админ панели
 class SimpleAddressField extends StatefulWidget {
   final String label;
@@ -195,9 +234,11 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
     // 🆕 Если есть callback с координатами - проверяем наличие координат
     if (widget.onAddressWithCoordinatesSelected != null) {
       if (coordinates != null) {
+        // 🔧 Корректируем координаты для КПП Успенка
+        final correctedCoordinates = _correctUspenkaCoordinates(address, coordinates);
         // Координаты есть в suggestion - сразу вызываем callback
-        widget.onAddressWithCoordinatesSelected!(address, coordinates);
-        print('📍 SimpleAddressField: выбран адрес "$address" с координатами: ${coordinates.latitude}, ${coordinates.longitude}');
+        widget.onAddressWithCoordinatesSelected!(address, correctedCoordinates);
+        print('📍 SimpleAddressField: выбран адрес "$address" с координатами: ${correctedCoordinates?.latitude}, ${correctedCoordinates?.longitude}');
       } else {
         // Координат нет - запускаем Search API для их получения
         print('🔍 SimpleAddressField: координаты не найдены в suggestion, запускаем Search API для "$searchText"');
@@ -242,8 +283,10 @@ class _SimpleAddressFieldState extends State<SimpleAddressField> {
               final point = geoObj?.geometry.firstOrNull?.asPoint();
               
               if (point != null) {
-                print('✅ SimpleAddressField: Search API вернул координаты: ${point.latitude}, ${point.longitude}');
-                widget.onAddressWithCoordinatesSelected!(address, point);
+                // 🔧 Корректируем координаты для КПП Успенка
+                final correctedPoint = _correctUspenkaCoordinates(address, point);
+                print('✅ SimpleAddressField: Search API вернул координаты: ${correctedPoint?.latitude}, ${correctedPoint?.longitude}');
+                widget.onAddressWithCoordinatesSelected!(address, correctedPoint);
               } else {
                 print('⚠️ SimpleAddressField: Search API не вернул координаты');
                 widget.onAddressWithCoordinatesSelected!(address, null);

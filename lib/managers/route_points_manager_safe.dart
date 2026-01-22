@@ -4,6 +4,36 @@ import 'package:yandex_maps_mapkit/mapkit.dart';
 
 enum RoutePointType { from, to }
 
+/// 🔧 Координаты КПП для корректировки
+/// Старая закрытая КПП Успенка (запрещена) - координаты для сравнения
+const double _oldUspenkaLat = 47.697816;
+const double _oldUspenkaLng = 38.666213;
+
+/// Рабочая КПП Авило-Успенка - координаты для замены
+const double _workingUspenkaLat = 47.699184;
+const double _workingUspenkaLng = 38.679496;
+
+/// Радиус для определения близости к старой КПП (в градусах, ~3км)
+const double _uspenkaRadius = 0.03;
+
+/// 🔧 Корректирует координаты для КПП Успенка
+/// Если координаты близки к старой закрытой КПП,
+/// заменяет их на координаты рабочей КПП Авило-Успенка
+Point _correctUspenkaCoordinatesSafe(Point point) {
+  // Проверяем, близки ли координаты к старой закрытой КПП
+  final latDiff = (point.latitude - _oldUspenkaLat).abs();
+  final lngDiff = (point.longitude - _oldUspenkaLng).abs();
+  
+  if (latDiff < _uspenkaRadius && lngDiff < _uspenkaRadius) {
+    print('🔄 [ROUTE_MANAGER_SAFE] Обнаружены координаты старой закрытой КПП Успенка!');
+    print('   Старые: ${point.latitude}, ${point.longitude}');
+    print('   Новые (рабочая КПП): $_workingUspenkaLat, $_workingUspenkaLng');
+    return const Point(latitude: _workingUspenkaLat, longitude: _workingUspenkaLng);
+  }
+  
+  return point;
+}
+
 class RoutePointsManager {
   final MapObjectCollection mapObjects;
   final void Function(List<Point>) onPointsChanged;
@@ -30,11 +60,14 @@ class RoutePointsManager {
   void setPoint(RoutePointType type, Point point) {
     print("🔧 Setting $type point to: ${point.latitude}, ${point.longitude}");
     
+    // 🔧 Корректируем координаты для КПП Успенка
+    final correctedPoint = _correctUspenkaCoordinatesSafe(point);
+    
     if (type == RoutePointType.from) {
-      _fromPoint = point;
+      _fromPoint = correctedPoint;
       _safeUpdateFromPlacemark();
     } else {
-      _toPoint = point;
+      _toPoint = correctedPoint;
       _safeUpdateToPlacemark();
     }
     

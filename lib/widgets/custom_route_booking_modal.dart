@@ -86,13 +86,34 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
     }
   }
 
+  /// Проверяет, является ли маршрут до/от КПП Успенки
+  /// Для таких маршрутов ночная доплата 1000₽ вместо 2000₽
+  bool _isUspenkaRoute() {
+    final from = widget.fromAddress.toLowerCase();
+    final to = widget.toAddress.toLowerCase();
+    return from.contains('успенка') || to.contains('успенка') ||
+           from.contains('кпп') || to.contains('кпп');
+  }
+  
+  /// Возвращает ночную доплату в зависимости от маршрута
+  int _getNightSurcharge() {
+    return _isUspenkaRoute() ? 1000 : 2000;
+  }
+  
+  /// Проверяет, является ли время ночным (22:00 - 03:59)
+  bool _isNightTimeHour() {
+    return _selectedTime.hour >= 22 || _selectedTime.hour < 4;
+  }
+
   /// Расчёт итоговой цены
   double _calculateTotalPrice() {
     double total = widget.basePrice;
 
-    // Ночная доплата (если >= 22:00)
-    if (_selectedTime.hour >= 22) {
-      total += 2000;
+    // Ночная доплата (22:00 - 03:59)
+    // Для маршрутов до КПП Успенка: +1000₽
+    // Для остальных маршрутов: +2000₽
+    if (_isNightTimeHour()) {
+      total += _getNightSurcharge();
     }
 
     // Животные
@@ -347,7 +368,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
 
   /// Шаг 2: Время отправления
   Widget _buildTimeStep() {
-    final isNightTime = _selectedTime.hour >= 22;
+    final isNightTime = _isNightTimeHour();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -384,7 +405,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Ночная доплата: +2000 ₽',
+                      'Ночная доплата: +${_getNightSurcharge()} ₽',
                       style: TextStyle(
                         color: CupertinoColors.label.resolveFrom(context),
                         fontWeight: FontWeight.w500,
