@@ -132,22 +132,22 @@ class Order {
   final String orderId; // Внешний ID для клиента
   final String? userId;
 
-  // Координаты
-  final double fromLat;
-  final double fromLon;
-  final double toLat;
-  final double toLon;
+  // Координаты (опциональны - могут быть null при создании заказа)
+  final double? fromLat;
+  final double? fromLon;
+  final double? toLat;
+  final double? toLon;
 
   // Адреса
   final String fromAddress;
   final String toAddress;
 
-  // Расстояние и цены
-  final double distanceKm;
-  final double rawPrice;
-  final double finalPrice;
-  final double baseCost;
-  final double costPerKm;
+  // Расстояние и цены (опциональны - вычисляются позже)
+  final double? distanceKm;
+  final double? rawPrice;
+  final double finalPrice; // Только finalPrice обязателен
+  final double? baseCost;
+  final double? costPerKm;
 
   // Статус
   final OrderStatus status;
@@ -179,17 +179,17 @@ class Order {
     required this.id,
     required this.orderId,
     this.userId,
-    required this.fromLat,
-    required this.fromLon,
-    required this.toLat,
-    required this.toLon,
+    this.fromLat,
+    this.fromLon,
+    this.toLat,
+    this.toLon,
     required this.fromAddress,
     required this.toAddress,
-    required this.distanceKm,
-    required this.rawPrice,
+    this.distanceKm,
+    this.rawPrice,
     required this.finalPrice,
-    required this.baseCost,
-    required this.costPerKm,
+    this.baseCost,
+    this.costPerKm,
     required this.status,
     this.clientName,
     this.clientPhone,
@@ -213,17 +213,17 @@ class Order {
       id: row['id'] as String,
       orderId: row['order_id'] as String,
       userId: row['user_id'] as String?,
-      fromLat: (row['from_lat'] as num).toDouble(),
-      fromLon: (row['from_lon'] as num).toDouble(),
-      toLat: (row['to_lat'] as num).toDouble(),
-      toLon: (row['to_lon'] as num).toDouble(),
+      fromLat: row['from_lat'] != null ? (row['from_lat'] as num).toDouble() : null,
+      fromLon: row['from_lon'] != null ? (row['from_lon'] as num).toDouble() : null,
+      toLat: row['to_lat'] != null ? (row['to_lat'] as num).toDouble() : null,
+      toLon: row['to_lon'] != null ? (row['to_lon'] as num).toDouble() : null,
       fromAddress: row['from_address'] as String,
       toAddress: row['to_address'] as String,
-      distanceKm: (row['distance_km'] as num).toDouble(),
-      rawPrice: (row['raw_price'] as num).toDouble(),
+      distanceKm: row['distance_km'] != null ? (row['distance_km'] as num).toDouble() : null,
+      rawPrice: row['raw_price'] != null ? (row['raw_price'] as num).toDouble() : null,
       finalPrice: (row['final_price'] as num).toDouble(),
-      baseCost: (row['base_cost'] as num).toDouble(),
-      costPerKm: (row['cost_per_km'] as num).toDouble(),
+      baseCost: row['base_cost'] != null ? (row['base_cost'] as num).toDouble() : null,
+      costPerKm: row['cost_per_km'] != null ? (row['cost_per_km'] as num).toDouble() : null,
       status: OrderStatus.fromDb(row['status'] as String),
       clientName: row['client_name'] as String?,
       clientPhone: row['client_phone'] as String?,
