@@ -31,6 +31,9 @@ WORKDIR /app
 # Копируем скомпилированное приложение
 COPY --from=build /app/build /app
 
+# Копируем зависимости (dart_frog build включает pubspec, но нужны пакеты)
+COPY --from=build /root/.pub-cache /root/.pub-cache
+
 # Открываем порт
 EXPOSE 8080
 
