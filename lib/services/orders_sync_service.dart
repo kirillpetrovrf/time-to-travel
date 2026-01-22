@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'offline_orders_service.dart';
-import 'firebase_orders_service.dart';
+import 'api/orders_api_service.dart';
 
-/// Сервис автоматической синхронизации заказов: SQLite → Firebase
-/// Отслеживает появление интернета и автоматически загружает несинхронизированные заказы
+/// Сервис автоматической синхронизации заказов
+/// ✅ АКТИВЕН: Отправляет старые offline заказы на backend API
 class OrdersSyncService {
   static final OrdersSyncService instance = OrdersSyncService._();
   OrdersSyncService._();
 
   final _offlineService = OfflineOrdersService.instance;
-  final _firebaseService = FirebaseOrdersService.instance;
+  final _ordersApi = OrdersApiService();
   final _connectivity = Connectivity();
   
   StreamSubscription<dynamic>? _connectivitySubscription;
@@ -18,35 +19,21 @@ class OrdersSyncService {
   
   /// Запустить мониторинг интернета и автосинхронизацию
   void startAutoSync() {
-    print('🔄 [SYNC] Запуск автосинхронизации заказов...');
+    debugPrint('🔄 [SYNC] Запуск автосинхронизации старых offline заказов...');
     
-    // Проверяем синхронизацию при старте
+    // Проверяем синхронизацию при старте (отправляем старые offline заказы)
     _syncOrders();
     
     // Подписываемся на изменения интернета
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
-      print('📶 [SYNC] Статус подключения изменился: $result');
-
-      // result can be either ConnectivityResult or List<ConnectivityResult> depending on
-      // connectivity_plus version; handle both cases robustly.
-      bool hasConnection = false;
-
-      if (result is ConnectivityResult) {
-        hasConnection = result == ConnectivityResult.wifi || result == ConnectivityResult.mobile;
-      } else if (result is List) {
-        // list may contain ConnectivityResult values
-        hasConnection = result.contains(ConnectivityResult.wifi) || result.contains(ConnectivityResult.mobile);
-      }
-
-      if (hasConnection) {
-        print('✅ [SYNC] Интернет доступен, запускаем синхронизацию...');
+      debugPrint('📶 [SYNC] Статус подключения изменился: $result');
+      if (result == ConnectivityResult.wifi || result == ConnectivityResult.mobile) {
+        debugPrint('✅ [SYNC] Интернет появился - синхронизируем offline заказы');
         _syncOrders();
-      } else {
-        print('⚠️ [SYNC] Нет интернета, синхронизация отложена');
       }
     });
     
-    print('✅ [SYNC] Автосинхронизация запущена');
+    debugPrint('✅ [SYNC] Автосинхронизация запущена');
   }
   
   /// Остановить автосинхронизацию
@@ -62,62 +49,113 @@ class OrdersSyncService {
     await _syncOrders();
   }
   
-  /// Внутренний метод синхронизации
+  /// Внутренний метод синхронизации старых offline заказов
+  /// ✅ АКТИВНО: Загружает несинхронизированные заказы из SQLite и отправляет на backend
   Future<void> _syncOrders() async {
     // Защита от одновременных вызовов
     if (_isSyncing) {
-      print('⏳ [SYNC] Синхронизация уже выполняется, пропускаем...');
+      debugPrint('⏳ [SYNC] Синхронизация уже выполняется, пропускаем...');
       return;
     }
     
     _isSyncing = true;
     
     try {
-      // Загружаем несинхронизированные заказы из SQLite
-      final unsyncedOrders = await _offlineService.getUnsyncedOrders();
-      
-      if (unsyncedOrders.isEmpty) {
-        print('✅ [SYNC] Нет заказов для синхронизации');
+      // 1. Проверяем интернет
+      final hasInternet = await hasInternetConnection();
+      if (!hasInternet) {
+        debugPrint('❌ [SYNC] Нет интернета, синхронизация отменена');
         return;
       }
       
-      print('🔄 [SYNC] Найдено ${unsyncedOrders.length} заказов для синхронизации');
+      // 2. Получаем несинхронизированные заказы из SQLite
+      final unsyncedOrders = await _offlineService.getUnsyncedOrders();
+      if (unsyncedOrders.isEmpty) {
+        debugPrint('✅ [SYNC] Нет несинхронизированных заказов');
+        return;
+      }
       
+      debugPrint('📤 [SYNC] Найдено ${unsyncedOrders.length} offline заказов для синхронизации');
+      
+      // 3. Отправляем каждый заказ на backend
       int successCount = 0;
       int failCount = 0;
       
-      // Отправляем каждый заказ в Firebase
       for (final order in unsyncedOrders) {
         try {
-          print('📤 [SYNC] Отправка заказа ${order.orderId} в Firebase...');
+          debugPrint('📤 [SYNC] Отправка заказа ${order.orderId} на backend...');
           
-          // Отправляем в Firebase
-          await _firebaseService.saveOrder(order);
+          // Парсим дату и время
+          DateTime departureDateTime;
+          try {
+            if (order.departureDate != null && order.departureTime != null) {
+              final date = order.departureDate!; // Уже DateTime
+              final timeComponents = order.departureTime!.split(':');
+              final hour = int.parse(timeComponents[0]);
+              final minute = int.parse(timeComponents[1]);
+              
+              departureDateTime = DateTime(
+                date.year,
+                date.month,
+                date.day,
+                hour,
+                minute,
+              );
+            } else {
+              departureDateTime = order.timestamp; // Уже DateTime
+            }
+          } catch (e) {
+            debugPrint('⚠️ [SYNC] Ошибка парсинга даты/времени: $e');
+            departureDateTime = order.timestamp; // Уже DateTime
+          }
           
-          // Помечаем как синхронизированный в SQLite
+          // Подготавливаем метаданные
+          final metadata = <String, dynamic>{
+            'originalOrderId': order.orderId,
+          };
+          
+          if (order.baggageJson != null) {
+            metadata['baggageJson'] = order.baggageJson;
+          }
+          if (order.passengersJson != null) {
+            metadata['passengersJson'] = order.passengersJson;
+          }
+          if (order.petsJson != null) {
+            metadata['petsJson'] = order.petsJson;
+          }
+          if (order.vehicleClass != null) {
+            metadata['vehicleClass'] = order.vehicleClass;
+          }
+          
+          // Отправляем на backend
+          final createdOrder = await _ordersApi.createOrder(
+            fromAddress: order.fromAddress,
+            toAddress: order.toAddress,
+            departureTime: departureDateTime,
+            passengerCount: 1, // TODO: извлечь из passengersJson
+            basePrice: order.rawPrice,
+            totalPrice: order.finalPrice,
+            notes: order.notes,
+            phone: order.clientPhone,
+            metadata: metadata,
+          );
+          
+          debugPrint('✅ [SYNC] Заказ ${order.orderId} отправлен, новый ID: ${createdOrder.id}');
+          
+          // Помечаем как синхронизированный
           await _offlineService.markAsSynced(order.orderId);
-          
           successCount++;
-          print('✅ [SYNC] Заказ ${order.orderId} синхронизирован');
+          
         } catch (e) {
+          debugPrint('❌ [SYNC] Ошибка отправки заказа ${order.orderId}: $e');
           failCount++;
-          print('❌ [SYNC] Ошибка синхронизации заказа ${order.orderId}: $e');
-          // Продолжаем попытки с другими заказами
         }
       }
       
-      print('🎉 [SYNC] Синхронизация завершена: успешно=$successCount, ошибок=$failCount');
-      
-      if (successCount > 0) {
-        print('✅ [SYNC] Успешно синхронизировано заказов: $successCount');
-      }
-      
-      if (failCount > 0) {
-        print('⚠️ [SYNC] Не удалось синхронизировать заказов: $failCount');
-      }
+      debugPrint('✅ [SYNC] Синхронизация завершена: успешно $successCount, ошибок $failCount');
       
     } catch (e) {
-      print('❌ [SYNC] Критическая ошибка синхронизации: $e');
+      debugPrint('❌ [SYNC] Критическая ошибка синхронизации: $e');
     } finally {
       _isSyncing = false;
     }

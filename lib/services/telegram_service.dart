@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../models/booking.dart';
 import '../models/user.dart';
 import '../models/route_stop.dart';
@@ -11,9 +13,14 @@ class TelegramService {
 
   static const TelegramService instance = _instance;
 
-  // Мок данные для бота
-  static const String _botToken = '123456789:ABCdefGHIjklMNOpqrsTUVwxyz';
-  static const String _chatId = '-1001234567890'; // ID чата диспетчеров
+  // TODO: Заменить на реальные данные бота
+  // Получить токен: https://t.me/BotFather
+  // Получить chat_id: https://t.me/userinfobot или https://api.telegram.org/bot<TOKEN>/getUpdates
+  static const String _botToken = '7934029372:AAEh68fQpOzU1EjJAHNvyZeNnbsqd9BxVDo'; // TODO: Заменить на реальный
+  static const String _chatId = '878334685'; // TODO: Заменить на реальный ID чата диспетчеров
+
+  // Telegram Bot API endpoint
+  static const String _telegramApiUrl = 'https://api.telegram.org';
 
   /// Отправка уведомления о новом заказе
   Future<bool> sendNewBookingNotification(Booking booking, AppUser user) async {
@@ -97,14 +104,49 @@ class TelegramService {
 
   /// Отправка сообщения в Telegram
   Future<bool> _sendMessage(String message) async {
+    if (_botToken.contains('TODO') || _chatId.contains('TODO')) {
+      debugPrint('⚠️ Telegram bot не настроен. Используется мок-режим.');
+      debugPrint('📱 Сообщение для Telegram:\n$message');
+      return true; // Мок режим - всегда успешно
+    }
+
     try {
-      // В реальном приложении здесь будет HTTP запрос к Telegram Bot API
-      await Future.delayed(const Duration(milliseconds: 500));
+      final url = Uri.parse(
+        '$_telegramApiUrl/bot$_botToken/sendMessage',
+      );
 
-      debugPrint('📱 Отправлено в Telegram:\n$message');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'chat_id': _chatId,
+          'text': message,
+          'parse_mode': 'HTML', // Поддержка HTML форматирования
+          'disable_web_page_preview': true,
+        }),
+      ).timeout(
+        const Duration(seconds: 10),
+      );
 
-      // Мок: симулируем успешную отправку
-      return true;
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final ok = responseData['ok'] as bool? ?? false;
+
+        if (ok) {
+          debugPrint('✅ Сообщение успешно отправлено в Telegram');
+          return true;
+        } else {
+          final errorDescription =
+              responseData['description'] as String? ?? 'Unknown error';
+          debugPrint('❌ Telegram API error: $errorDescription');
+          return false;
+        }
+      } else {
+        debugPrint(
+          '❌ HTTP error ${response.statusCode}: ${response.body}',
+        );
+        return false;
+      }
     } catch (e) {
       debugPrint('❌ Ошибка отправки сообщения в Telegram: $e');
       return false;
