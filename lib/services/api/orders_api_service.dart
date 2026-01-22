@@ -148,7 +148,7 @@ class OrdersApiService {
       final response = await _apiClient.get(
         ApiConfig.ordersEndpoint,
         queryParameters: queryParams,
-        requiresAuth: true,
+        requiresAuth: false, // ✅ Диспетчеры могут смотреть заказы БЕЗ авторизации
       );
 
       return OrdersListResponse.fromJson(response);
