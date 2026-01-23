@@ -72,13 +72,16 @@ class AuthProvider extends ChangeNotifier {
 
   /// Проверка текущей сессии при запуске приложения
   Future<void> checkAuthStatus() async {
+    print('🔍 [AUTH_PROVIDER] ========== ПРОВЕРКА СТАТУСА АВТОРИЗАЦИИ ==========');
     _status = AuthStatus.loading;
     notifyListeners();
 
     try {
       final hasTokens = await _storage.hasTokens();
+      print('🔍 [AUTH_PROVIDER] Проверка токенов: hasTokens = $hasTokens');
       
       if (!hasTokens) {
+        print('❌ [AUTH_PROVIDER] Токены НЕ найдены → unauthenticated');
         _status = AuthStatus.unauthenticated;
         notifyListeners();
         return;
@@ -86,14 +89,21 @@ class AuthProvider extends ChangeNotifier {
 
       // Попытка обновить токен
       final refreshToken = await _storage.getRefreshToken();
+      print('🔍 [AUTH_PROVIDER] RefreshToken: ${refreshToken?.substring(0, 20)}...');
+      
       if (refreshToken == null) {
+        print('❌ [AUTH_PROVIDER] RefreshToken is null → unauthenticated');
         _status = AuthStatus.unauthenticated;
         notifyListeners();
         return;
       }
 
       try {
+        print('📡 [AUTH_PROVIDER] Пытаемся обновить токен через /refresh...');
         final response = await _api.refresh(refreshToken);
+        
+        print('✅ [AUTH_PROVIDER] Токен успешно обновлён!');
+        print('   • user: ${response.user}');
         
         await _storage.saveTokens(
           accessToken: response.accessToken,
@@ -103,16 +113,21 @@ class AuthProvider extends ChangeNotifier {
 
         _user = response.user;
         _status = AuthStatus.authenticated;
+        print('✅ [AUTH_PROVIDER] Статус: authenticated');
       } catch (e) {
         // Refresh token invalid - need to re-login
+        print('❌ [AUTH_PROVIDER] Ошибка обновления токена: $e');
+        print('🗑️ [AUTH_PROVIDER] Очищаем токены → unauthenticated');
         await _storage.clearTokens();
         _status = AuthStatus.unauthenticated;
       }
     } catch (e) {
+      print('❌ [AUTH_PROVIDER] Критическая ошибка проверки сессии: $e');
       _errorMessage = 'Ошибка проверки сессии: $e';
       _status = AuthStatus.error;
     }
 
+    print('🏁 [AUTH_PROVIDER] Финальный статус: $_status');
     notifyListeners();
   }
 
