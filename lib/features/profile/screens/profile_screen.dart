@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
 import '../../../providers/auth_provider.dart';
@@ -162,6 +163,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildSettingsSection(theme),
 
           const SizedBox(height: 32),
+
+          // Кнопка переключения режима (только для админов)
+          if (context.watch<AuthProvider>().isAdmin)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildAdminSwitchButton(theme),
+            ),
 
           // Кнопка выхода
           _buildLogoutButton(theme),
@@ -374,6 +382,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  /// Кнопка переключения в режим диспетчера (только для админов)
+  Widget _buildAdminSwitchButton(theme) {
+    return SizedBox(
+      width: double.infinity,
+      child: CupertinoButton(
+        color: CupertinoColors.systemOrange,
+        onPressed: _switchToDispatcher,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              CupertinoIcons.person_badge_plus,
+              color: CupertinoColors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _currentUser?.userType == UserType.dispatcher
+                  ? 'Переключиться в режим клиента'
+                  : 'Переключиться в режим диспетчера',
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Переключение между режимами клиента и диспетчера
+  Future<void> _switchToDispatcher() async {
+    try {
+      final newType = _currentUser?.userType == UserType.dispatcher
+          ? UserType.client
+          : UserType.dispatcher;
+
+      // Сохраняем новый тип
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_type', newType.toString().split('.').last);
+
+      if (mounted) {
+        // Показываем уведомление
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: Text(
+              newType == UserType.dispatcher
+                  ? 'Режим диспетчера активирован'
+                  : 'Режим клиента активирован',
+            ),
+            content: const Text(
+              'Приложение будет перезапущено для применения изменений.',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                child: const Text('OK'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Перезагружаем HomeScreen
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/home',
+                    (route) => false,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [PROFILE] Ошибка переключения режима: $e');
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Ошибка'),
+            content: Text('Не удалось переключить режим: $e'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   String _getUserTypeText(UserType? userType) {

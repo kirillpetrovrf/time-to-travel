@@ -1,14 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart' as provider;
-import 'firebase_options.dart';
 import 'package:yandex_maps_mapkit/init.dart' as mapkit_init;
 import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
-import 'services/orders_sync_service.dart';
 import 'services/offline_routes_service.dart';
 import 'services/route_management_service.dart';
 import 'services/yandex_search_service.dart';
@@ -31,55 +28,35 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ ИНИЦИАЛИЗАЦИЯ Firebase (для синхронизации заказов с сервером)
+  // ✅ Инициализация SQLite для маршрутов
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('✅ Firebase успешно инициализирован');
-    
-    // ✅ Запуск автоматической синхронизации заказов (SQLite → Firebase)
-    // Как только появится интернет, несинхронизированные заказы автоматически загрузятся
-    OrdersSyncService.instance.startAutoSync();
-    print('✅ Автосинхронизация заказов запущена');
-    
-    // ✅ Инициализация SQLite для маршрутов
-    try {
-      _initializeOfflineRoutesDatabase();
-      print('✅ Инициализация SQLite маршрутов запущена в фоне');
-    } catch (e) {
-      print('⚠️ Ошибка инициализации SQLite маршрутов: $e');
-    }
-    
-    // ✅ Инициализация предустановленных маршрутов ДНР
-    try {
-      // Выполняем инициализацию в фоне, чтобы не блокировать запуск
-      Future.microtask(() async {
-        await _initializePredefinedRoutes();
-      });
-      print('✅ Инициализация предустановленных маршрутов запущена в фоне');
-    } catch (e) {
-      print('⚠️ Ошибка при запуску инициализации маршрутов: $e');
-    }
-    
-    // ✅ Инициализация предустановленных ГРУПП маршрутов
-    try {
-      Future.microtask(() async {
-        await _initializeRouteGroups();
-        // 🧹 Очистка ложных групп после инициализации
-        await _cleanFalseGroups();
-      });
-      print('✅ Инициализация групп маршрутов запущена в фоне');
-    } catch (e) {
-      print('⚠️ Ошибка при запуску инициализации групп: $e');
-    }
+    _initializeOfflineRoutesDatabase();
+    print('✅ Инициализация SQLite маршрутов запущена в фоне');
   } catch (e) {
-    // ⚠️ Firebase недоступен (китайские телефоны без Google Services)
-    // Приложение продолжит работать в OFFLINE режиме на SQLite
-    print('⚠️ Firebase недоступен, работаем в offline режиме: $e');
-    print(
-      'ℹ️ Приложение будет использовать только локальное хранилище (SQLite)',
-    );
+    print('⚠️ Ошибка инициализации SQLite маршрутов: $e');
+  }
+  
+  // ✅ Инициализация предустановленных маршрутов ДНР
+  try {
+    // Выполняем инициализацию в фоне, чтобы не блокировать запуск
+    Future.microtask(() async {
+      await _initializePredefinedRoutes();
+    });
+    print('✅ Инициализация предустановленных маршрутов запущена в фоне');
+  } catch (e) {
+    print('⚠️ Ошибка при запуску инициализации маршрутов: $e');
+  }
+  
+  // ✅ Инициализация предустановленных ГРУПП маршрутов
+  try {
+    Future.microtask(() async {
+      await _initializeRouteGroups();
+      // 🧹 Очистка ложных групп после инициализации
+      await _cleanFalseGroups();
+    });
+    print('✅ Инициализация групп маршрутов запущена в фоне');
+  } catch (e) {
+    print('⚠️ Ошибка при запуску инициализации групп: $e');
   }
 
   // ✅ КРИТИЧЕСКИ ВАЖНО: Инициализация Yandex MapKit через Flutter Plugin API

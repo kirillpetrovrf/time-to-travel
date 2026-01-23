@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../services/auth_storage_service.dart';
 import '../services/telegram_auth_api_service.dart';
 import '../models/user.dart' as app_user;
+import '../core/constants/admin_users.dart';
 
 enum AuthStatus {
   initial,
@@ -30,6 +31,12 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+  
+  /// Проверка, является ли текущий пользователь администратором
+  bool get isAdmin {
+    final phone = _user?['phone']?.toString();
+    return AdminUsers.isAdmin(phone);
+  }
 
   /// Получение текущего пользователя как объект User
   app_user.User? get currentUser {

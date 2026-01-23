@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/auth_service.dart';
 import '../../../models/user.dart';
 import '../../../theme/theme_manager.dart';
+import '../../../providers/auth_provider.dart';
 import '../../booking/screens/booking_screen.dart';
 import '../../orders/screens/orders_screen.dart';
 import '../../tracking/screens/tracking_screen.dart';
@@ -32,6 +35,43 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadUserType();
     _restoreLastTab();
+    _checkAdminAccess(); // Проверка прав администратора
+  }
+
+  Future<void> _checkAdminAccess() async {
+    final authProvider = context.read<AuthProvider>();
+
+    // Если пользователь не админ, но пытается войти как диспетчер
+    if (_userType == UserType.dispatcher && !authProvider.isAdmin) {
+      // Принудительно переключаем на клиента
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_type', 'client');
+
+      if (mounted) {
+        setState(() {
+          _userType = UserType.client;
+        });
+
+        // Показываем уведомление
+        showCupertinoDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('⛔ Доступ запрещён'),
+            content: const Text(
+              'Доступ к панели диспетчера доступен только администраторам.',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadUserType() async {
