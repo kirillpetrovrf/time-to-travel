@@ -28,7 +28,15 @@ class AuthStorageService {
   
   /// Инициализация storage - ОБЯЗАТЕЛЬНО вызвать перед первым использованием!
   Future<void> initialize() async {
-    if (_initialized) return;
+    print('🔧 [STORAGE] ========== ИНИЦИАЛИЗАЦИЯ STORAGE ==========');
+    print('🔧 [STORAGE] _initialized: $_initialized');
+    
+    if (_initialized) {
+      print('⏭️ [STORAGE] Уже инициализирован, пропускаем');
+      return;
+    }
+    
+    print('🔧 [STORAGE] Проверяем работоспособность FlutterSecureStorage...');
     
     try {
       // Пытаемся записать и прочитать тестовое значение
@@ -48,6 +56,8 @@ class AuthStorageService {
     }
     
     _initialized = true;
+    print('🔧 [STORAGE] Инициализация завершена. Метод: ${_useSharedPreferences ? "SharedPreferences" : "FlutterSecureStorage"}');
+    print('🔧 [STORAGE] ==========================================');
   }
   
   /// Гарантировать что storage инициализирован

@@ -77,6 +77,15 @@ void main() async {
     print('❌ Ошибка инициализации MapKit/SearchService: $e');
   }
 
+  // ✅ Инициализация AuthStorageService для проверки FlutterSecureStorage
+  try {
+    final storage = AuthStorageService();
+    await storage.initialize();
+    print('✅ AuthStorageService инициализирован');
+  } catch (e) {
+    print('❌ Ошибка инициализации AuthStorageService: $e');
+  }
+
   runApp(const TimeToTravelApp());
 }
 

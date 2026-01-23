@@ -105,9 +105,12 @@ class AuthProvider extends ChangeNotifier {
         print('✅ [AUTH_PROVIDER] Токен успешно обновлён!');
         print('   • user: ${response.user}');
         
+        // Если backend вернул новый refreshToken - используем его, иначе - старый
+        final newRefreshToken = response.refreshToken.isEmpty ? refreshToken : response.refreshToken;
+        
         await _storage.saveTokens(
           accessToken: response.accessToken,
-          refreshToken: response.refreshToken,
+          refreshToken: newRefreshToken,
           userId: response.user['id']?.toString(),
         );
 
@@ -253,9 +256,12 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _api.refresh(refreshToken);
       
+      // Если backend вернул новый refreshToken - используем его, иначе - старый
+      final newRefreshToken = response.refreshToken.isEmpty ? refreshToken : response.refreshToken;
+      
       await _storage.saveTokens(
         accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
+        refreshToken: newRefreshToken,
         userId: response.user['id']?.toString(),
       );
 

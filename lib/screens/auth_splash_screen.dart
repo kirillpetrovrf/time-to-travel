@@ -22,26 +22,43 @@ class _AuthSplashScreenState extends State<AuthSplashScreen> {
   }
 
   Future<void> _initializeAuth() async {
+    print('🚀 [AUTH_SPLASH] ========== НАЧАЛО ПРОВЕРКИ АВТОРИЗАЦИИ ==========');
+    
     // Небольшая задержка для показа splash
     await Future.delayed(const Duration(seconds: 1));
 
-    if (!mounted) return;
+    if (!mounted) {
+      print('⚠️ [AUTH_SPLASH] Widget не mounted, прерываем');
+      return;
+    }
 
+    print('🔍 [AUTH_SPLASH] Получаем AuthProvider...');
     final authProvider = provider.Provider.of<AuthProvider>(context, listen: false);
+    
+    print('🔍 [AUTH_SPLASH] Вызываем checkAuthStatus()...');
     await authProvider.checkAuthStatus();
 
-    if (!mounted) return;
+    if (!mounted) {
+      print('⚠️ [AUTH_SPLASH] Widget не mounted после checkAuthStatus, прерываем');
+      return;
+    }
 
     // Навигация на основе статуса авторизации
+    print('🔍 [AUTH_SPLASH] AuthProvider.isAuthenticated: ${authProvider.isAuthenticated}');
+    
     if (authProvider.isAuthenticated) {
+      print('✅ [AUTH_SPLASH] Пользователь авторизован → переход на HomeScreen');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => HomeScreen()),
       );
     } else {
+      print('❌ [AUTH_SPLASH] Пользователь НЕ авторизован → переход на TelegramLoginScreen');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const TelegramLoginScreen()),
       );
     }
+    
+    print('🚀 [AUTH_SPLASH] ========== ЗАВЕРШЕНИЕ ПРОВЕРКИ АВТОРИЗАЦИИ ==========');
   }
 
   @override

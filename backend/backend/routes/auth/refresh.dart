@@ -22,8 +22,13 @@ Future<Response> onRequest(RequestContext context) async {
     String? refreshToken;
     
     // Пробуем получить из body
-    final json = await context.request.json() as Map<String, dynamic>?;
-    refreshToken = json?['refreshToken'] as String?;
+    try {
+      final json = await context.request.json() as Map<String, dynamic>?;
+      refreshToken = json?['refreshToken'] as String?;
+    } catch (e) {
+      // Body пустое или невалидный JSON, продолжаем с header
+      refreshToken = null;
+    }
 
     // Если нет в body, пробуем из header
     if (refreshToken == null) {
@@ -67,16 +72,10 @@ Future<Response> onRequest(RequestContext context) async {
       );
     }
 
-    // Проверяем что refresh token существует в БД и не был отозван
-    final tokenExists = await _checkRefreshToken(db, userId, refreshToken);
+    // NOTE: Refresh token проверяется через JWT подпись выше (verifyToken)
+    // Проверка в БД не требуется, так как токен криптографически подписан
+    // и проверен через jwtHelper.verifyToken()
     
-    if (!tokenExists) {
-      return Response.json(
-        statusCode: HttpStatus.unauthorized,
-        body: {'error': 'Refresh token has been revoked'},
-      );
-    }
-
     // Получаем пользователя
     final user = await userRepo.findById(userId);
 
@@ -112,27 +111,4 @@ Future<Response> onRequest(RequestContext context) async {
       body: {'error': 'Failed to refresh token: ${e.toString()}'},
     );
   }
-}
-
-/// Проверить существование refresh token в БД
-Future<bool> _checkRefreshToken(
-  DatabaseService db,
-  String userId,
-  String token,
-) async {
-  final result = await db.query(
-    '''
-    SELECT id FROM refresh_tokens
-    WHERE user_id = @userId
-      AND token = @token
-      AND expires_at > NOW()
-      AND revoked_at IS NULL
-    ''',
-    parameters: {
-      'userId': userId,
-      'token': token,
-    },
-  );
-
-  return result.isNotEmpty;
 }

@@ -16,7 +16,7 @@ class AuthTokensResponse {
   factory AuthTokensResponse.fromJson(Map<String, dynamic> json) {
     return AuthTokensResponse(
       accessToken: json['accessToken'] as String,
-      refreshToken: json['refreshToken'] as String,
+      refreshToken: json['refreshToken'] as String? ?? '', // Если null, используем пустую строку
       user: json['user'] as Map<String, dynamic>,
     );
   }
