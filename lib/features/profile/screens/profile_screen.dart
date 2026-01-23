@@ -428,9 +428,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (mounted) {
         // Показываем уведомление
-        showCupertinoDialog(
+        await showCupertinoDialog(
           context: context,
-          builder: (context) => CupertinoAlertDialog(
+          barrierDismissible: false,
+          builder: (dialogContext) => CupertinoAlertDialog(
             title: Text(
               newType == UserType.dispatcher
                   ? 'Режим диспетчера активирован'
@@ -444,31 +445,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 isDefaultAction: true,
                 child: const Text('OK'),
                 onPressed: () {
-                  Navigator.pop(context);
-                  // Перезагружаем HomeScreen
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/home',
-                    (route) => false,
-                  );
+                  Navigator.of(dialogContext).pop();
                 },
               ),
             ],
           ),
         );
+
+        // После закрытия диалога перезагружаем HomeScreen
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/home',
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       print('❌ [PROFILE] Ошибка переключения режима: $e');
       if (mounted) {
         showCupertinoDialog(
           context: context,
-          builder: (context) => CupertinoAlertDialog(
+          builder: (dialogContext) => CupertinoAlertDialog(
             title: const Text('Ошибка'),
             content: Text('Не удалось переключить режим: $e'),
             actions: [
               CupertinoDialogAction(
                 child: const Text('OK'),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.of(dialogContext).pop(),
               ),
             ],
           ),

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Модель группы маршрутов для управления ценами
 class RouteGroup {
   final String id;
@@ -24,22 +22,8 @@ class RouteGroup {
     required this.updatedAt,
   });
 
-  /// Конвертация в Map для сохранения в Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'name': name,
-      'description': description,
-      'basePrice': basePrice,
-      'destinationCities': destinationCities,
-      'originCities': originCities,
-      'autoGenerateReverse': autoGenerateReverse,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-    };
-  }
-
-  /// Создание из Map из Firestore
-  factory RouteGroup.fromFirestore(Map<String, dynamic> data, String id) {
+  /// Создание из Map (SQLite)
+  factory RouteGroup.fromMap(Map<String, dynamic> data, String id) {
     return RouteGroup(
       id: id,
       name: data['name'] ?? '',
@@ -48,8 +32,12 @@ class RouteGroup {
       destinationCities: List<String>.from(data['destinationCities'] ?? []),
       originCities: List<String>.from(data['originCities'] ?? []),
       autoGenerateReverse: data['autoGenerateReverse'] ?? true,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: data['createdAt'] is String 
+          ? DateTime.parse(data['createdAt'])
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] is String
+          ? DateTime.parse(data['updatedAt'])
+          : DateTime.now(),
     );
   }
 

@@ -23,8 +23,6 @@ import 'home/screens/home_screen.dart';
 import '../models/user.dart';
 import '../services/price_calculator_service.dart';
 import '../services/offline_orders_service.dart';
-import '../services/firebase_orders_service.dart';
-import '../services/orders_sync_service.dart';
 import '../models/price_calculation.dart';
 import '../models/taxi_order.dart';
 import '../models/booking.dart';
@@ -767,36 +765,9 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     
-    // Попытка сохранения в Firebase (онлайн) — необязательная
-    try {
-      final hasInternet = await OrdersSyncService.instance.hasInternetConnection();
-      if (hasInternet) {
-        print('☁️ [ORDER] Интернет присутствует, пробуем сохранить в Firebase (неблокирующе)...');
-
-        FirebaseOrdersService.instance.saveOrder(order).timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            print('⏱️ [ORDER] Firebase timeout - отложено, синхронизация выполнит повтор');
-            throw TimeoutException('Firebase save timeout');
-          },
-        ).then((_) async {
-          print('✅ [ORDER] Быстрая отправка в Firebase выполнена, помечаем как синхронизированный');
-          try {
-            await OfflineOrdersService.instance.markAsSynced(order.orderId);
-          } catch (e) {
-            print('⚠️ [ORDER] Не удалось пометить заказ как синхронизированный: $e');
-          }
-        }).catchError((e) {
-          print('⚠️ [ORDER] Быстрая отправка в Firebase не удалась: $e');
-        });
-      } else {
-        print('⚠️ [ORDER] Нет интернета сейчас — Firebase сохранение отложено, заказ в SQLite');
-      }
-    } catch (e) {
-      print('⚠️ [ORDER] Ошибка при попытке быстрой отправки в Firebase: $e');
-    }
-    
-    print('🎉 [ORDER] Заказ успешно создан и сохранен!');
+    // Firebase удалён - используется только PostgreSQL API через sync service
+    print('🎉 [ORDER] Заказ успешно создан и сохранен в SQLite!');
+    print('⚙️ [ORDER] OrdersSyncService автоматически синхронизирует с PostgreSQL в фоне');
     
     // Открываем экран деталей заказа напрямую (без success dialog)
     print('📱 [ORDER] Прямой переход к экрану деталей заказа...');

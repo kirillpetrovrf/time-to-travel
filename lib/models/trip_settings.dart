@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class TripSettings {
   final String id;
   final List<String> departureTimes;
@@ -25,10 +23,9 @@ class TripSettings {
     required this.updatedAt,
   });
 
-  factory TripSettings.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory TripSettings.fromMap(Map<String, dynamic> data, String id) {
     return TripSettings(
-      id: doc.id,
+      id: id,
       departureTimes: List<String>.from(data['departureTimes'] ?? []),
       donetskPickupPoints: List<String>.from(data['donetskPickupPoints'] ?? []),
       rostovPickupPoints: List<String>.from(data['rostovPickupPoints'] ?? []),
@@ -39,11 +36,13 @@ class TripSettings {
       pricing: Map<String, int>.from(data['pricing'] ?? {}),
       maxPassengers: data['maxPassengers'] ?? 8,
       isActive: data['isActive'] ?? true,
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      updatedAt: data['updatedAt'] is String
+          ? DateTime.parse(data['updatedAt'])
+          : DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap() {
     return {
       'departureTimes': departureTimes,
       'donetskPickupPoints': donetskPickupPoints,
@@ -53,7 +52,7 @@ class TripSettings {
       'pricing': pricing,
       'maxPassengers': maxPassengers,
       'isActive': isActive,
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 

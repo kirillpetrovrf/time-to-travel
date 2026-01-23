@@ -1,21 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/calculator_settings.dart';
 
-/// Сервис для работы с настройками калькулятора в Firebase
+/// Сервис для работы с настройками калькулятора (локальный кеш)
 class CalculatorSettingsService {
   static final CalculatorSettingsService instance =
       CalculatorSettingsService._();
   CalculatorSettingsService._();
 
-  FirebaseFirestore? _firestore;
   CalculatorSettings? _cachedSettings;
-  
-  FirebaseFirestore get firestore {
-    _firestore ??= FirebaseFirestore.instance;
-    return _firestore!;
-  }
 
-  /// Получить текущие настройки из Firebase
+  /// Получить текущие настройки (используем дефолтные из класса)
   Future<CalculatorSettings> getSettings() async {
     print('📥 [CALCULATOR] Загрузка настроек калькулятора...');
 
@@ -26,28 +19,7 @@ class CalculatorSettingsService {
         return _cachedSettings!;
       }
 
-      // Загружаем из Firebase
-      print('📡 [CALCULATOR] Попытка загрузки из Firebase...');
-      final doc = await firestore
-          .collection('calculator_settings')
-          .doc('current')
-          .get();
-
-      if (!doc.exists) {
-        print(
-          '⚠️ [CALCULATOR] Настройки не найдены в Firebase, создаём по умолчанию',
-        );
-        await _createDefaultSettings();
-        return CalculatorSettings.defaultSettings;
-      }
-
-      final settings = CalculatorSettings.fromJson(doc.data()!);
-      _cachedSettings = settings;
-
-      print('✅ [CALCULATOR] Настройки загружены из Firebase');
-      return settings;
-    } catch (e) {
-      print('❌ [CALCULATOR] Ошибка загрузки настроек из Firebase: $e');
+      // Используем настройки по умолчанию
       print('⚠️ [CALCULATOR] Используем локальные настройки по умолчанию:');
       final defaultSettings = CalculatorSettings.defaultSettings;
       print('   • Базовая стоимость: ${defaultSettings.baseCost}₽');
@@ -58,44 +30,35 @@ class CalculatorSettingsService {
       // Кешируем дефолтные настройки
       _cachedSettings = defaultSettings;
       return defaultSettings;
+    } catch (e) {
+      print('❌ [CALCULATOR] Ошибка загрузки настроек: $e');
+      final defaultSettings = CalculatorSettings.defaultSettings;
+      _cachedSettings = defaultSettings;
+      return defaultSettings;
     }
   }
 
   /// Обновить настройки (только для админов)
   Future<void> updateSettings(CalculatorSettings settings) async {
-    print('💾 [CALCULATOR] Сохранение настроек...');
+    print('💾 [CALCULATOR] Сохранение настроек в кеш...');
 
     try {
-      await firestore
-          .collection('calculator_settings')
-          .doc('current')
-          .set(settings.toJson());
-
       // Обновляем кеш
       _cachedSettings = settings;
 
-      print('✅ [CALCULATOR] Настройки успешно сохранены');
+      print('✅ [CALCULATOR] Настройки успешно сохранены в кеш');
+      print('⚠️ [CALCULATOR] Настройки НЕ сохраняются на сервере (только локальный кеш)');
     } catch (e) {
       print('❌ [CALCULATOR] Ошибка сохранения настроек: $e');
       throw Exception('Не удалось сохранить настройки: $e');
     }
   }
 
-  /// Создать настройки по умолчанию в Firebase
+  /// Создать настройки по умолчанию (stub)
+  /// Создать настройки по умолчанию (stub)
   Future<void> _createDefaultSettings() async {
-    try {
-      final defaultSettings = CalculatorSettings.defaultSettings;
-      await firestore
-          .collection('calculator_settings')
-          .doc('current')
-          .set(defaultSettings.toJson());
-
-      _cachedSettings = defaultSettings;
-      print('✅ [CALCULATOR] Настройки по умолчанию созданы в Firebase');
-    } catch (e) {
-      print('❌ [CALCULATOR] Ошибка создания настроек: $e');
-      // Не бросаем ошибку - просто используем локальные настройки
-    }
+    print('📝 [CALCULATOR] Создание настроек по умолчанию (stub)');
+    _cachedSettings = CalculatorSettings.defaultSettings;
   }
 
   /// Очистить кеш (для тестирования)

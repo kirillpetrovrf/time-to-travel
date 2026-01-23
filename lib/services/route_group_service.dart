@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/route_group.dart';
 import 'local_route_groups_service.dart';
 
@@ -9,11 +8,8 @@ class RouteGroupService {
   static RouteGroupService get instance => _instance;
 
   RouteGroupService._internal();
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _collectionPath = 'route_groups';
   
-  // НОВЫЙ: Локальный SQLite сервис (аналогия с маршрутами)
+  // Локальный SQLite сервис (аналогия с маршрутами)
   final LocalRouteGroupsService _localService = LocalRouteGroupsService.instance;
 
   /// Получить все группы маршрутов
@@ -126,14 +122,10 @@ class RouteGroupService {
     }
   }
 
-  /// Стрим для отслеживания изменений групп в реальном времени
+  /// Стрим для отслеживания изменений групп (заглушка - работаем через SQLite)
   Stream<List<RouteGroup>> getGroupsStream() {
-    return _firestore
-        .collection(_collectionPath)
-        .orderBy('name')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => RouteGroup.fromFirestore(doc.data(), doc.id))
-            .toList());
+    // Возвращаем пустой стрим, т.к. Firebase удалён
+    print('⚠️ getGroupsStream() вызван, но Firebase удалён. Используйте getAllGroups()');
+    return Stream.value([]);
   }
 }

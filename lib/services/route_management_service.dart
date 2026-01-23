@@ -1,12 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/predefined_route.dart';
 import 'offline_routes_service.dart';
 
-/// Сервис для управления предустановленными маршрутами с SQLite + Firebase синхронизацией
+/// Сервис для управления предустановленными маршрутами с SQLite
 class RouteManagementService {
-  static const String _collectionName = 'predefined_routes';
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final OfflineRoutesService _offlineService = OfflineRoutesService.instance;
   
   static final RouteManagementService instance = RouteManagementService._();
@@ -15,8 +12,6 @@ class RouteManagementService {
   List<PredefinedRoute>? _cachedRoutes;
   DateTime? _lastCacheUpdate;
   static const int _cacheLifetimeMinutes = 30;
-
-  CollectionReference get _collection => _firestore.collection(_collectionName);
 
   bool get _isCacheValid {
     if (_cachedRoutes == null || _lastCacheUpdate == null) return false;
@@ -242,9 +237,6 @@ class RouteManagementService {
       await _offlineService.deleteRoute(routeId);
       clearCache();
       
-      // В фоне пытаемся удалить из Firebase
-      _deleteFromFirebaseInBackground(routeId);
-      
       if (kDebugMode) {
         print('RouteManagementService: Route deleted successfully');
       }
@@ -391,72 +383,6 @@ class RouteManagementService {
     //     print('RouteManagementService: Background Firebase sync failed: $error');
     //   }
     // });
-  }
-
-  /// Попытка синхронизации с Firebase
-  Future<void> _tryFirebaseSync() async {
-    try {
-      // Загружаем несинхронизированные маршруты
-      final unsyncedRoutes = await _offlineService.getUnsyncedRoutes();
-      
-      if (unsyncedRoutes.isEmpty) {
-        return;
-      }
-
-      if (kDebugMode) {
-        print('RouteManagementService: Syncing ${unsyncedRoutes.length} routes to Firebase');
-      }
-
-      // Пытаемся загрузить в Firebase
-      for (final route in unsyncedRoutes) {
-        try {
-          await _collection.doc(route.id).set(route.toFirestore());
-          await _offlineService.markAsSynced(route.id);
-          
-          if (kDebugMode) {
-            print('RouteManagementService: Route ${route.id} synced to Firebase');
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            print('RouteManagementService: Failed to sync route ${route.id}: $e');
-          }
-          // Продолжаем с другими маршрутами при ошибке
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('RouteManagementService: Firebase sync error: $e');
-      }
-    }
-  }
-
-  /// Фоновое удаление из Firebase
-  void _deleteFromFirebaseInBackground(String routeId) {
-    // TODO: Firebase временно отключён до настройки сервера
-    if (kDebugMode) {
-      print('RouteManagementService: Firebase delete disabled - working in offline mode');
-    }
-    // После настройки Firebase раскомментировать:
-    // _tryFirebaseDelete(routeId).catchError((error) {
-    //   if (kDebugMode) {
-    //     print('RouteManagementService: Background Firebase delete failed: $error');
-    //   }
-    // });
-  }
-
-  /// Попытка удаления из Firebase
-  Future<void> _tryFirebaseDelete(String routeId) async {
-    try {
-      await _collection.doc(routeId).delete();
-      
-      if (kDebugMode) {
-        print('RouteManagementService: Route $routeId deleted from Firebase');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('RouteManagementService: Failed to delete route $routeId from Firebase: $e');
-      }
-    }
   }
 
   // ========================================
