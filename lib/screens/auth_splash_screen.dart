@@ -89,7 +89,7 @@ class AuthProviderWrapper extends StatelessWidget {
       create: (_) => AuthProvider(
         storage: AuthStorageService(),
         api: TelegramAuthApiService(
-          baseUrl: 'https://titotr.ru/api',
+          baseUrl: 'https://titotr.ru/api',  // ✅ HTTPS настроен!
         ),
       ),
       child: child,

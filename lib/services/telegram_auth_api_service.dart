@@ -55,19 +55,41 @@ class TelegramAuthApiService {
 
   /// Инициализация Telegram авторизации - получение deep link
   Future<TelegramInitResponse> init(String phone) async {
+    print('📡 [API_SERVICE] Начинаем init для телефона: $phone');
     final url = Uri.parse('$baseUrl/auth/telegram/init');
+    print('🌐 [API_SERVICE] URL: $url');
     
-    final response = await _client.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone}),
-    );
+    try {
+      print('⏳ [API_SERVICE] Отправляем POST запрос...');
+      final response = await _client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone}),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('⏰ [API_SERVICE] TIMEOUT через 10 секунд!');
+          throw Exception('Request timeout after 10 seconds');
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      return TelegramInitResponse.fromJson(json);
-    } else {
-      throw Exception('Failed to init Telegram auth: ${response.statusCode} ${response.body}');
+      print('📥 [API_SERVICE] Получен ответ: ${response.statusCode}');
+      print('📄 [API_SERVICE] Тело ответа: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        print('✅ [API_SERVICE] JSON распарсен успешно');
+        final result = TelegramInitResponse.fromJson(json);
+        print('✅ [API_SERVICE] Возвращаем TelegramInitResponse');
+        return result;
+      } else {
+        print('❌ [API_SERVICE] Ошибка статус код: ${response.statusCode}');
+        throw Exception('Failed to init Telegram auth: ${response.statusCode} ${response.body}');
+      }
+    } catch (e, stackTrace) {
+      print('❌ [API_SERVICE] EXCEPTION в init: $e');
+      print('📍 [API_SERVICE] StackTrace: $stackTrace');
+      rethrow;
     }
   }
 

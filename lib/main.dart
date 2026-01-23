@@ -153,7 +153,7 @@ class TimeToTravelApp extends StatelessWidget {
         create: (_) => AuthProvider(
           storage: AuthStorageService(),
           api: TelegramAuthApiService(
-            baseUrl: 'https://titotr.ru/api',
+            baseUrl: 'https://titotr.ru/api',  // ✅ HTTPS настроен!
           ),
         ),
         child: _TimeToTravelAppContent(),
@@ -181,6 +181,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
             child = const AuthScreen();
             break;
           case '/home':
+          case '/main': // ✅ Добавлен роут /main для совместимости
             child = HomeScreen();
             break;
           // Удалили MapScreen - возвращаем на главную

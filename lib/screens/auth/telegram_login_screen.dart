@@ -59,7 +59,10 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
 
   /// Начать авторизацию через Telegram
   Future<void> _startTelegramAuth() async {
+    print('🚀 [TG_LOGIN] Начинаем авторизацию через Telegram');
+    
     if (!_formKey.currentState!.validate()) {
+      print('❌ [TG_LOGIN] Валидация формы не прошла');
       return;
     }
 
@@ -67,37 +70,57 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+    print('⏳ [TG_LOGIN] Установлен статус загрузки');
 
     try {
       final phone = _formatPhone(_phoneController.text);
+      print('📞 [TG_LOGIN] Отформатирован номер: $phone');
+      
       final authProvider = provider.Provider.of<AuthProvider>(context, listen: false);
+      print('🔗 [TG_LOGIN] Получен authProvider');
       
       // Получаем deep link и authCode
+      print('📡 [TG_LOGIN] Отправляем запрос initTelegramAuth...');
       final response = await authProvider.initTelegramAuth(phone);
+      print('✅ [TG_LOGIN] Получен ответ от сервера');
+      
       final deepLink = response.deepLink;
       final authCode = response.authCode; // Сохраняем authCode для polling
+      print('🔑 [TG_LOGIN] DeepLink: $deepLink');
+      print('🔑 [TG_LOGIN] AuthCode: $authCode');
       
       // Открываем Telegram
       final uri = Uri.parse(deepLink);
+      print('🌐 [TG_LOGIN] Парсим URI: $uri');
+      
       final canLaunch = await canLaunchUrl(uri);
+      print('🔍 [TG_LOGIN] CanLaunch: $canLaunch');
       
       if (canLaunch) {
+        print('🚀 [TG_LOGIN] Запускаем Telegram...');
         await launchUrl(
           uri,
           mode: LaunchMode.externalApplication,
         );
+        print('✅ [TG_LOGIN] Telegram запущен');
         
         // Показываем диалог с инструкциями и запускаем polling по authCode
         if (mounted) {
+          print('💬 [TG_LOGIN] Показываем диалог ожидания');
           _showWaitingDialog(authCode);
+        } else {
+          print('⚠️ [TG_LOGIN] Widget не mounted, диалог не показан');
         }
       } else {
+        print('❌ [TG_LOGIN] Не удалось открыть Telegram');
         setState(() {
           _errorMessage = 'Не удалось открыть Telegram. Установите приложение.';
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [TG_LOGIN] ОШИБКА: $e');
+      print('📍 [TG_LOGIN] StackTrace: $stackTrace');
       setState(() {
         _errorMessage = 'Ошибка: $e';
         _isLoading = false;

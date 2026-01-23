@@ -1,6 +1,6 @@
 /// Базовые константы для API
 class ApiConfig {
-  // Production URL
+  // Production URL (HTTPS настроен ✅)
   static const String baseUrl = 'https://titotr.ru';
   
   // Development URL (для локальной разработки)

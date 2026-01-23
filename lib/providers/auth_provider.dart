@@ -118,11 +118,18 @@ class AuthProvider extends ChangeNotifier {
 
   /// Инициализация Telegram авторизации
   Future<TelegramInitResponse> initTelegramAuth(String phone) async {
+    print('🔐 [AUTH_PROVIDER] initTelegramAuth вызван для: $phone');
     try {
       _errorMessage = null;
+      print('📡 [AUTH_PROVIDER] Вызываем _api.init...');
       final response = await _api.init(phone);
+      print('✅ [AUTH_PROVIDER] Получен ответ от _api.init');
+      print('   • deepLink: ${response.deepLink}');
+      print('   • authCode: ${response.authCode}');
       return response; // Возвращаем полный ответ с authCode и deepLink
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [AUTH_PROVIDER] ОШИБКА в initTelegramAuth: $e');
+      print('📍 [AUTH_PROVIDER] StackTrace: $stackTrace');
       _errorMessage = 'Ошибка инициализации: $e';
       rethrow;
     }
