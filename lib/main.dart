@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart' as provider;
 import 'firebase_options.dart';
 import 'package:yandex_maps_mapkit/init.dart' as mapkit_init;
 import 'theme/app_theme.dart';
@@ -11,9 +12,13 @@ import 'services/orders_sync_service.dart';
 import 'services/offline_routes_service.dart';
 import 'services/route_management_service.dart';
 import 'services/yandex_search_service.dart';
+import 'services/auth_storage_service.dart';
+import 'services/telegram_auth_api_service.dart';
+import 'providers/auth_provider.dart';
 import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/splash/splash_screen.dart';
+import 'screens/auth_splash_screen.dart';
 import 'features/orders/screens/booking_detail_screen.dart';
 import 'models/booking.dart';
 import 'data/route_initializer.dart';
@@ -166,7 +171,17 @@ class TimeToTravelApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ThemeManagerWidget(child: _TimeToTravelAppContent());
+    return ThemeManagerWidget(
+      child: provider.ChangeNotifierProvider(
+        create: (_) => AuthProvider(
+          storage: AuthStorageService(),
+          api: TelegramAuthApiService(
+            baseUrl: 'https://titotr.ru/api',
+          ),
+        ),
+        child: _TimeToTravelAppContent(),
+      ),
+    );
   }
 }
 
@@ -180,7 +195,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
       navigatorKey: navigatorKey, // Добавляем глобальный ключ
       theme: AppTheme.getCurrentTheme(themeManager.currentTheme),
       debugShowCheckedModeBanner: false,
-      home: const SplashScreen(), // Заменяем AuthCheckWidget на SplashScreen
+      home: const AuthSplashScreen(), // Используем наш новый Splash с авто-логином
       onGenerateRoute: (settings) {
         // Ensure all routes have access to the ThemeManager provider
         Widget child;

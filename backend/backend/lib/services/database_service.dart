@@ -29,6 +29,37 @@ class DatabaseService {
 
   /// Фабричный метод из environment variables
   factory DatabaseService.fromEnv(Map<String, String> env) {
+    // Поддержка DATABASE_URL формата: postgres://user:password@host:port/database
+    final databaseUrl = env['DATABASE_URL'];
+    
+    _log.info('📍 DATABASE_URL: ${databaseUrl != null ? "SET (${databaseUrl.length} chars)" : "NOT SET"}');
+    
+    if (databaseUrl != null && databaseUrl.isNotEmpty) {
+      try {
+        final uri = Uri.parse(databaseUrl);
+        final userInfo = uri.userInfo.split(':');
+        final username = Uri.decodeComponent(userInfo[0]);
+        final password = userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '';
+        
+        _log.info('✅ Parsed DATABASE_URL: host=${uri.host}, port=${uri.port}, db=${uri.path.replaceFirst('/', '')}, user=$username');
+        
+        return DatabaseService(
+          host: uri.host,
+          port: uri.port,
+          database: uri.path.replaceFirst('/', ''),
+          username: username,
+          password: password,
+          poolSize: int.tryParse(env['DB_POOL_MAX'] ?? '10') ?? 10,
+          sslMode: env['DB_SSL_MODE'] == 'require',
+        );
+      } catch (e) {
+        _log.severe('❌ Failed to parse DATABASE_URL: $e');
+        // Fallback to individual env vars
+      }
+    } else {
+      _log.info('⚠️ DATABASE_URL not set, using individual env vars');
+    }
+    
     return DatabaseService(
       host: env['DB_HOST'] ?? 'localhost',
       port: int.tryParse(env['DB_PORT'] ?? '5432') ?? 5432,

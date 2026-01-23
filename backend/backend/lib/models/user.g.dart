@@ -16,6 +16,10 @@ User _$UserFromJson(Map<String, dynamic> json) => User(
   isActive: json['isActive'] as bool? ?? true,
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
+  telegramId: (json['telegramId'] as num?)?.toInt(),
+  firstName: json['firstName'] as String?,
+  lastName: json['lastName'] as String?,
+  username: json['username'] as String?,
 );
 
 Map<String, dynamic> _$UserToJson(User instance) => <String, dynamic>{
@@ -28,6 +32,10 @@ Map<String, dynamic> _$UserToJson(User instance) => <String, dynamic>{
   'isActive': instance.isActive,
   'createdAt': instance.createdAt.toIso8601String(),
   'updatedAt': instance.updatedAt.toIso8601String(),
+  'telegramId': instance.telegramId,
+  'firstName': instance.firstName,
+  'lastName': instance.lastName,
+  'username': instance.username,
 };
 
 RegisterUserDto _$RegisterUserDtoFromJson(Map<String, dynamic> json) =>

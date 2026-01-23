@@ -119,7 +119,7 @@ enum VehicleClass {
 class Passenger {
   final String? name;          // Опционально - может быть не указано
   final int? age;              // Опционально - общий возраст
-  final String type;           // 'adult' или 'child' - ОБЯЗАТЕЛЬНО
+  final String? type;          // 'adult' или 'child' - опционально для старых заказов
   final String? seatType;      // Для детей: 'cradle', 'seat', 'booster', 'none'
   final bool? useOwnSeat;      // Своё кресло (true) или водителя (false)
   final int? ageMonths;        // Возраст в месяцах для детей
@@ -127,7 +127,7 @@ class Passenger {
   const Passenger({
     this.name,
     this.age,
-    required this.type,
+    this.type,
     this.seatType,
     this.useOwnSeat,
     this.ageMonths,
@@ -143,17 +143,17 @@ class Passenger {
 @JsonSerializable()
 class Baggage {
   final String? type;              // Старый формат - опционально
-  final String size;               // 's', 'm', 'l', 'custom' - ОБЯЗАТЕЛЬНО
+  final String? size;              // 's', 'm', 'l', 'custom' - опционально для старых заказов
   final int? count;                // Старый формат - опционально
-  final int quantity;              // Количество единиц (1-10) - ОБЯЗАТЕЛЬНО
+  final int? quantity;             // Количество единиц (1-10) - опционально для старых заказов
   final double? pricePerExtraItem; // Цена за дополнительную единицу
   final String? customDescription; // Для size='custom'
 
   const Baggage({
     this.type,
-    required this.size,
+    this.size,
     this.count,
-    required this.quantity,
+    this.quantity,
     this.pricePerExtraItem,
     this.customDescription,
   });
@@ -170,18 +170,18 @@ class Pet {
   final String? type;        // Старый формат - опционально
   final String? name;        // Старый формат - опционально
   final double? weight;      // Старый формат - опционально
-  final String category;     // 'upTo5kgWithCarrier', 'upTo5kgWithoutCarrier', 'over6kg' - ОБЯЗАТЕЛЬНО
-  final String breed;        // Описание животного - ОБЯЗАТЕЛЬНО
-  final double cost;         // Стоимость перевозки - ОБЯЗАТЕЛЬНО
+  final String? category;    // 'upTo5kgWithCarrier', 'upTo5kgWithoutCarrier', 'over6kg' - опционально для старых заказов
+  final String? breed;       // Описание животного - опционально для старых заказов
+  final double? cost;        // Стоимость перевозки - опционально для старых заказов
   final String? description; // Дополнительное описание
 
   const Pet({
     this.type,
     this.name,
     this.weight,
-    required this.category,
-    required this.breed,
-    required this.cost,
+    this.category,
+    this.breed,
+    this.cost,
     this.description,
   });
 

@@ -19,6 +19,12 @@ class User {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  
+  // Telegram поля
+  final int? telegramId;
+  final String? firstName;
+  final String? lastName;
+  final String? username;
 
   const User({
     required this.id,
@@ -31,7 +37,25 @@ class User {
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
+    this.telegramId,
+    this.firstName,
+    this.lastName,
+    this.username,
   });
+
+  /// Полное имя пользователя
+  String get fullName {
+    if (firstName != null && lastName != null) {
+      return '$firstName $lastName';
+    }
+    if (firstName != null) return firstName!;
+    if (lastName != null) return lastName!;
+    if (username != null) return username!;
+    return name;
+  }
+
+  /// Является ли диспетчером
+  bool get isDispatcher => role == 'dispatcher';
 
   /// Создание из JSON
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
@@ -43,15 +67,19 @@ class User {
   factory User.fromDb(Map<String, dynamic> row) {
     return User(
       id: row['id'] as String,
-      email: row['email'] as String,
+      email: row['email'] as String? ?? '',
       passwordHash: row['password_hash'] as String?,
-      name: row['name'] as String,
+      name: row['name'] as String? ?? row['first_name'] as String? ?? 'User',
       phone: row['phone'] as String?,
       role: row['role'] as String? ?? 'client',
       isVerified: row['is_verified'] as bool? ?? false,
       isActive: row['is_active'] as bool? ?? true,
       createdAt: parseDbDateTime(row['created_at']),
       updatedAt: parseDbDateTime(row['updated_at']),
+      telegramId: row['telegram_id'] as int?,
+      firstName: row['first_name'] as String?,
+      lastName: row['last_name'] as String?,
+      username: row['username'] as String?,
     );
   }
 
@@ -67,6 +95,10 @@ class User {
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? telegramId,
+    String? firstName,
+    String? lastName,
+    String? username,
   }) {
     return User(
       id: id ?? this.id,
@@ -79,6 +111,10 @@ class User {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      telegramId: telegramId ?? this.telegramId,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      username: username ?? this.username,
     );
   }
 

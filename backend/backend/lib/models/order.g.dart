@@ -9,7 +9,7 @@ part of 'order.dart';
 Passenger _$PassengerFromJson(Map<String, dynamic> json) => Passenger(
   name: json['name'] as String?,
   age: (json['age'] as num?)?.toInt(),
-  type: json['type'] as String,
+  type: json['type'] as String?,
   seatType: json['seatType'] as String?,
   useOwnSeat: json['useOwnSeat'] as bool?,
   ageMonths: (json['ageMonths'] as num?)?.toInt(),
@@ -26,9 +26,9 @@ Map<String, dynamic> _$PassengerToJson(Passenger instance) => <String, dynamic>{
 
 Baggage _$BaggageFromJson(Map<String, dynamic> json) => Baggage(
   type: json['type'] as String?,
-  size: json['size'] as String,
+  size: json['size'] as String?,
   count: (json['count'] as num?)?.toInt(),
-  quantity: (json['quantity'] as num).toInt(),
+  quantity: (json['quantity'] as num?)?.toInt(),
   pricePerExtraItem: (json['pricePerExtraItem'] as num?)?.toDouble(),
   customDescription: json['customDescription'] as String?,
 );
@@ -46,9 +46,9 @@ Pet _$PetFromJson(Map<String, dynamic> json) => Pet(
   type: json['type'] as String?,
   name: json['name'] as String?,
   weight: (json['weight'] as num?)?.toDouble(),
-  category: json['category'] as String,
-  breed: json['breed'] as String,
-  cost: (json['cost'] as num).toDouble(),
+  category: json['category'] as String?,
+  breed: json['breed'] as String?,
+  cost: (json['cost'] as num?)?.toDouble(),
   description: json['description'] as String?,
 );
 
