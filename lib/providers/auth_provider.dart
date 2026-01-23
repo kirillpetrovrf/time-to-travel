@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../services/auth_storage_service.dart';
 import '../services/telegram_auth_api_service.dart';
+import '../models/user.dart' as app_user;
 
 enum AuthStatus {
   initial,
@@ -29,6 +30,38 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+
+  /// Получение текущего пользователя как объект User
+  app_user.User? get currentUser {
+    if (_user == null) return null;
+    
+    try {
+      return app_user.User(
+        id: _user!['id']?.toString() ?? '',
+        phone: _user!['phone']?.toString() ?? '',
+        name: _user!['fullName']?.toString() ?? 'Пользователь',
+        email: _user!['email']?.toString(),
+        userType: _parseUserType(_user!['role']?.toString()),
+        createdAt: DateTime.now(), // TODO: parse from backend if available
+      );
+    } catch (e) {
+      print('❌ [AUTH_PROVIDER] Ошибка конвертации user: $e');
+      return null;
+    }
+  }
+
+  /// Парсинг типа пользователя из строки
+  app_user.UserType _parseUserType(String? role) {
+    switch (role?.toLowerCase()) {
+      case 'dispatcher':
+        return app_user.UserType.dispatcher;
+      case 'passenger':
+      case 'client':
+      case 'driver': // На случай если в будущем добавится
+      default:
+        return app_user.UserType.client;
+    }
+  }
 
   /// Проверка текущей сессии при запуске приложения
   Future<void> checkAuthStatus() async {

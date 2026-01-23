@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../theme/theme_manager.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
@@ -33,14 +35,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await AuthService.instance.getCurrentUser();
+      // Используем AuthProvider вместо старого AuthService
+      final authProvider = context.read<AuthProvider>();
+      final user = authProvider.currentUser; // Теперь это User объект
+      
+      print('📱 [PROFILE] Загружаем данные пользователя из AuthProvider');
+      print('📱 [PROFILE] User: $user');
+      
       if (mounted) {
         setState(() => _currentUser = user);
       }
     } catch (e) {
       // Обработка ошибки - показываем сообщение пользователю
       if (mounted) {
-        print('Ошибка загрузки данных пользователя: $e');
+        print('❌ [PROFILE] Ошибка загрузки данных пользователя: $e');
         // Можно добавить показ ошибки пользователю через SnackBar или диалог
       }
     } finally {
