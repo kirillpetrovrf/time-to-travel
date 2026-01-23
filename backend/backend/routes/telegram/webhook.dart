@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:backend/services/database_service.dart';
 import 'package:backend/services/telegram_bot_service.dart';
+import 'package:backend/services/telegram_auth_service.dart';
 import 'package:backend/repositories/user_repository.dart';
 import 'package:logging/logging.dart';
 
@@ -119,9 +120,15 @@ Future<void> _handleStartCommand({
 
     // Если это авторизация через deep link
     if (authCode != null) {
-      // Сохраняем статус авторизации (для polling)
-      // TODO: Сохранить в Redis или временную таблицу
-      // authSessions[authCode] = {userId: user.id, status: 'success'}
+      // ✅ Сохраняем статус авторизации для polling
+      final authService = TelegramAuthService();
+      authService.setAuthSession(
+        authCode: authCode,
+        userId: user.id,
+        phone: user.phone,
+      );
+      
+      _log.info('💾 [START] Сессия авторизации сохранена: authCode=$authCode');
 
       // Отправляем приветствие
       await telegramBot.sendMessage(

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:backend/services/database_service.dart';
+import 'package:backend/services/telegram_auth_service.dart';
 import 'package:backend/repositories/user_repository.dart';
 import 'package:backend/utils/jwt_helper.dart';
 
@@ -56,31 +57,37 @@ Future<Response> onRequest(RequestContext context) async {
     final db = context.read<DatabaseService>();
     final userRepo = UserRepository(db);
     final jwtHelper = context.read<JwtHelper>();
+    final authService = TelegramAuthService();
 
-    print('🔍 [POLLING] Ищем пользователя по телефону: $phone');
+    print('🔍 [POLLING] Проверяем сессию авторизации: $authCode');
     
-    // Находим пользователя по номеру телефона
-    final user = await userRepo.findByPhone(phone);
-
-    if (user == null) {
-      print('❌ [POLLING] Пользователь НЕ НАЙДЕН для телефона: $phone');
-      return Response.json(
-        statusCode: 404,
-        body: {'error': 'User not found - please press START in Telegram bot first'},
-      );
-    }
-
-    print('👤 [POLLING] Пользователь найден: id=${user.id}, telegram_id=${user.telegramId}');
-
-    // Проверяем, что пользователь нажал START в боте (telegram_id установлен)
-    if (user.telegramId == null || user.telegramId == 0) {
-      print('⏳ [POLLING] telegram_id НЕ УСТАНОВЛЕН (пользователь ещё не нажал START)');
+    // Сначала проверяем есть ли сохранённая сессия (webhook уже обработал /start)
+    final session = authService.getAuthSession(authCode);
+    
+    if (session == null) {
+      print('⏳ [POLLING] Сессия НЕ найдена - пользователь ещё не нажал START в боте');
+      print('💡 [POLLING] Доступные сессии: ${authService.getStats()}');
       return Response.json(
         statusCode: 404,
         body: {'error': 'Telegram not connected - please press START in bot'},
       );
     }
+    
+    print('✅ [POLLING] Сессия найдена! userId=${session.userId}, phone=${session.phone}');
+    print('🔍 [POLLING] Загружаем данные пользователя из БД...');
+    
+    // Находим пользователя по ID из сессии
+    final user = await userRepo.findById(session.userId);
 
+    if (user == null) {
+      print('❌ [POLLING] Пользователь НЕ НАЙДЕН по ID: ${session.userId}');
+      return Response.json(
+        statusCode: 404,
+        body: {'error': 'User not found'},
+      );
+    }
+
+    print('👤 [POLLING] Пользователь загружен: id=${user.id}, telegram_id=${user.telegramId}, role=${user.role}');
     print('✅ [POLLING] Пользователь авторизован! Генерируем токены...');
 
     // Генерируем токены
