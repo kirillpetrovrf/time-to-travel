@@ -14,28 +14,50 @@ import '../../main_screen.dart'; // Импорт MainScreen (Свободный 
 import 'dispatcher_home_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  HomeScreen({Key? key}) : super(key: key ?? homeScreenKey);
+  const HomeScreen({super.key});
 
-  // Глобальный ключ для доступа к состоянию HomeScreen
-  static final GlobalKey<_HomeScreenState> homeScreenKey =
-      GlobalKey<_HomeScreenState>();
+  // Безопасный глобальный ключ для доступа к состоянию HomeScreen
+  // Создается новый для каждого экземпляра, чтобы избежать Duplicate GlobalKey
+  static HomeScreenState? _currentHomeScreenState;
+  
+  static void switchToTabSafely(int index) {
+    _currentHomeScreenState?.switchToTab(index);
+  }
+
+  static HomeScreenState? get currentState => _currentHomeScreenState;
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   UserType? _userType;
   int _ordersScreenKey = 0; // Счётчик для обновления экрана заказов
+  bool _isTabRestored = false; // Флаг для предотвращения повторного восстановления
 
   // НОВОЕ (ТЗ v3.0): Секретный вход диспетчера (7 тапов)
   @override
   void initState() {
     super.initState();
+    // Регистрируем текущий экземпляр как активный
+    HomeScreen._currentHomeScreenState = this;
+    
     _loadUserType();
-    _restoreLastTab();
+    // Откладываем восстановление вкладки до построения виджета
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreLastTab();
+    });
     _checkAdminAccess(); // Проверка прав администратора
+  }
+
+  @override
+  void dispose() {
+    // Очищаем ссылку при удалении
+    if (HomeScreen._currentHomeScreenState == this) {
+      HomeScreen._currentHomeScreenState = null;
+    }
+    super.dispose();
   }
 
   Future<void> _checkAdminAccess() async {
@@ -80,9 +102,43 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _userType = userType;
     });
+    
+    // Если тип пользователя изменился, разрешаем повторное восстановление вкладки
+    if (!_isTabRestored) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _restoreLastTab();
+        }
+      });
+    }
   }
 
   void _restoreLastTab() async {
+    // Предотвращаем повторное восстановление и восстановление при активных диалогах
+    if (_isTabRestored || !mounted) {
+      print('📖 _restoreLastTab: Пропуск (уже восстановлено или виджет не монтирован)');
+      return;
+    }
+
+    // Проверяем, есть ли активные диалоги в контексте
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      print('📖 _restoreLastTab: Пропуск (активный модальный диалог)');
+      return;
+    }
+
+    // Дополнительная проверка: если _userType еще не загружен, откладываем восстановление
+    if (_userType == null) {
+      print('📖 _restoreLastTab: _userType не загружен, откладываем восстановление на 100ms');
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && !_isTabRestored) {
+          _restoreLastTab();
+        }
+      });
+      return;
+    }
+
+    _isTabRestored = true;
+    
     final authService = AuthService.instance;
     final lastScreen = await authService.getLastScreen();
     print('📖 _restoreLastTab: Загружена последняя вкладка: $lastScreen');
@@ -203,6 +259,34 @@ class _HomeScreenState extends State<HomeScreen> {
   void switchToTab(int index) {
     print('🔄 switchToTab вызван с индексом: $index');
     _onTabChanged(index);
+  }
+
+  // Метод для обновления типа пользователя извне (например, из ProfileScreen)
+  void updateUserType(UserType newUserType) async {
+    print('🔄 [HomeScreen] Обновляем тип пользователя: $_userType → $newUserType');
+    
+    // Сбрасываем флаг восстановления вкладки для нового типа пользователя
+    _isTabRestored = false;
+    
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем границы индекса вкладки
+    // Диспетчер: 5 вкладок (0-4), Клиент: 4 вкладки (0-3)
+    int maxTabIndex = newUserType == UserType.dispatcher ? 4 : 3;
+    
+    if (_currentIndex > maxTabIndex) {
+      print('⚠️ [HomeScreen] Индекс $_currentIndex превышает максимальный $maxTabIndex для $newUserType. Сбрасываем на $maxTabIndex');
+      _currentIndex = maxTabIndex;
+    }
+    
+    setState(() {
+      _userType = newUserType;
+    });
+    
+    // Восстанавливаем правильную вкладку для нового типа пользователя
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _restoreLastTab();
+      }
+    });
   }
 
   // Метод для "тихого" переключения вкладки после асинхронной операции
@@ -470,7 +554,7 @@ class _MainTabState extends State<MainTab> {
                   color: theme.primary,
                   onTap: () {
                     final homeState = context
-                        .findAncestorStateOfType<_HomeScreenState>();
+                        .findAncestorStateOfType<HomeScreenState>();
                     homeState?._onTabChanged(1);
                   },
                 ),
@@ -484,7 +568,7 @@ class _MainTabState extends State<MainTab> {
                   color: CupertinoColors.systemOrange,
                   onTap: () {
                     final homeState = context
-                        .findAncestorStateOfType<_HomeScreenState>();
+                        .findAncestorStateOfType<HomeScreenState>();
                     homeState?._onTabChanged(1);
                   },
                 ),
@@ -499,7 +583,7 @@ class _MainTabState extends State<MainTab> {
             color: theme.primary,
             onTap: () {
               final homeState = context
-                  .findAncestorStateOfType<_HomeScreenState>();
+                  .findAncestorStateOfType<HomeScreenState>();
               homeState?._onTabChanged(1);
             },
           ),

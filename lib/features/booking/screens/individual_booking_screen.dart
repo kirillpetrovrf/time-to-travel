@@ -383,7 +383,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
           padding: EdgeInsets.zero,
           onPressed: () {
             // СНАЧАЛА переключаем таб, ПОТОМ закрываем модальное окно
-            final homeScreenState = HomeScreen.homeScreenKey.currentState;
+            final homeScreenState = HomeScreen.currentState;
             if (homeScreenState != null) {
               homeScreenState.switchToTab(1); // Переключаемся на карту (под модальным окном)
               Navigator.pop(context); // Закрываем модальное окно - теперь видна карта!
@@ -2335,7 +2335,7 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
                 // После возврата из экрана деталей переключаемся на вкладку "Мои заказы"
                 if (context.mounted && result == 'switch_to_orders') {
                   print('🔄 Переключаемся на вкладку "Мои заказы"');
-                  HomeScreen.homeScreenKey.currentState?.switchToTab(1);
+                  HomeScreen.switchToTabSafely(1);
                   await AuthService.instance.saveLastScreen('/orders');
                   print('✅ Вкладка /orders сохранена');
                 }

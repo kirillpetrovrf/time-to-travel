@@ -305,7 +305,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   void _switchToBookingTab() {
     print('🚀 Попытка переключения на вкладку бронирования');
     // Переключаемся на вкладку бронирования (индекс 0 для клиентов)
-    final homeScreenState = HomeScreen.homeScreenKey.currentState;
+    final homeScreenState = HomeScreen.currentState;
     if (homeScreenState != null) {
       final currentIndex = homeScreenState.currentIndex;
       if (currentIndex != 0) {

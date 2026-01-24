@@ -9,6 +9,7 @@ import '../../../theme/theme_manager.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
 import '../../tracking/screens/tracking_screen.dart';
+import '../../home/screens/home_screen.dart'; // Добавляем импорт HomeScreen
 import 'about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   User? _currentUser;
   bool _isLoading = true;
+  UserType? _currentUserType; // Актуальный тип пользователя из SharedPreferences
   
   // Секретный тап для входа диспетчера
   int _secretTapCount = 0;
@@ -40,11 +42,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final authProvider = context.read<AuthProvider>();
       final user = authProvider.currentUser; // Теперь это User объект
       
+      // Загружаем актуальный тип пользователя из SharedPreferences  
+      final prefs = await SharedPreferences.getInstance();
+      final userTypeString = prefs.getString('user_type') ?? 'client';
+      final userType = userTypeString == 'dispatcher' 
+          ? UserType.dispatcher 
+          : UserType.client;
+      
       print('📱 [PROFILE] Загружаем данные пользователя из AuthProvider');
       print('📱 [PROFILE] User: $user');
+      print('📱 [PROFILE] Актуальный тип из SharedPreferences: $userType');
+      print('📱 [PROFILE] Текущая UI должна показывать тип: ${userType == UserType.dispatcher ? "Диспетчер" : "Клиент"}');
+      print('📱 [PROFILE] Кнопка должна показывать: "Переключиться в режим ${userType == UserType.dispatcher ? "клиента" : "диспетчера"}"');
       
       if (mounted) {
-        setState(() => _currentUser = user);
+        setState(() {
+          _currentUser = user;
+          _currentUserType = userType;
+        });
       }
     } catch (e) {
       // Обработка ошибки - показываем сообщение пользователю
@@ -401,7 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              _currentUser?.userType == UserType.dispatcher
+              _currentUserType == UserType.dispatcher
                   ? 'Переключиться в режим клиента'
                   : 'Переключиться в режим диспетчера',
               style: const TextStyle(
@@ -418,46 +433,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Переключение между режимами клиента и диспетчера
   Future<void> _switchToDispatcher() async {
     try {
-      final newType = _currentUser?.userType == UserType.dispatcher
+      // Определяем новый тип на основе ТЕКУЩЕГО типа из SharedPreferences
+      final newType = _currentUserType == UserType.dispatcher
           ? UserType.client
           : UserType.dispatcher;
+
+      print('🔄 [PROFILE] Переключаем с $_currentUserType на $newType');
 
       // Сохраняем новый тип
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_type', newType.toString().split('.').last);
 
+      // Мгновенно обновляем UI
       if (mounted) {
-        // Показываем уведомление
-        await showCupertinoDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (dialogContext) => CupertinoAlertDialog(
-            title: Text(
-              newType == UserType.dispatcher
-                  ? 'Режим диспетчера активирован'
-                  : 'Режим клиента активирован',
-            ),
-            content: const Text(
-              'Приложение будет перезапущено для применения изменений.',
-            ),
-            actions: [
-              CupertinoDialogAction(
-                isDefaultAction: true,
-                child: const Text('OK'),
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-            ],
-          ),
-        );
+        setState(() {
+          _currentUserType = newType;
+        });
+      }
 
-        // После закрытия диалога перезагружаем HomeScreen
-        if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            '/home',
-            (route) => false,
-          );
+      if (!mounted) return;
+
+      // Показываем уведомление
+      final shouldNavigate = await showCupertinoDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: Text(
+            newType == UserType.dispatcher
+                ? 'Режим диспетчера активирован'
+                : 'Режим клиента активирован',
+          ),
+          content: const Text(
+            'Приложение будет перезапущено для применения изменений.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+            ),
+          ],
+        ),
+      );
+
+      // После закрытия диалога обновляем HomeScreen без навигации
+      if (mounted && (shouldNavigate ?? false)) {
+        // Находим HomeScreen и обновляем его тип пользователя
+        final homeScreenState = HomeScreen.currentState;
+        if (homeScreenState != null) {
+          // Обновляем тип пользователя в HomeScreen
+          homeScreenState.updateUserType(newType);
+          print('✅ [PROFILE] HomeScreen обновлен с новым типом: $newType');
+        } else {
+          print('❌ [PROFILE] HomeScreen.currentState не найден, используем навигацию');
+          // Fallback к навигации если HomeScreen не доступен
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) {
+                  Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                    '/home',
+                    (route) => false,
+                  );
+                }
+              });
+            }
+          });
         }
       }
     } catch (e) {

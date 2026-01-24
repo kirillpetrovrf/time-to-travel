@@ -909,7 +909,7 @@ class _MainScreenState extends State<MainScreen> {
         print('🔄 [TAXI] Переключаемся на вкладку "Мои заказы"');
         final userType = await AuthService.instance.getUserType();
         final ordersIndex = userType == UserType.dispatcher ? 2 : 1;
-        HomeScreen.homeScreenKey.currentState?.switchToTab(ordersIndex);
+        HomeScreen.switchToTabSafely(ordersIndex);
         await AuthService.instance.saveLastScreen('/orders');
         print('✅ [TAXI] Вкладка /orders сохранена');
       }

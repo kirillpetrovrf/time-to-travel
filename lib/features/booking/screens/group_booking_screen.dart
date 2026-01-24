@@ -2228,7 +2228,7 @@ class _GroupBookingScreenState extends State<GroupBookingScreen> {
                 // После возврата из экрана деталей переключаемся на вкладку "Мои заказы"
                 if (context.mounted && result == 'switch_to_orders') {
                   print('🔄 Переключаемся на вкладку "Мои заказы"');
-                  HomeScreen.homeScreenKey.currentState?.switchToTab(1);
+                  HomeScreen.switchToTabSafely(1);
                   await AuthService.instance.saveLastScreen('/orders');
                   print('✅ Вкладка /orders сохранена');
                 }
