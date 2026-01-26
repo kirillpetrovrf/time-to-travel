@@ -10,9 +10,23 @@ class OrderRepository {
 
   /// Создать новый заказ
   Future<Order> create(CreateOrderDto dto, {String? userId}) async {
-    // Генерируем order_id (например, ORDER-2026-01-001)
+    // Генерируем order_id в новом формате: 2026-01-26-391-G
     final now = DateTime.now();
-    final orderId = 'ORDER-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch % 1000}';
+    
+    // Определяем суффикс типа поездки
+    String typeSuffix;
+    if (dto.tripType == 'group') {
+      typeSuffix = 'G'; // Групповая
+    } else if (dto.tripType == 'individual') {
+      typeSuffix = 'I'; // Индивидуальная
+    } else if (dto.tripType == 'customRoute') {
+      typeSuffix = 'S'; // Свободная (Svobodnaya)
+    } else {
+      typeSuffix = 'S'; // По умолчанию свободная
+    }
+    
+    // Формат: 2026-01-26-391-G
+    final orderId = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}-${(now.millisecondsSinceEpoch % 1000).toString().padLeft(3, '0')}-$typeSuffix';
 
     // Парсим дату и время
     DateTime? parsedDateTime;
