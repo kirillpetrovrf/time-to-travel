@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:common/common.dart';
-import 'package:taxi_route_calculator/location/location_listener_impl.dart';
+import '../location/location_listener_impl.dart'; // ✅ Локальный файл вместо несуществующего пакета
 import 'package:rxdart/rxdart.dart';
 import 'package:yandex_maps_mapkit/mapkit.dart';
 

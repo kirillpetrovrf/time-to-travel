@@ -43,11 +43,18 @@ dependencies:
   # Для сохранения данных локально
   shared_preferences: ^2.2.2
   
-  # Для HTTP запросов
+  # Для HTTP запросов (Dio - более мощный HTTP клиент)
+  dio: ^5.4.0
   http: ^1.1.2
   
   # Для безопасного хранения токенов
   flutter_secure_storage: ^9.2.2
+  
+  # Для функционального программирования (Either моnad)
+  dartz: ^0.10.1
+  
+  # Для сравнения объектов (используется в entities)
+  equatable: ^2.0.5
   
   # Yandex MapKit РАБОЧАЯ версия (с Search, Suggest, Routing)
   # ✅ ИСПОЛЬЗУЕМ ТОЛЬКО 4.25.0-beta - проверенная рабочая версия из taxi_route_calculator

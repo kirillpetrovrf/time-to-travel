@@ -97,7 +97,9 @@ class _AdminRoutesScreenState extends State<AdminRoutesScreen> {
       await _routeService.addRoute(
         fromCity: fromCity,
         toCity: toCity,
-        price: price,
+        routeGroupId: 'default_group', // ⚠️ TODO: выбирать группу из UI
+        stopsData: [], // ⚠️ TODO: передавать остановки из UI
+        basePrice: price,
       );
 
       _fromCityController.clear();

@@ -6,8 +6,6 @@ import 'theme/app_theme.dart';
 import 'theme/theme_manager.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
-import 'services/offline_routes_service.dart';
-import 'services/route_management_service.dart';
 import 'services/yandex_search_service.dart';
 import 'services/auth_storage_service.dart';
 import 'services/telegram_auth_api_service.dart';
@@ -21,6 +19,7 @@ import 'models/booking.dart';
 import 'data/route_initializer.dart';
 import 'data/route_groups_initializer.dart';
 import 'utils/clean_false_groups.dart';
+import 'core/di/service_locator.dart'; // ✅ НОВОЕ: DI для Clean Architecture
 
 /// Глобальный NavigatorKey для навигации из уведомлений
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -28,12 +27,12 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Инициализация SQLite для маршрутов
+  // ✅ НОВОЕ: Инициализация Dependency Injection
   try {
-    _initializeOfflineRoutesDatabase();
-    print('✅ Инициализация SQLite маршрутов запущена в фоне');
+    await ServiceLocator().init();
+    print('✅ ServiceLocator инициализирован (Clean Architecture)');
   } catch (e) {
-    print('⚠️ Ошибка инициализации SQLite маршрутов: $e');
+    print('⚠️ Ошибка инициализации ServiceLocator: $e');
   }
   
   // ✅ Инициализация предустановленных маршрутов ДНР
@@ -87,24 +86,6 @@ void main() async {
   }
 
   runApp(const TimeToTravelApp());
-}
-
-/// Инициализация SQLite базы данных для маршрутов
-void _initializeOfflineRoutesDatabase() async {
-  try {
-    // Запускаем в фоне, чтобы не блокировать UI
-    Future.microtask(() async {
-      // Инициализируем базу данных и добавляем fallback данные если нужно
-      await OfflineRoutesService.instance.getAllRoutes();
-      
-      // Инициализируем RouteManagementService для проверки fallback данных
-      await RouteManagementService.instance.getAllRoutes();
-      
-      print('✅ SQLite база данных маршрутов инициализирована');
-    });
-  } catch (e) {
-    print('❌ Ошибка инициализации SQLite маршрутов: $e');
-  }
 }
 
 /// ПОЛНАЯ ОЧИСТКА И ЗАГРУЗКА ТОЛЬКО ПОЛЬЗОВАТЕЛЬСКИХ МАРШРУТОВ

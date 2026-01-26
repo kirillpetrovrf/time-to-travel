@@ -3,24 +3,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/booking.dart';
 import '../models/trip_type.dart';
-import '../models/route_stop.dart';
 import '../models/passenger_info.dart';
 import '../models/baggage.dart'; // Содержит BaggageItem
 import '../models/pet_info_v3.dart'; // Содержит PetInfo
+import '../domain/entities/order.dart' as domain; // ✅ Domain entities для API
 import 'auth_service.dart';
 import 'notification_service.dart';
-import 'offline_orders_service.dart';
-import 'api/orders_api_service.dart'; // ✅ НОВОЕ: API для синхронизации заказов
+import 'orders_service.dart'; // ✅ Clean Architecture: OrdersService
 
-/// ✅ ОБНОВЛЕНО: Теперь синхронизируется с backend API (https://titotr.ru)
-/// Заказы сохраняются локально (SharedPreferences) + отправляются на сервер
+/// ✅ ОБНОВЛЕНО: Использует Clean Architecture через OrdersService
+/// Заказы сохраняются локально (SharedPreferences) + отправляются на PostgreSQL backend
 class BookingService {
   static final BookingService _instance = BookingService._internal();
   factory BookingService() => _instance;
   BookingService._internal();
 
-  // ✅ НОВОЕ: API сервис для работы с backend
-  final OrdersApiService _ordersApi = OrdersApiService();
+  // ✅ Clean Architecture: OrdersService фасад
+  final OrdersService _ordersService = OrdersService();
 
   // Ключи для локального хранения (используется как fallback при отсутствии сети)
   static const String _offlineBookingsKey = 'offline_bookings';
@@ -50,69 +49,54 @@ class BookingService {
         departureDateTime = booking.departureDate;
       }
 
-      // 2. Подготавливаем метаданные (багаж, животные, пассажиры, класс авто)
-      final metadata = <String, dynamic>{};
+      // 2. Конвертируем багаж в domain типы (Booking → Domain)
+      final domainBaggage = booking.baggage.map((b) => domain.BaggageItem(
+        size: b.size.toString().split('.').last,
+        quantity: b.quantity,
+        pricePerExtraItem: b.pricePerExtraItem,
+      )).toList();
       
-      // Конвертируем багаж в формат для API
-      List<Map<String, dynamic>>? baggageList;
-      if (booking.baggage.isNotEmpty) {
-        baggageList = booking.baggage.map((b) => {
-          'size': b.size.toString().split('.').last,
-          'quantity': b.quantity,
-          'pricePerExtraItem': b.pricePerExtraItem,
-          'customDescription': b.customDescription,
-        }).toList();
-        metadata['baggage'] = baggageList;  // Для совместимости
-      }
+      // Конвертируем животных в domain типы
+      final domainPets = booking.pets.map((p) => domain.Pet(
+        category: p.category.toString().split('.').last,
+        breed: p.breed.isNotEmpty ? p.breed : null,
+        cost: p.cost,
+      )).toList();
       
-      // Конвертируем животных в формат для API
-      List<Map<String, dynamic>>? petsList;
-      if (booking.pets.isNotEmpty) {
-        petsList = booking.pets.map((p) => {
-          'category': p.category.toString().split('.').last,
-          'breed': p.breed,
-          'cost': p.cost,
-        }).toList();
-        metadata['pets'] = petsList;  // Для совместимости
-      }
-      
-      // Конвертируем пассажиров в формат для API
-      List<Map<String, dynamic>>? passengersList;
-      if (booking.passengers.isNotEmpty) {
-        passengersList = booking.passengers.map((p) => {
-          'type': p.type.toString().split('.').last,
-        }).toList();
-        metadata['passengers'] = passengersList;  // Для совместимости
-      }
-      
-      if (booking.vehicleClass != null) {
-        metadata['vehicleClass'] = booking.vehicleClass;
-      }
-      
-      metadata['tripType'] = booking.tripType.toString().split('.').last;
-      metadata['direction'] = booking.direction.toString().split('.').last;
+      // Конвертируем пассажиров в domain типы
+      final domainPassengers = booking.passengers.map((p) => domain.Passenger(
+        type: p.type.toString().split('.').last,
+        seatType: p.seatType?.toString().split('.').last,
+        ageMonths: p.ageMonths,
+      )).toList();
 
-      // 3. Пытаемся отправить на backend
-      final createdOrder = await _ordersApi.createOrder(
+      // 3. Пытаемся отправить на backend через Clean Architecture
+      debugPrint('🌐 Отправка заказа на backend через OrdersService...');
+      
+      final result = await _ordersService.createOrder(
         fromAddress: booking.pickupAddress ?? 'Не указан',
         toAddress: booking.dropoffAddress ?? 'Не указан',
-        departureTime: departureDateTime,
+        departureDate: departureDateTime,
+        departureTime: booking.departureTime,
         passengerCount: booking.passengerCount,
-        basePrice: booking.totalPrice.toDouble(),
         totalPrice: booking.totalPrice.toDouble(),
+        finalPrice: booking.totalPrice.toDouble(),
         notes: booking.notes,
-        metadata: metadata,
         tripType: booking.tripType.toString().split('.').last,
         direction: booking.direction.toString().split('.').last,
-        passengers: passengersList,   // ✅ НОВОЕ
-        baggage: baggageList,          // ✅ НОВОЕ
-        pets: petsList,                // ✅ НОВОЕ
+        passengers: domainPassengers,   // ✅ Domain passengers
+        baggage: domainBaggage,          // ✅ Domain baggage
+        pets: domainPets,                // ✅ Domain pets
       );
       
-      debugPrint('✅ Заказ успешно создан на backend с ID: ${createdOrder.id}');
+      if (!result.isSuccess) {
+        throw Exception(result.error ?? 'Ошибка создания заказа на backend');
+      }
+      
+      debugPrint('✅ Заказ успешно создан на backend с ID: ${result.order!.id}');
       
       // 4. Сохраняем локально с реальным ID от сервера
-      final bookingId = createdOrder.id;
+      final bookingId = result.order!.id;
       final bookingWithId = Booking(
         id: bookingId,
         clientId: booking.clientId,
@@ -333,153 +317,34 @@ class BookingService {
   }
 
   /// Получение всех бронирований клиента (гибридный режим: API + локальные данные)
-  /// ✅ ОБНОВЛЕНО: Загружает заказы с backend + локальные несинхронизированные заказы
+  /// ✅ ОБНОВЛЕНО: Использует Clean Architecture через OrdersService
   Future<List<Booking>> getClientBookings(String clientId) async {
-    debugPrint('📥 Загрузка бронирований: сначала с backend, затем локальные...');
+    debugPrint('📥 Загрузка бронирований через OrdersService...');
     
     List<Booking> allBookings = [];
     
     try {
-      // 1. Пытаемся загрузить с backend
-      debugPrint('🌐 Загрузка заказов с backend API...');
-      final ordersResponse = await _ordersApi.getOrders();
+      // 1. Пытаемся загрузить с backend через Clean Architecture
+      debugPrint('🌐 Загрузка заказов через OrdersService...');
+      final ordersResult = await _ordersService.getOrders(limit: 100, forceRefresh: true);
       
-      debugPrint('✅ Получено ${ordersResponse.orders.length} заказов с backend');
-      
-      // Конвертируем ApiOrder → Booking
-      final backendBookings = ordersResponse.orders.map((apiOrder) {
-        // ✅ НОВОЕ: Сначала пытаемся прочитать tripType из основного поля
-        TripType tripType = TripType.customRoute;
-        if (apiOrder.tripType != null) {
-          tripType = TripType.values.firstWhere(
-            (e) => e.toString().split('.').last == apiOrder.tripType,
-            orElse: () => TripType.customRoute,
-          );
-        } else if (apiOrder.metadata?['tripType'] != null) {
-          // Fallback: читаем из metadata (для совместимости со старыми заказами)
-          final tripTypeStr = apiOrder.metadata!['tripType'] as String;
-          tripType = TripType.values.firstWhere(
-            (e) => e.toString().split('.').last == tripTypeStr,
-            orElse: () => TripType.customRoute,
-          );
-        }
+      if (ordersResult.isSuccess && ordersResult.orders != null) {
+        debugPrint('✅ Получено ${ordersResult.orders!.length} заказов с backend');
         
-        // ✅ НОВОЕ: Сначала пытаемся прочитать direction из основного поля
-        Direction direction = Direction.donetskToRostov;
-        if (apiOrder.direction != null) {
-          direction = Direction.values.firstWhere(
-            (e) => e.toString().split('.').last == apiOrder.direction,
-            orElse: () => Direction.donetskToRostov,
-          );
-        } else if (apiOrder.metadata?['direction'] != null) {
-          // Fallback: читаем из metadata (для совместимости со старыми заказами)
-          final directionStr = apiOrder.metadata!['direction'] as String;
-          direction = Direction.values.firstWhere(
-            (e) => e.toString().split('.').last == directionStr,
-            orElse: () => Direction.donetskToRostov,
-          );
-        }
+        // Конвертируем domain.Order → Booking
+        final backendBookings = ordersResult.orders!.map((order) => _convertDomainOrderToBooking(order)).toList();
         
-        // ✅ Конвертируем passengers из API
-        final passengers = <PassengerInfo>[];
-        if (apiOrder.passengers != null) {
-          for (final p in apiOrder.passengers!) {
-            final typeStr = p['type'] as String;
-            final passengerType = PassengerType.values.firstWhere(
-              (e) => e.toString().split('.').last == typeStr,
-              orElse: () => PassengerType.adult,
-            );
-            
-            ChildSeatType? seatType;
-            if (p['seatType'] != null) {
-              final seatTypeStr = p['seatType'] as String;
-              seatType = ChildSeatType.values.firstWhere(
-                (e) => e.toString().split('.').last == seatTypeStr,
-                orElse: () => ChildSeatType.none,
-              );
-            }
-            
-            passengers.add(PassengerInfo(
-              type: passengerType,
-              seatType: seatType,
-              useOwnSeat: p['useOwnSeat'] as bool? ?? false,
-              ageMonths: p['ageMonths'] as int?,
-            ));
-          }
-        }
-        
-        // ✅ Конвертируем baggage из API
-        final baggage = <BaggageItem>[];
-        if (apiOrder.baggage != null) {
-          for (final b in apiOrder.baggage!) {
-            final sizeStr = b['size'] as String;
-            final baggageSize = BaggageSize.values.firstWhere(
-              (e) => e.toString().split('.').last == sizeStr,
-              orElse: () => BaggageSize.s,
-            );
-            
-            baggage.add(BaggageItem(
-              size: baggageSize,
-              quantity: b['quantity'] as int? ?? 1,
-              pricePerExtraItem: (b['pricePerExtraItem'] as num?)?.toDouble() ?? 0.0,
-              customDescription: b['customDescription'] as String?,
-            ));
-          }
-        }
-        
-        // ✅ Конвертируем pets из API
-        final pets = <PetInfo>[];
-        if (apiOrder.pets != null) {
-          for (final p in apiOrder.pets!) {
-            final categoryStr = p['category'] as String;
-            final petCategory = PetCategory.values.firstWhere(
-              (e) => e.toString().split('.').last == categoryStr,
-              orElse: () => PetCategory.upTo5kgWithCarrier,
-            );
-            
-            pets.add(PetInfo(
-              category: petCategory,
-              breed: p['breed'] as String? ?? '',
-              description: p['description'] as String?,
-              agreementAccepted: true,  // Если заказ создан, значит согласие было
-            ));
-          }
-        }
-        
-        return Booking(
-          id: apiOrder.id,
-          clientId: apiOrder.userId,
-          tripType: tripType,
-          direction: direction,
-          departureDate: apiOrder.departureTime,
-          departureTime: '${apiOrder.departureTime.hour.toString().padLeft(2, '0')}:${apiOrder.departureTime.minute.toString().padLeft(2, '0')}',
-          passengerCount: apiOrder.passengerCount,
-          pickupPoint: null,
-          pickupAddress: apiOrder.fromAddress,
-          dropoffAddress: apiOrder.toAddress,
-          fromStop: null,
-          toStop: null,
-          totalPrice: apiOrder.totalPrice.toInt(),
-          status: _convertApiStatus(apiOrder.status),
-          createdAt: apiOrder.createdAt,
-          notes: apiOrder.notes,
-          trackingPoints: const [],
-          passengers: passengers,  // ✅ НОВОЕ
-          baggage: baggage,        // ✅ НОВОЕ
-          pets: pets,              // ✅ НОВОЕ
-          vehicleClass: apiOrder.metadata?['vehicleClass'] as String?,
-        );
-      }).toList();
-      
-      allBookings.addAll(backendBookings);
-      debugPrint('✅ Конвертировано ${backendBookings.length} заказов с backend');
-      
+        allBookings.addAll(backendBookings);
+        debugPrint('✅ Конвертировано ${backendBookings.length} заказов с backend');
+      } else {
+        debugPrint('⚠️ Ошибка загрузки с backend: ${ordersResult.error}');
+      }
     } catch (e) {
-      debugPrint('⚠️ Ошибка загрузки с backend: $e');
+      debugPrint('⚠️ Исключение при загрузке с backend: $e');
       debugPrint('📱 Загружаем только локальные данные');
     }
     
-    // 2. Загружаем локальные данные (индивидуальные трансферы)
+    // 2. Загружаем локальные данные (индивидуальные трансферы из SharedPreferences)
     try {
       final prefs = await SharedPreferences.getInstance();
       final bookingsJson = prefs.getString(_offlineBookingsKey);
@@ -496,16 +361,7 @@ class BookingService {
       debugPrint('⚠️ Ошибка загрузки локальных данных: $e');
     }
     
-    // 3. Загружаем заказы такси из SQLite
-    try {
-      final taxiBookings = await _getTaxiOrdersAsBookings(clientId);
-      debugPrint('📦 Загружено ${taxiBookings.length} заказов такси из SQLite');
-      allBookings.addAll(taxiBookings);
-    } catch (e) {
-      debugPrint('⚠️ Ошибка загрузки такси из SQLite: $e');
-    }
-    
-    // 4. Удаляем дубликаты (по ID) - backend данные в приоритете
+    // 3. Удаляем дубликаты (по ID) - backend данные в приоритете
     final uniqueBookings = <String, Booking>{};
     for (final booking in allBookings) {
       uniqueBookings[booking.id] = booking;
@@ -513,176 +369,159 @@ class BookingService {
     
     final result = uniqueBookings.values.toList();
     
-    // 5. Сортируем по дате (новые сначала)
+    // 4. Сортируем по дате (новые сначала)
     result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     
     debugPrint('✅ Всего загружено ${result.length} уникальных бронирований');
     return result;
   }
 
-  /// Конвертация статуса API → BookingStatus
-  BookingStatus _convertApiStatus(OrderStatus apiStatus) {
-    switch (apiStatus) {
-      case OrderStatus.pending:
-        return BookingStatus.pending;
-      case OrderStatus.confirmed:
-        return BookingStatus.confirmed;
-      case OrderStatus.inProgress:
-        return BookingStatus.inProgress;
-      case OrderStatus.completed:
-        return BookingStatus.completed;
-      case OrderStatus.cancelled:
-        return BookingStatus.cancelled;
-    }
-  }
-
-  /// Конвертация TaxiOrder из SQLite в Booking для отображения
-  Future<List<Booking>> _getTaxiOrdersAsBookings(String clientId) async {
-    try {
-      // Загружаем все заказы из SQLite
-      final taxiOrders = await OfflineOrdersService.instance.getAllOrders();
-      debugPrint('📦 [BOOKING] Загружено ${taxiOrders.length} заказов из SQLite');
-
-      // Конвертируем TaxiOrder → Booking
-      final bookings = taxiOrders.map((order) {
-        // ✅ Декодируем JSON данные о пассажирах
-        List<PassengerInfo> passengers = [];
-        if (order.passengersJson != null && order.passengersJson!.isNotEmpty) {
-          try {
-            final passengersData = jsonDecode(order.passengersJson!) as List;
-            passengers = passengersData
-                .map((json) => PassengerInfo.fromJson(json as Map<String, dynamic>))
-                .toList();
-          } catch (e) {
-            debugPrint('⚠️ [BOOKING] Ошибка декодирования пассажиров: $e');
-          }
-        }
-
-        // ✅ Декодируем JSON данные о багаже
-        List<BaggageItem> baggage = [];
-        if (order.baggageJson != null && order.baggageJson!.isNotEmpty) {
-          try {
-            final baggageData = jsonDecode(order.baggageJson!) as List;
-            baggage = baggageData
-                .map((json) => BaggageItem.fromJson(json as Map<String, dynamic>))
-                .toList();
-          } catch (e) {
-            debugPrint('⚠️ [BOOKING] Ошибка декодирования багажа: $e');
-          }
-        }
-
-        // ✅ Декодируем JSON данные о животных
-        List<PetInfo> pets = [];
-        if (order.petsJson != null && order.petsJson!.isNotEmpty) {
-          try {
-            final petsData = jsonDecode(order.petsJson!) as List;
-            pets = petsData
-                .map((json) => PetInfo.fromJson(json as Map<String, dynamic>))
-                .toList();
-          } catch (e) {
-            debugPrint('⚠️ [BOOKING] Ошибка декодирования животных: $e');
-          }
-        }
-
-        // Создаём RouteStop объекты из координат и адресов TaxiOrder
-        final fromStop = RouteStop(
-          id: 'taxi_from_${order.orderId}',
-          name: order.fromAddress,
-          order: 0,
-          latitude: order.fromPoint.latitude,
-          longitude: order.fromPoint.longitude,
-          priceFromStart: 0,
-        );
-        
-        final toStop = RouteStop(
-          id: 'taxi_to_${order.orderId}',
-          name: order.toAddress,
-          order: 1,
-          latitude: order.toPoint.latitude,
-          longitude: order.toPoint.longitude,
-          priceFromStart: order.finalPrice.round(),
-        );
-        
-        return Booking(
-          id: order.orderId,
-          clientId: clientId,
-          tripType: TripType.customRoute, // ✅ Свободный маршрут (такси)
-          direction: Direction.donetskToRostov, // Для customRoute не используется
-          departureDate: order.timestamp, // Уже DateTime
-          departureTime: 
-              '${order.timestamp.hour.toString().padLeft(2, '0')}:${order.timestamp.minute.toString().padLeft(2, '0')}',
-          passengerCount: passengers.length, // ✅ Реальное количество пассажиров
-          pickupAddress: order.fromAddress,
-          dropoffAddress: order.toAddress,
-          totalPrice: order.finalPrice.round(), // Округляем до int для Booking
-          status: _convertOrderStatusToBookingStatus(order.status),
-          createdAt: order.timestamp, // Уже DateTime
-          baggage: baggage,        // ✅ Декодированный багаж
-          pets: pets,              // ✅ Декодированные животные
-          passengers: passengers,  // ✅ Декодированные пассажиры
-          pickupPoint: null,
-          fromStop: fromStop,  // ✅ Добавляем fromStop с адресом
-          toStop: toStop,      // ✅ Добавляем toStop с адресом
-          vehicleClass: order.vehicleClass, // ✅ Класс транспорта
-          notes: order.notes,      // ✅ Комментарии
-          distanceKm: order.distanceKm,     // ✅ Расстояние
-          baseCost: order.baseCost,         // ✅ Базовая стоимость
-          costPerKm: order.costPerKm,       // ✅ Стоимость за км
-        );
-      }).toList();
-
-      // Сортируем по дате (новые сначала)
-      bookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  /// Конвертация domain.Order → Booking
+  Booking _convertDomainOrderToBooking(domain.Order order) {
+    // Конвертируем passengers: domain → app models
+    final passengers = order.passengers.map((p) {
+      final passengerType = PassengerType.values.firstWhere(
+        (e) => e.toString().split('.').last == p.type,
+        orElse: () => PassengerType.adult,
+      );
       
-      debugPrint('✅ [BOOKING] Конвертировано в ${bookings.length} Booking объектов');
-      return bookings;
-    } catch (e) {
-      debugPrint('❌ [BOOKING] Ошибка загрузки заказов: $e');
-      return [];
+      ChildSeatType? seatType;
+      if (p.seatType != null) {
+        seatType = ChildSeatType.values.firstWhere(
+          (e) => e.toString().split('.').last == p.seatType,
+          orElse: () => ChildSeatType.none,
+        );
+      }
+      
+      return PassengerInfo(
+        type: passengerType,
+        seatType: seatType,
+        useOwnSeat: false, // Domain не хранит это поле
+        ageMonths: p.ageMonths,
+      );
+    }).toList();
+    
+    // Конвертируем baggage: domain → app models
+    final baggage = order.baggage.map((b) {
+      final baggageSize = BaggageSize.values.firstWhere(
+        (e) => e.toString().split('.').last == b.size,
+        orElse: () => BaggageSize.s,
+      );
+      
+      return BaggageItem(
+        size: baggageSize,
+        quantity: b.quantity,
+        pricePerExtraItem: b.pricePerExtraItem ?? 0.0,
+        customDescription: null, // Domain не хранит это поле
+      );
+    }).toList();
+    
+    // Конвертируем pets: domain → app models
+    final pets = order.pets.map((p) {
+      final petCategory = PetCategory.values.firstWhere(
+        (e) => e.toString().split('.').last == p.category,
+        orElse: () => PetCategory.upTo5kgWithCarrier,
+      );
+      
+      return PetInfo(
+        category: petCategory,
+        breed: p.breed ?? '',
+        description: null, // Domain не хранит это поле
+        agreementAccepted: true, // Если заказ создан, значит согласие было
+      );
+    }).toList();
+    
+    // Конвертируем TripType
+    TripType tripType = TripType.customRoute;
+    if (order.tripType != null) {
+      tripType = TripType.values.firstWhere(
+        (e) => e.toString().split('.').last == order.tripType,
+        orElse: () => TripType.customRoute,
+      );
     }
-  }
-
-  /// Конвертация статуса TaxiOrder → BookingStatus
-  BookingStatus _convertOrderStatusToBookingStatus(String orderStatus) {
-    switch (orderStatus.toLowerCase()) {
-      case 'pending':
-        return BookingStatus.pending;
-      case 'confirmed':
-        return BookingStatus.confirmed;
-      case 'in_progress':
-        return BookingStatus.inProgress;
-      case 'completed':
-        return BookingStatus.completed;
-      case 'cancelled':
-        return BookingStatus.cancelled;
-      default:
-        return BookingStatus.pending;
+    
+    // Конвертируем Direction
+    Direction direction = Direction.donetskToRostov;
+    if (order.direction != null) {
+      direction = Direction.values.firstWhere(
+        (e) => e.toString().split('.').last == order.direction,
+        orElse: () => Direction.donetskToRostov,
+      );
     }
+    
+    // Конвертируем OrderStatus → BookingStatus
+    BookingStatus status;
+    switch (order.status) {
+      case domain.OrderStatus.pending:
+        status = BookingStatus.pending;
+        break;
+      case domain.OrderStatus.confirmed:
+        status = BookingStatus.confirmed;
+        break;
+      case domain.OrderStatus.inProgress:
+        status = BookingStatus.inProgress;
+        break;
+      case domain.OrderStatus.completed:
+        status = BookingStatus.completed;
+        break;
+      case domain.OrderStatus.cancelled:
+        status = BookingStatus.cancelled;
+        break;
+    }
+    
+    return Booking(
+      id: order.id,
+      clientId: order.userId ?? '',  // ✅ userId nullable в domain
+      tripType: tripType,
+      direction: direction,
+      departureDate: order.departureDate,
+      departureTime: order.departureTime ?? '00:00',
+      passengerCount: order.passengerCount,
+      pickupPoint: null,
+      pickupAddress: order.fromAddress,
+      dropoffAddress: order.toAddress,
+      fromStop: null,
+      toStop: null,
+      totalPrice: order.totalPrice.toInt(),
+      status: status,
+      createdAt: order.createdAt,
+      notes: order.notes,
+      trackingPoints: const [],
+      passengers: passengers,
+      baggage: baggage,
+      pets: pets,
+      vehicleClass: null, // Domain не хранит vehicleClass в отдельном поле
+    );
   }
 
   /// Получение всех активных бронирований
-  /// ✅ ОБНОВЛЕНО: Загружает заказы с backend API (https://titotr.ru)
+  /// ✅ ОБНОВЛЕНО: Использует Clean Architecture через OrdersService
   Future<List<Booking>> getActiveBookings() async {
-    debugPrint('🔍 Получение активных бронирований с backend API...');
+    debugPrint('🔍 Получение активных бронирований через OrdersService...');
     
     try {
-      // Получаем все заказы с сервера (без фильтра статуса пока)
-      final response = await _ordersApi.getOrders();
+      // Получаем все заказы через Clean Architecture
+      final result = await _ordersService.getOrders(limit: 100, forceRefresh: true);
       
-      debugPrint('📥 Получено ${response.orders.length} заказов с сервера');
+      if (!result.isSuccess || result.orders == null) {
+        debugPrint('❌ Ошибка загрузки заказов: ${result.error}');
+        return _getOfflineActiveBookings();
+      }
       
-      // Конвертируем ApiOrder → Booking и фильтруем активные
+      debugPrint('📥 Получено ${result.orders!.length} заказов с сервера');
+      
+      // Конвертируем domain.Order → Booking и фильтруем активные
       final bookings = <Booking>[];
-      for (final apiOrder in response.orders) {
+      for (final order in result.orders!) {
         try {
           // Фильтруем только активные статусы
-          if (apiOrder.status == OrderStatus.pending ||
-              apiOrder.status == OrderStatus.confirmed ||
-              apiOrder.status == OrderStatus.inProgress) {
-            bookings.add(_convertApiOrderToBooking(apiOrder));
+          if (order.status == domain.OrderStatus.pending ||
+              order.status == domain.OrderStatus.confirmed ||
+              order.status == domain.OrderStatus.inProgress) {
+            bookings.add(_convertDomainOrderToBooking(order));
           }
         } catch (e) {
-          debugPrint('⚠️ Ошибка конвертации заказа ${apiOrder.id}: $e');
+          debugPrint('⚠️ Ошибка конвертации заказа ${order.id}: $e');
         }
       }
       
@@ -692,96 +531,6 @@ class BookingService {
       debugPrint('❌ Ошибка загрузки заказов с сервера: $e');
       debugPrint('⚠️ Fallback: загружаем локальные заказы');
       return _getOfflineActiveBookings();
-    }
-  }
-  
-  /// Конвертация ApiOrder → Booking
-  Booking _convertApiOrderToBooking(ApiOrder apiOrder) {
-    final metadata = apiOrder.metadata ?? {};
-    
-    return Booking(
-      id: apiOrder.id,
-      clientId: apiOrder.userId,
-      tripType: TripType.customRoute, // По умолчанию свободный маршрут
-      direction: Direction.donetskToRostov, // По умолчанию (можно из metadata)
-      departureDate: apiOrder.departureTime,
-      departureTime: '${apiOrder.departureTime.hour.toString().padLeft(2, '0')}:${apiOrder.departureTime.minute.toString().padLeft(2, '0')}',
-      passengerCount: apiOrder.passengerCount,
-      pickupAddress: apiOrder.fromAddress,
-      dropoffAddress: apiOrder.toAddress,
-      totalPrice: apiOrder.totalPrice.toInt(),
-      status: _convertApiStatusToBookingStatus(apiOrder.status),
-      createdAt: apiOrder.createdAt,
-      notes: apiOrder.notes,
-      vehicleClass: metadata['vehicleClass'] as String? ?? 'sedan',
-      passengers: _parsePassengers(metadata['passengers']),
-      baggage: _parseBaggage(metadata['baggage']),
-      pets: _parsePets(metadata['pets']),
-      trackingPoints: [],
-      distanceKm: (metadata['distance'] as num?)?.toDouble(),
-      baseCost: (metadata['base_cost'] as num?)?.toDouble(),
-      costPerKm: (metadata['cost_per_km'] as num?)?.toDouble(),
-    );
-  }
-  
-  /// Конвертация статуса API → Booking
-  BookingStatus _convertApiStatusToBookingStatus(OrderStatus apiStatus) {
-    switch (apiStatus) {
-      case OrderStatus.pending:
-        return BookingStatus.pending;
-      case OrderStatus.confirmed:
-        return BookingStatus.confirmed;
-      case OrderStatus.inProgress:
-        return BookingStatus.inProgress;
-      case OrderStatus.completed:
-        return BookingStatus.completed;
-      case OrderStatus.cancelled:
-        return BookingStatus.cancelled;
-    }
-  }
-  
-  /// Парсинг пассажиров из JSON
-  List<PassengerInfo> _parsePassengers(dynamic passengersData) {
-    if (passengersData == null) return [];
-    
-    try {
-      final List<dynamic> list = passengersData is String 
-          ? jsonDecode(passengersData) 
-          : passengersData as List<dynamic>;
-      
-      return list.map((e) => PassengerInfo.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      return [];
-    }
-  }
-  
-  /// Парсинг багажа из JSON
-  List<BaggageItem> _parseBaggage(dynamic baggageData) {
-    if (baggageData == null) return [];
-    
-    try {
-      final List<dynamic> list = baggageData is String 
-          ? jsonDecode(baggageData) 
-          : baggageData as List<dynamic>;
-      
-      return list.map((e) => BaggageItem.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      return [];
-    }
-  }
-  
-  /// Парсинг животных из JSON
-  List<PetInfo> _parsePets(dynamic petsData) {
-    if (petsData == null) return [];
-    
-    try {
-      final List<dynamic> list = petsData is String 
-          ? jsonDecode(petsData) 
-          : petsData as List<dynamic>;
-      
-      return list.map((e) => PetInfo.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      return [];
     }
   }
 

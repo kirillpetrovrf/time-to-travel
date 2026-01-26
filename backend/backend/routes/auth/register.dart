@@ -59,6 +59,7 @@ Future<Response> onRequest(RequestContext context) async {
     final accessToken = jwtHelper.createAccessToken(
       userId: user.id,
       email: user.email,
+      additionalClaims: {'role': user.role},
     );
 
     final refreshToken = jwtHelper.createRefreshToken(

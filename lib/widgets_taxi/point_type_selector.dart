@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/route_point.dart'; // ✅ Используем единый RoutePointType
 
-enum RoutePointType { from, to }
+// enum RoutePointType удалён - используем из models/route_point.dart
 
 class PointTypeSelector extends StatelessWidget {
   final RoutePointType selectedType;

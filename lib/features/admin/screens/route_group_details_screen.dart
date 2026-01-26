@@ -267,8 +267,9 @@ class _RouteGroupDetailsScreenState extends State<RouteGroupDetailsScreen> {
         await _routeService.addRoute(
           fromCity: fromCity,
           toCity: toCity,
-          price: price,
-          groupId: widget.group.id,
+          routeGroupId: widget.group.id,
+          stopsData: [], // ⚠️ TODO: передавать остановки из UI
+          basePrice: price,
         );
         _loadRoutes();
         

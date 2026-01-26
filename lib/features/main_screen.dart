@@ -22,7 +22,6 @@ import '../services/auth_service.dart';
 import 'home/screens/home_screen.dart';
 import '../models/user.dart';
 import '../services/price_calculator_service.dart';
-import '../services/offline_orders_service.dart';
 import '../models/price_calculation.dart';
 import '../models/taxi_order.dart';
 import '../models/booking.dart';
@@ -34,6 +33,7 @@ import '../models/pet_info_v3.dart';
 import 'orders/screens/booking_detail_screen.dart';
 import '../utils/polyline_extensions.dart';
 
+import '../models/route_point.dart'; // ✅ Единый RoutePointType
 import '../widgets_taxi/search_fields_panel.dart';
 import '../widgets_taxi/point_type_selector.dart';
 import '../widgets/custom_route_booking_modal.dart';
@@ -754,20 +754,9 @@ class _MainScreenState extends State<MainScreen> {
     
     print('✅ [ORDER] Заказ создан через модальное окно: ${order.orderId}');
     
-    // Сохраняем в SQLite (офлайн)
-    try {
-      print('💾 [ORDER] Сохранение в SQLite...');
-      await OfflineOrdersService.instance.saveOrder(order);
-      print('✅ [ORDER] Сохранено в SQLite');
-    } catch (e) {
-      print('❌ [ORDER] Ошибка сохранения в SQLite: $e');
-      _showOrderDialog('Ошибка', 'Не удалось сохранить заказ локально', isError: true);
-      return;
-    }
-    
-    // Firebase удалён - используется только PostgreSQL API через sync service
-    print('🎉 [ORDER] Заказ успешно создан и сохранен в SQLite!');
-    print('⚙️ [ORDER] OrdersSyncService автоматически синхронизирует с PostgreSQL в фоне');
+    // ✅ SQLite удалён - заказы идут напрямую в PostgreSQL через OrdersService
+    print('🎉 [ORDER] Заказ будет синхронизирован с PostgreSQL автоматически!');
+    print('⚙️ [ORDER] BookingService уже отправил заказ на backend через OrdersService');
     
     // Открываем экран деталей заказа напрямую (без success dialog)
     print('📱 [ORDER] Прямой переход к экрану деталей заказа...');
@@ -777,164 +766,24 @@ class _MainScreenState extends State<MainScreen> {
   // Переключение на вкладку "Мои заказы"
   // DEPRECATED: метод _navigateToOrders удален - больше не используется
 
+  /// ⚠️ DEPRECATED: SQLite удалён, заказы такси теперь в PostgreSQL через OrdersService
   /// Открывает экран деталей taxi order (конвертируя TaxiOrder → Booking)
   Future<void> _openTaxiOrderDetails(String orderId) async {
     try {
-      print('🚀 [TAXI] Открытие деталей заказа: $orderId');
+      print('⚠️ [TAXI] SQLite удалён - используйте BookingService для просмотра заказов');
+      print('💡 [TAXI] Заказ ID: $orderId - загружайте через BookingService.getBookingById()');
       
-      // 1. Загружаем TaxiOrder из SQLite
-      final taxiOrder = await OfflineOrdersService.instance.getOrderById(orderId);
-      if (taxiOrder == null) {
-        print('❌ [TAXI] Заказ не найден: $orderId');
-        return;
-      }
-      print('✅ [TAXI] Заказ загружен из SQLite');
+      // ✅ TODO: Заменить на вызов OrdersService.getOrderById() после рефакторинга UI
+      // final orderResult = await OrdersService().getOrderById(orderId);
+      // if (!orderResult.isSuccess) {
+      //   print('❌ [TAXI] Заказ не найден: $orderId');
+      //   return;
+      // }
+      // final order = orderResult.order!;
+      // Navigator.push(context, MaterialPageRoute(builder: (context) => OrderDetailsScreen(order: order)));
       
-      // 2. Получаем текущего пользователя (для clientId)
-      final currentUser = await AuthService.instance.getCurrentUser();
-      final clientId = currentUser?.id ?? 'offline_user_demo';
-      
-      // 3. Конвертируем TaxiOrder → Booking (используем логику из BookingService)
-      // Создаём RouteStop объекты из адресов для корректного отображения
-      final fromStop = RouteStop(
-        id: 'taxi_from_${taxiOrder.orderId}',
-        name: taxiOrder.fromAddress,
-        order: 0,
-        latitude: taxiOrder.fromPoint.latitude,
-        longitude: taxiOrder.fromPoint.longitude,
-        priceFromStart: 0,
-        isPopular: false,
-      );
-      
-      final toStop = RouteStop(
-        id: 'taxi_to_${taxiOrder.orderId}',
-        name: taxiOrder.toAddress,
-        order: 1,
-        latitude: taxiOrder.toPoint.latitude,
-        longitude: taxiOrder.toPoint.longitude,
-        priceFromStart: taxiOrder.finalPrice.round(),
-        isPopular: false,
-      );
-      
-      // ✅ Декодируем JSON данные из TaxiOrder
-      List<PassengerInfo> passengers = [PassengerInfo(type: PassengerType.adult)];
-      List<BaggageItem> baggage = [];
-      List<PetInfo> pets = [];
-      
-      // Декодируем пассажиров
-      if (taxiOrder.passengersJson != null && taxiOrder.passengersJson!.isNotEmpty) {
-        try {
-          final passengersData = jsonDecode(taxiOrder.passengersJson!) as List;
-          passengers = passengersData.map((json) => PassengerInfo.fromJson(json)).toList();
-          print('✅ [TAXI] Декодировано ${passengers.length} пассажиров');
-        } catch (e) {
-          print('⚠️ [TAXI] Ошибка декодирования пассажиров: $e');
-        }
-      }
-      
-      // Декодируем багаж
-      if (taxiOrder.baggageJson != null && taxiOrder.baggageJson!.isNotEmpty) {
-        try {
-          final baggageData = jsonDecode(taxiOrder.baggageJson!) as List;
-          baggage = baggageData.map((json) => BaggageItem.fromJson(json)).toList();
-          print('✅ [TAXI] Декодировано ${baggage.length} единиц багажа');
-        } catch (e) {
-          print('⚠️ [TAXI] Ошибка декодирования багажа: $e');
-        }
-      }
-      
-      // Декодируем животных
-      if (taxiOrder.petsJson != null && taxiOrder.petsJson!.isNotEmpty) {
-        try {
-          final petsData = jsonDecode(taxiOrder.petsJson!) as List;
-          pets = petsData.map((json) => PetInfo.fromJson(json)).toList();
-          print('✅ [TAXI] Декодировано ${pets.length} животных');
-        } catch (e) {
-          print('⚠️ [TAXI] Ошибка декодирования животных: $e');
-        }
-      }
-      
-      // Подсчитываем общее количество пассажиров
-      final totalPassengers = passengers.length;
-      
-      final booking = Booking(
-        id: taxiOrder.orderId,
-        clientId: clientId,
-        tripType: trip_type.TripType.customRoute, // ✅ Свободный маршрут (такси)
-        direction: trip_type.Direction.donetskToRostov, // Для customRoute не используется
-        departureDate: taxiOrder.timestamp,
-        departureTime: DateFormat('HH:mm').format(taxiOrder.timestamp),
-        passengerCount: totalPassengers, // ✅ Реальное количество пассажиров
-        pickupAddress: taxiOrder.fromAddress,
-        dropoffAddress: taxiOrder.toAddress,
-        fromStop: fromStop, // ✅ Теперь передаём остановки
-        toStop: toStop,     // ✅ Для правильного отображения маршрута
-        totalPrice: taxiOrder.finalPrice.round(), // Конвертируем double → int
-        status: _convertTaxiStatusToBookingStatus(taxiOrder.status),
-        createdAt: taxiOrder.timestamp,
-        baggage: baggage,  // ✅ Реальные данные о багаже
-        pets: pets,        // ✅ Реальные данные о животных
-        passengers: passengers, // ✅ Реальные данные о пассажирах
-        notes: taxiOrder.notes, // ✅ Комментарии пользователя
-        vehicleClass: taxiOrder.vehicleClass, // ✅ Класс транспорта
-        // ✅ НОВОЕ: передаём информацию о расчёте цены
-        distanceKm: taxiOrder.distanceKm,
-        baseCost: taxiOrder.baseCost,
-        costPerKm: taxiOrder.costPerKm,
-      );
-      print('✅ [TAXI] TaxiOrder конвертирован в Booking');
-      print('📊 [TAXI] Booking: ${totalPassengers} пассажиров, ${baggage.length} багажа, ${pets.length} животных');
-      
-      // 4. ВАЖНО: Возвращаемся на главный экран (закрываем success dialog)
-      // Точно как в individual_booking_screen.dart
-      print('⬅️ [TAXI] Возвращаемся на главный экран (popUntil)...');
-      Navigator.popUntil(context, (route) => route.isFirst);
-      
-      // 5. Небольшая задержка для корректной навигации (как в individual bookings)
-      await Future.delayed(const Duration(milliseconds: 150));
-      
-      // 6. Открываем экран деталей
-      if (!mounted) return;
-      
-      print('� [TAXI] Открытие BookingDetailScreen...');
-      final result = await Navigator.push<String>(
-        context,
-        CupertinoPageRoute(
-          builder: (context) => BookingDetailScreen(booking: booking),
-        ),
-      );
-      
-      // 7. После возврата из экрана деталей переключаемся на "Мои заказы"
-      if (mounted && result == 'switch_to_orders') {
-        print('🔄 [TAXI] Переключаемся на вкладку "Мои заказы"');
-        final userType = await AuthService.instance.getUserType();
-        final ordersIndex = userType == UserType.dispatcher ? 2 : 1;
-        HomeScreen.switchToTabSafely(ordersIndex);
-        await AuthService.instance.saveLastScreen('/orders');
-        print('✅ [TAXI] Вкладка /orders сохранена');
-      }
-      
-    } catch (e, stackTrace) {
-      print('❌ [TAXI] Ошибка при открытии деталей: $e');
-      print('📚 [TAXI] Stack trace: $stackTrace');
-    }
-  }
-
-  /// Конвертация статуса TaxiOrder → BookingStatus
-  BookingStatus _convertTaxiStatusToBookingStatus(String taxiStatus) {
-    switch (taxiStatus) {
-      case 'pending':
-        return BookingStatus.pending;
-      case 'accepted':
-        return BookingStatus.confirmed;
-      case 'in_progress':
-        return BookingStatus.confirmed;
-      case 'completed':
-        return BookingStatus.completed;
-      case 'cancelled':
-        return BookingStatus.cancelled;
-      default:
-        return BookingStatus.pending;
+    } catch (e) {
+      print('❌ [TAXI] Ошибка: $e');
     }
   }
 

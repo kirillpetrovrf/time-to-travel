@@ -59,10 +59,11 @@ Future<Response> onRequest(RequestContext context) async {
       );
     }
 
-    // Создаем токены
+    // Создаем токены (включаем role для RBAC)
     final accessToken = jwtHelper.createAccessToken(
       userId: user.id,
       email: user.email,
+      additionalClaims: {'role': user.role},
     );
 
     final refreshToken = jwtHelper.createRefreshToken(

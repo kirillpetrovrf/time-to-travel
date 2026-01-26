@@ -2,7 +2,7 @@ import 'dart:async';
 import '../services/reverse_geocoding_service.dart';
 import '../features/search/managers/map_search_manager.dart';
 import '../managers/route_points_manager.dart';
-import '../widgets_taxi/point_type_selector.dart';
+import '../models/route_point.dart'; // ✅ Единый RoutePointType
 import 'package:yandex_maps_mapkit/mapkit.dart';
 import 'package:flutter/widgets.dart';
 

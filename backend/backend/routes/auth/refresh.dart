@@ -93,10 +93,11 @@ Future<Response> onRequest(RequestContext context) async {
       );
     }
 
-    // Генерируем новый access token (refresh token остается тот же)
+    // Генерируем новый access token с role (refresh token остается тот же)
     final newAccessToken = jwtHelper.createAccessToken(
       userId: userId,
       email: user.email,
+      additionalClaims: {'role': user.role},
     );
 
     return Response.json(

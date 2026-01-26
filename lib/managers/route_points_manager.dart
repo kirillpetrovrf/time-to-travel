@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:yandex_maps_mapkit/image.dart' as image_provider;
 import 'package:yandex_maps_mapkit/mapkit.dart' as mapkit;
-import '../widgets_taxi/point_type_selector.dart';
+import '../models/route_point.dart'; // ✅ Единый источник RoutePointType
 
 /// 🔧 Координаты КПП для корректировки
 /// Старая закрытая КПП Успенка (запрещена) - координаты для сравнения

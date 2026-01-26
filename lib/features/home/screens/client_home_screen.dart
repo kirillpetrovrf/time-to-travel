@@ -489,6 +489,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         return CupertinoIcons.group;
       case TripType.individual:
         return CupertinoIcons.car_detailed;
+      case TripType.customRoute:
+        return CupertinoIcons.location; // ✅ Свободный маршрут (такси)
     }
   }
 

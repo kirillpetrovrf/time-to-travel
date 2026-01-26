@@ -12,7 +12,7 @@ import '../../../data/route_groups_initializer.dart';
 import '../../../widgets/simple_address_field.dart';
 import '../screens/route_group_details_screen.dart';
 import '../../../managers/route_points_manager.dart';
-import '../../../widgets_taxi/point_type_selector.dart';
+import '../../../models/route_point.dart'; // ✅ Единый RoutePointType
 
 /// Виджет для управления фиксированными маршрутами в админ-панели
 class RouteManagementWidget extends StatefulWidget {
@@ -1224,8 +1224,9 @@ class _RouteManagementWidgetState extends State<RouteManagementWidget> {
       await _routeService.addRoute(
         fromCity: fromCity,
         toCity: toCity,
-        price: price,
-        groupId: _selectedGroupForNewRoute!.id, // Передаем groupId
+        routeGroupId: _selectedGroupForNewRoute!.id,
+        stopsData: [], // ⚠️ TODO: передавать остановки из UI
+        basePrice: price,
       );
 
       // Очищаем форму

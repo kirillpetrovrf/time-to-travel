@@ -22,7 +22,7 @@ import 'baggage_selection_screen_v3.dart';
 import '../widgets/simple_pet_selection_sheet.dart';
 import 'vehicle_selection_screen.dart';
 import '../../../managers/route_points_manager.dart'; // 🆕 Для нормальных маркеров
-import '../../../widgets_taxi/point_type_selector.dart'; // 🆕 RoutePointType
+import '../../../models/route_point.dart'; // ✅ Единый RoutePointType
 
 class IndividualBookingScreen extends StatefulWidget {
   final RouteStop? fromStop;
