@@ -56,7 +56,7 @@ services:
     container_name: timetotravel_backend
     restart: unless-stopped
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=timetotravel_postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-timetotravel}
       - DB_USER=${DB_USER:-ttadmin}
