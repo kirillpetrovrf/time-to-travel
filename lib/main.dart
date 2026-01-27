@@ -10,10 +10,9 @@ import 'services/yandex_search_service.dart';
 import 'services/auth_storage_service.dart';
 import 'services/telegram_auth_api_service.dart';
 import 'providers/auth_provider.dart';
-import 'features/auth/screens/auth_screen.dart';
 import 'features/home/screens/home_screen.dart';
-import 'features/splash/splash_screen.dart';
 import 'screens/auth_splash_screen.dart';
+import 'screens/auth/telegram_login_screen.dart'; // ✅ ДОБАВЛЕН для прямой навигации
 import 'features/orders/screens/booking_detail_screen.dart';
 import 'models/booking.dart';
 import 'data/route_initializer.dart';
@@ -168,7 +167,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
         Widget child;
         switch (settings.name) {
           case '/auth':
-            child = const AuthScreen();
+            child = const TelegramLoginScreen(); // ✅ ИЗМЕНЕНО: прямо на Telegram авторизацию
             break;
           case '/home':
           case '/main': // ✅ Добавлен роут /main для совместимости
@@ -181,7 +180,7 @@ class _TimeToTravelAppContent extends StatelessWidget {
             child = _BookingDetailsLoader(bookingId: bookingId);
             break;
           default:
-            child = const SplashScreen(); // Заменяем на SplashScreen
+            child = const AuthSplashScreen(); // ✅ ИЗМЕНЕНО: используем AuthSplashScreen вместо старого SplashScreen
         }
 
         return CupertinoPageRoute(
