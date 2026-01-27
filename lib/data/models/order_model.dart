@@ -27,6 +27,7 @@ class OrderModel {
   final List<Map<String, dynamic>> baggage;
   final List<Map<String, dynamic>> pets;
   final String? notes;
+  final String? vehicleClass; // ✅ ДОБАВЛЕНО
   final String createdAt; // ISO 8601 string
   final String updatedAt; // ISO 8601 string
 
@@ -53,6 +54,7 @@ class OrderModel {
     this.baggage = const [],
     this.pets = const [],
     this.notes,
+    this.vehicleClass, // ✅ ДОБАВЛЕНО
     required this.createdAt,
     required this.updatedAt,
   });
@@ -97,6 +99,7 @@ class OrderModel {
           ? (data['pets'] as List).cast<Map<String, dynamic>>()
           : const [],
       notes: data['notes'] as String?,
+      vehicleClass: data['vehicleClass'] as String?, // ✅ ДОБАВЛЕНО
       createdAt: data['createdAt'] as String? ?? DateTime.now().toIso8601String(),
       updatedAt: data['updatedAt'] as String? ?? DateTime.now().toIso8601String(),
     );
@@ -127,6 +130,7 @@ class OrderModel {
       if (baggage.isNotEmpty) 'baggage': baggage,
       if (pets.isNotEmpty) 'pets': pets,
       if (notes != null) 'notes': notes,
+      if (vehicleClass != null) 'vehicleClass': vehicleClass, // ✅ ДОБАВЛЕНО
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -171,6 +175,7 @@ class OrderModel {
         cost: p['cost'] != null ? (p['cost'] as num).toDouble() : null,
       )).toList(),
       notes: notes,
+      vehicleClass: vehicleClass, // ✅ ДОБАВЛЕНО
       createdAt: DateTime.parse(createdAt),
       updatedAt: DateTime.parse(updatedAt),
     );
@@ -213,6 +218,7 @@ class OrderModel {
         if (p.cost != null) 'cost': p.cost,
       }).toList(),
       notes: order.notes,
+      vehicleClass: order.vehicleClass, // ✅ ДОБАВЛЕНО
       createdAt: order.createdAt.toIso8601String(),
       updatedAt: order.updatedAt.toIso8601String(),
     );

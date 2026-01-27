@@ -13,6 +13,8 @@ import '../theme/app_theme.dart';
 import '../features/booking/screens/baggage_selection_screen_v3.dart';
 import '../features/booking/widgets/simple_pet_selection_sheet.dart';
 import '../features/booking/screens/vehicle_selection_screen.dart';
+import '../services/booking_service.dart';
+import '../models/booking.dart';
 
 /// Модальное окно пошагового бронирования для свободного маршрута
 class CustomRouteBookingModal extends StatefulWidget {
@@ -130,7 +132,7 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
   }
 
   /// Завершение бронирования
-  void _completeBooking() {
+  Future<void> _completeBooking() async {
     // Проверка обязательных полей
     if (_passengers.isEmpty) {
       _showError('Добавьте хотя бы одного пассажира');
@@ -178,8 +180,44 @@ class _CustomRouteBookingModalState extends State<CustomRouteBookingModal> {
     );
 
     print('✅ [BOOKING] TaxiOrder создан с ID: ${order.orderId}');
+    
+    // ✅ Отправляем заказ на backend через BookingService
+    print('📤 [BOOKING] Отправляем на backend через BookingService...');
+    try {
+      final bookingService = BookingService();
+      final backendOrderId = await bookingService.createBooking(
+        Booking(
+          id: order.orderId,
+          clientId: '', // Пустой clientId будет заполнен на backend
+          tripType: TripType.customRoute,
+          // ⚠️ Для customRoute direction игнорируется - используются реальные адреса
+          direction: Direction.donetskToRostov, 
+          departureDate: order.departureDate ?? DateTime.now(),
+          departureTime: order.departureTime ?? '09:00',
+          passengerCount: _passengers.length,
+          pickupAddress: order.fromAddress,
+          dropoffAddress: order.toAddress,
+          totalPrice: order.finalPrice.toInt(),
+          status: BookingStatus.pending,
+          createdAt: order.timestamp,
+          notes: order.notes,
+          passengers: _passengers,
+          baggage: _baggage,
+          pets: _pets,
+          distanceKm: order.distanceKm,
+          baseCost: order.baseCost,
+          costPerKm: order.costPerKm,
+          vehicleClass: _selectedVehicleClass?.toString().split('.').last,
+        ),
+      );
+      
+      print('✅ [BOOKING] Заказ успешно отправлен на backend! Backend ID: $backendOrderId');
+    } catch (e) {
+      print('⚠️ [BOOKING] Ошибка отправки на backend: $e');
+      print('📱 [BOOKING] Заказ сохранён только локально');
+    }
+    
     print('📤 [BOOKING] Возвращаем заказ в main_screen...');
-
     Navigator.of(context).pop(order);
   }
 

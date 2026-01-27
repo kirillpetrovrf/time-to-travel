@@ -111,6 +111,7 @@ class Order extends Equatable {
   final List<BaggageItem> baggage;
   final List<Pet> pets;
   final String? notes;
+  final String? vehicleClass; // ✅ ДОБАВЛЕНО
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -137,6 +138,7 @@ class Order extends Equatable {
     this.baggage = const [],
     this.pets = const [],
     this.notes,
+    this.vehicleClass, // ✅ ДОБАВЛЕНО
     required this.createdAt,
     required this.updatedAt,
   });
@@ -177,6 +179,7 @@ class Order extends Equatable {
         fromAddress,
         toAddress,
         status,
+        vehicleClass, // ✅ ДОБАВЛЕНО
         createdAt,
       ];
 

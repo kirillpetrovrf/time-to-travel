@@ -21,6 +21,7 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   Timer? _pollingTimer; // Таймер для polling
+  bool _isPollingActive = false; // ✅ Флаг активности polling
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
   void dispose() {
     _phoneController.dispose();
     _pollingTimer?.cancel(); // Отменяем polling при выходе
+    _isPollingActive = false; // ✅ Сбрасываем флаг
     super.dispose();
   }
 
@@ -167,9 +169,21 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
 
   /// Запуск polling для проверки авторизации по authCode
   void _startPolling(String authCode) {
+    // ❌ ЗАЩИТА 1: не запускаем если уже запущен
+    if (_isPollingActive) {
+      print('⚠️ [POLLING] Polling уже активен, пропускаем запуск');
+      return;
+    }
+    
+    // ❌ ЗАЩИТА 2: отменяем старый таймер если он есть
+    _pollingTimer?.cancel();
+    
+    _isPollingActive = true;
     const pollingInterval = Duration(seconds: 2);
     const maxAttempts = 150; // 5 минут (150 * 2 сек = 300 сек)
     int attempts = 0;
+
+    print('🔄 [POLLING] Запускаем новый polling таймер с интервалом ${pollingInterval.inSeconds}с');
 
     _pollingTimer = Timer.periodic(pollingInterval, (timer) async {
       attempts++;
@@ -181,6 +195,7 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
         if (success) {
           // Успешная авторизация!
           timer.cancel();
+          _isPollingActive = false; // ✅ Сбрасываем флаг
           
           if (mounted) {
             // Закрываем диалог если он открыт
@@ -204,6 +219,7 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
         } else if (attempts >= maxAttempts) {
           // Таймаут
           timer.cancel();
+          _isPollingActive = false; // ✅ Сбрасываем флаг
           
           if (mounted) {
             Navigator.of(context).pop(); // Закрываем диалог
@@ -217,6 +233,7 @@ class _TelegramLoginScreenState extends State<TelegramLoginScreen> {
         // Продолжаем polling при ошибках
         if (attempts >= maxAttempts) {
           timer.cancel();
+          _isPollingActive = false; // ✅ Сбрасываем флаг
           
           if (mounted) {
             Navigator.of(context).pop();

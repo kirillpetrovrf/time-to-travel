@@ -65,6 +65,7 @@ class Vehicle {
 
 class Booking {
   final String id;
+  final String? orderId; // Красивый номер заказа (2026-01-26-069-G)
   final String clientId;
   final TripType tripType;
   final Direction direction;
@@ -94,6 +95,7 @@ class Booking {
 
   const Booking({
     required this.id,
+    this.orderId, // Опциональный красивый номер
     required this.clientId,
     required this.tripType,
     required this.direction,
@@ -123,6 +125,7 @@ class Booking {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'orderId': orderId, // Красивый номер заказа
       'clientId': clientId,
       'tripType': tripType.toString(),
       'direction': direction.toString(),
@@ -153,6 +156,7 @@ class Booking {
   factory Booking.fromJson(Map<String, dynamic> json) {
     return Booking(
       id: json['id'] as String,
+      orderId: json['orderId'] as String?, // Красивый номер заказа
       clientId: json['clientId'] as String,
       tripType: TripType.values.firstWhere(
         (e) => e.toString() == json['tripType'],

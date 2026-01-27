@@ -87,6 +87,7 @@ class BookingService {
         passengers: domainPassengers,   // ✅ Domain passengers
         baggage: domainBaggage,          // ✅ Domain baggage
         pets: domainPets,                // ✅ Domain pets
+        vehicleClass: booking.vehicleClass, // ✅ ДОБАВЛЕНО
       );
       
       if (!result.isSuccess) {
@@ -176,10 +177,23 @@ class BookingService {
 
     // Генерируем уникальный ID
     final bookingId = 'offline_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // Генерируем красивый номер заказа в формате 2026-01-27-123-G
+    final now = DateTime.now();
+    String typeSuffix;
+    if (booking.tripType == TripType.group) {
+      typeSuffix = 'G'; // Групповая
+    } else if (booking.tripType == TripType.individual) {
+      typeSuffix = 'I'; // Индивидуальная
+    } else {
+      typeSuffix = 'S'; // Свободная (Svobodnaya)
+    }
+    final orderId = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}-${(now.millisecondsSinceEpoch % 1000).toString().padLeft(3, '0')}-$typeSuffix';
 
     // Создаем бронирование с ID
     final bookingWithId = Booking(
       id: bookingId,
+      orderId: orderId, // ✅ Красивый номер заказа
       clientId: booking.clientId,
       tripType: booking.tripType,
       direction: booking.direction,
@@ -431,23 +445,17 @@ class BookingService {
       );
     }).toList();
     
-    // Конвертируем TripType
-    TripType tripType = TripType.customRoute;
-    if (order.tripType != null) {
-      tripType = TripType.values.firstWhere(
-        (e) => e.toString().split('.').last == order.tripType,
-        orElse: () => TripType.customRoute,
-      );
-    }
+    // Конвертируем TripType (domain → app)
+    TripType tripType = TripType.values.firstWhere(
+      (e) => e.toString().split('.').last == order.tripType.value,
+      orElse: () => TripType.customRoute,
+    );
     
-    // Конвертируем Direction
-    Direction direction = Direction.donetskToRostov;
-    if (order.direction != null) {
-      direction = Direction.values.firstWhere(
-        (e) => e.toString().split('.').last == order.direction,
-        orElse: () => Direction.donetskToRostov,
-      );
-    }
+    // Конвертируем Direction (String → app enum)
+    Direction direction = Direction.values.firstWhere(
+      (e) => e.toString().split('.').last == order.direction,
+      orElse: () => Direction.donetskToRostov,
+    );
     
     // Конвертируем OrderStatus → BookingStatus
     BookingStatus status;
@@ -471,6 +479,7 @@ class BookingService {
     
     return Booking(
       id: order.id,
+      orderId: order.orderId, // ✅ Красивый номер заказа (2026-01-26-069-G)
       clientId: order.userId ?? '',  // ✅ userId nullable в domain
       tripType: tripType,
       direction: direction,
@@ -490,7 +499,7 @@ class BookingService {
       passengers: passengers,
       baggage: baggage,
       pets: pets,
-      vehicleClass: null, // Domain не хранит vehicleClass в отдельном поле
+      vehicleClass: order.vehicleClass, // ✅ ИСПРАВЛЕНО - теперь берём из Order
     );
   }
 

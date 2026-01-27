@@ -49,6 +49,7 @@ class OrdersService {
     List<Passenger> passengers = const [],
     List<BaggageItem> baggage = const [],
     List<Pet> pets = const [],
+    String? vehicleClass, // ✅ ДОБАВЛЕНО
   }) async {
     final params = CreateOrderParams(
       fromAddress: fromAddress,
@@ -69,6 +70,7 @@ class OrdersService {
       passengers: passengers,
       baggage: baggage,
       pets: pets,
+      vehicleClass: vehicleClass, // ✅ ДОБАВЛЕНО
     );
 
     final result = await _repository.createOrder(params);

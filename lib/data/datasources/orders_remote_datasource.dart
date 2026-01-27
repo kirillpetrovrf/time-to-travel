@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/errors/exceptions.dart';
 import '../models/order_model.dart';
 
@@ -61,23 +62,33 @@ class OrdersRemoteDataSourceImpl implements OrdersRemoteDataSource {
   @override
   Future<OrderModel> createOrder(Map<String, dynamic> orderData) async {
     try {
+      debugPrint('📤 [CREATE_ORDER] Отправка POST /orders...');
+      debugPrint('📦 [CREATE_ORDER] Данные: ${orderData.toString().substring(0, orderData.toString().length > 200 ? 200 : orderData.toString().length)}...');
+      
       final response = await dio.post(
         '/orders',
         data: orderData,
       );
+
+      debugPrint('✅ [CREATE_ORDER] Ответ: ${response.statusCode}');
+      debugPrint('📥 [CREATE_ORDER] Тело: ${response.data.toString().substring(0, response.data.toString().length > 300 ? 300 : response.data.toString().length)}...');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;
         
         // Backend may return {"order": {...}} or {"data": {"order": {...}}}
         if (data.containsKey('data')) {
+          debugPrint('✅ [CREATE_ORDER] Используем data.data для парсинга');
           return OrderModel.fromJson(data['data'] as Map<String, dynamic>);
         } else if (data.containsKey('order')) {
+          debugPrint('✅ [CREATE_ORDER] Используем data для парсинга (содержит order)');
           return OrderModel.fromJson(data);
         } else {
+          debugPrint('✅ [CREATE_ORDER] Используем data напрямую');
           return OrderModel.fromJson(data);
         }
       } else {
+        debugPrint('❌ [CREATE_ORDER] Неожиданный статус: ${response.statusCode}');
         throw ServerException(
           message: 'Failed to create order',
           statusCode: response.statusCode,
@@ -85,7 +96,12 @@ class OrdersRemoteDataSourceImpl implements OrdersRemoteDataSource {
         );
       }
     } on DioException catch (e) {
+      debugPrint('❌ [CREATE_ORDER] DioException: ${e.type}, ${e.message}');
+      debugPrint('❌ [CREATE_ORDER] Response: ${e.response?.statusCode}, ${e.response?.data}');
       throw _handleDioError(e);
+    } catch (e) {
+      debugPrint('❌ [CREATE_ORDER] Неожиданная ошибка: $e');
+      rethrow;
     }
   }
 

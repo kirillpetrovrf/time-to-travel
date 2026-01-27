@@ -22,6 +22,7 @@ class CreateOrderParams {
   final List<Passenger> passengers;
   final List<BaggageItem> baggage;
   final List<Pet> pets;
+  final String? vehicleClass; // ✅ ДОБАВЛЕНО для customRoute
 
   const CreateOrderParams({
     required this.fromAddress,
@@ -42,6 +43,7 @@ class CreateOrderParams {
     this.passengers = const [],
     this.baggage = const [],
     this.pets = const [],
+    this.vehicleClass, // ✅ ДОБАВЛЕНО
   });
 }
 

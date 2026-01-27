@@ -113,6 +113,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
         'direction': params.direction,
         if (params.notes != null) 'notes': params.notes,
         if (params.phone != null) 'clientPhone': params.phone,
+        if (params.vehicleClass != null) 'vehicleClass': params.vehicleClass, // ✅ ДОБАВЛЕНО
         if (params.passengers.isNotEmpty)
           'passengers': params.passengers.map((p) => {
             'type': p.type,
