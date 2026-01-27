@@ -36,7 +36,7 @@ Future<Response> onRequest(RequestContext context) async {
     final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     print('🧹 [INIT] Очищенный phone: $cleanPhone');
     
-    // Генерируем код авторизации
+    // Генерируем код авторизации (БЕЗ timestamp!)
     final authCode = 'AUTH_${cleanPhone.replaceAll('+', '')}';
     print('🔑 [INIT] Сгенерирован authCode: $authCode');
     
@@ -56,8 +56,9 @@ Future<Response> onRequest(RequestContext context) async {
         INSERT INTO users (
           phone, role, is_active, email, password_hash, name
         ) VALUES (
-          @phone, 'passenger', true, '', '', 'Новый пользователь'
+          @phone, 'client', true, '', '', 'Новый пользователь'
         )
+        RETURNING id
         ''',
         parameters: {
           'phone': cleanPhone,
