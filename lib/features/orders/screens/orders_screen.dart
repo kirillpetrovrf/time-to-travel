@@ -199,6 +199,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
               const SizedBox(height: 12),
 
+              // Номер заказа (если есть orderId, иначе показываем короткий ID)
+              Text(
+                booking.orderId != null && booking.orderId!.isNotEmpty
+                    ? 'Заказ #${booking.orderId}'
+                    : 'Заказ #${booking.id.substring(0, 8)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: theme.secondaryLabel.withOpacity(0.7),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+
               Text(
                 _getDirectionText(booking),
                 style: TextStyle(
@@ -269,6 +282,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
     // Если есть конкретные остановки, показываем их
     if (booking.fromStop != null && booking.toStop != null) {
       return '${booking.fromStop!.name} → ${booking.toStop!.name}';
+    }
+
+    // Для свободных маршрутов ИЛИ индивидуальных показываем адреса
+    // НО только если это НЕ "Не указан" (старые offline заказы)
+    if ((booking.tripType == TripType.customRoute ||
+         booking.tripType == TripType.individual) &&
+        booking.pickupAddress != null &&
+        booking.pickupAddress!.isNotEmpty &&
+        booking.pickupAddress != 'Не указан' &&
+        booking.dropoffAddress != null &&
+        booking.dropoffAddress!.isNotEmpty &&
+        booking.dropoffAddress != 'Не указан') {
+      return '${booking.pickupAddress} → ${booking.dropoffAddress}';
     }
 
     // Иначе показываем общее направление

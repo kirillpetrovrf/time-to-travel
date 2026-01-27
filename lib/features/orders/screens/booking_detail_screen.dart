@@ -36,7 +36,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       navigationBar: CupertinoNavigationBar(
         backgroundColor: theme.secondarySystemBackground,
         middle: Text(
-          'Заказ #${_currentBooking.id.substring(0, 8)}',
+          'Заказ #${_currentBooking.orderId ?? _currentBooking.id.substring(0, 8)}',
           style: TextStyle(color: theme.label),
         ),
         leading: CupertinoButton(
@@ -171,14 +171,32 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     print(
       '🔍 BookingDetail: fromStop = ${_currentBooking.fromStop?.name}, toStop = ${_currentBooking.toStop?.name}',
     );
+    print(
+      '🔍 BookingDetail: pickupAddress = ${_currentBooking.pickupAddress}, dropoffAddress = ${_currentBooking.dropoffAddress}',
+    );
+    print(
+      '🔍 BookingDetail: tripType = ${_currentBooking.tripType}',
+    );
 
-    // Если есть конкретные остановки, показываем их
+    // Определяем текст маршрута
     final String directionText;
     if (_currentBooking.fromStop != null && _currentBooking.toStop != null) {
+      // Групповой маршрут - показываем остановки
       directionText =
           '${_currentBooking.fromStop!.name} → ${_currentBooking.toStop!.name}';
+    } else if ((_currentBooking.tripType == TripType.customRoute ||
+                _currentBooking.tripType == TripType.individual) &&
+               _currentBooking.pickupAddress != null &&
+               _currentBooking.pickupAddress!.isNotEmpty &&
+               _currentBooking.pickupAddress != 'Не указан' &&
+               _currentBooking.dropoffAddress != null &&
+               _currentBooking.dropoffAddress!.isNotEmpty &&
+               _currentBooking.dropoffAddress != 'Не указан') {
+      // Свободный маршрут ИЛИ индивидуальный - показываем адреса в заголовке
+      // НО только если это НЕ "Не указан" (старые offline заказы)
+      directionText = '${_currentBooking.pickupAddress} → ${_currentBooking.dropoffAddress}';
     } else {
-      // Иначе показываем общее направление
+      // Остальные типы - показываем общее направление
       directionText = _currentBooking.direction == Direction.donetskToRostov
           ? 'Донецк → Ростов-на-Дону'
           : 'Ростов-на-Дону → Донецк';
@@ -206,7 +224,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         if (_currentBooking.tripType == TripType.individual ||
             _currentBooking.tripType == TripType.customRoute) ...[
           if (_currentBooking.pickupAddress != null &&
-              _currentBooking.pickupAddress!.isNotEmpty) ...[
+              _currentBooking.pickupAddress!.isNotEmpty &&
+              _currentBooking.pickupAddress != 'Не указан') ...[
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +249,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ),
           ],
           if (_currentBooking.dropoffAddress != null &&
-              _currentBooking.dropoffAddress!.isNotEmpty) ...[
+              _currentBooking.dropoffAddress!.isNotEmpty &&
+              _currentBooking.dropoffAddress != 'Не указан') ...[
             const SizedBox(height: 4),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,6 +273,44 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               ],
             ),
           ],
+        ],
+        
+        // Номер заказа (если есть orderId)
+        if (_currentBooking.orderId != null && _currentBooking.orderId!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: theme.primary.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.number,
+                  size: 16,
+                  color: theme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Номер заказа: ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: theme.secondaryLabel,
+                  ),
+                ),
+                Text(
+                  _currentBooking.orderId!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: theme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
         
         // Для групповых трансферов показываем точку посадки

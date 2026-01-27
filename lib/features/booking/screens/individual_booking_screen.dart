@@ -2245,12 +2245,12 @@ class _IndividualBookingScreenState extends State<IndividualBookingScreen> {
         baggage: _selectedBaggage,
         pets: _selectedPets,
         passengers: _passengers, // ← Добавляем пассажиров
-        vehicleClass: _selectedVehicleClass?.toString().split('.').last, // ← Сохраняем как 'wagon', 'sedan' etc
+        vehicleClass: _selectedVehicleClass?.toString().split('.').last ?? 'sedan', // ✅ ИСПРАВЛЕНО: sedan по умолчанию
       );
 
       print('🚗 [INDIVIDUAL] ========== СОХРАНЕНИЕ ТРАНСПОРТА ==========');
       print('🚗 [INDIVIDUAL] _selectedVehicleClass = $_selectedVehicleClass');
-      print('🚗 [INDIVIDUAL] vehicleClass в Booking = ${_selectedVehicleClass?.toString().split('.').last}');
+      print('🚗 [INDIVIDUAL] vehicleClass в Booking = ${_selectedVehicleClass?.toString().split('.').last ?? 'sedan'}');
       print('🚗 [INDIVIDUAL] booking.vehicleClass = ${booking.vehicleClass}');
       print('🚗 [INDIVIDUAL] ==========================================');
 
