@@ -17,6 +17,54 @@ class TelegramAuthService {
   /// Хранилище активных сессий: authCode -> session data
   /// В production лучше использовать Redis с TTL
   final Map<String, AuthSession> _sessions = {};
+  
+  /// Хранилище pending сессий (до нажатия START): authCode -> phone
+  final Map<String, PendingSession> _pendingSessions = {};
+
+  /// Сохранить pending сессию (при вызове /init)
+  void setPendingSession({
+    required String authCode,
+    required String phone,
+  }) {
+    final session = PendingSession(
+      phone: phone,
+      createdAt: DateTime.now(),
+    );
+    
+    _pendingSessions[authCode] = session;
+    
+    _log.info('💾 [PENDING] Сохранена pending сессия: authCode=$authCode, phone=$phone');
+    _log.info('📊 [PENDING] Всего pending сессий: ${_pendingSessions.length}');
+  }
+
+  /// Получить pending сессию по authCode
+  PendingSession? getPendingSession(String authCode) {
+    final session = _pendingSessions[authCode];
+    
+    if (session != null) {
+      // Проверяем не истекла ли сессия (10 минут)
+      final age = DateTime.now().difference(session.createdAt);
+      if (age.inMinutes > 10) {
+        _log.warning('⏰ [PENDING] Сессия истекла (${age.inMinutes} мин): $authCode');
+        _pendingSessions.remove(authCode);
+        return null;
+      }
+      
+      _log.info('✅ [PENDING] Найдена pending сессия: authCode=$authCode, phone=${session.phone}');
+      return session;
+    } else {
+      _log.warning('❌ [PENDING] Pending сессия НЕ найдена: $authCode');
+      return null;
+    }
+  }
+
+  /// Удалить pending сессию (после создания auth сессии)
+  void removePendingSession(String authCode) {
+    final removed = _pendingSessions.remove(authCode);
+    if (removed != null) {
+      _log.info('🗑️ [PENDING] Pending сессия удалена: $authCode');
+    }
+  }
 
   /// Сохранить сессию авторизации после /start в боте
   void setAuthSession({
@@ -121,5 +169,21 @@ class AuthSession {
     'phone': phone,
     'createdAt': createdAt.toIso8601String(),
     'status': status,
+  };
+}
+
+/// Модель pending сессии (до нажатия START в Telegram)
+class PendingSession {
+  final String phone;
+  final DateTime createdAt;
+
+  PendingSession({
+    required this.phone,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'phone': phone,
+    'createdAt': createdAt.toIso8601String(),
   };
 }

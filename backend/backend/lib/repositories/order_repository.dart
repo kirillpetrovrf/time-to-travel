@@ -76,6 +76,7 @@ class OrderRepository {
         @notes, @vehicleClass,
         @tripType, @direction
       )
+      RETURNING id
       ''',
       parameters: {
         'orderId': orderId,

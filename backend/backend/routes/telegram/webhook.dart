@@ -73,19 +73,19 @@ Future<void> _handleStartCommand({
   required UserRepository userRepo,
   required TelegramBotService telegramBot,
 }) async {
-  _log.info('🎯 [START] ========== ОБРАБОТКА КОМАНДЫ /start ==========');
-  _log.info('📝 [START] Полный текст: $text');
+  print('🎯 [START] ========== ОБРАБОТКА КОМАНДЫ /start ==========');
+  print('📝 [START] Полный текст: $text');
   
   final telegramId = chatId;
   final firstName = from['first_name'] as String?;
   final lastName = from['last_name'] as String?;
   final username = from['username'] as String?;
   
-  _log.info('👤 [START] Данные пользователя: telegramId=$telegramId, firstName=$firstName, lastName=$lastName, username=$username');
+  print('👤 [START] Данные пользователя: telegramId=$telegramId, firstName=$firstName, lastName=$lastName, username=$username');
 
   // Проверяем есть ли параметр (deep link)
   final parts = text.split(' ');
-  _log.info('🔍 [START] Разбор команды: найдено частей: ${parts.length}');
+  print('🔍 [START] Разбор команды: найдено частей: ${parts.length}');
   
   String? authCode;
   String? phone;
