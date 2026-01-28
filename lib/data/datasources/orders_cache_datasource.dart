@@ -8,8 +8,8 @@ class OrdersCacheDataSource {
   final Map<String, OrderModel> _cache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
   
-  /// Cache duration (30 seconds)
-  static const _cacheDuration = Duration(seconds: 30);
+  /// Cache duration (5 minutes for optimal balance)
+  static const _cacheDuration = Duration(minutes: 5);
 
   /// Save orders to cache
   void cacheOrders(List<OrderModel> orders) {

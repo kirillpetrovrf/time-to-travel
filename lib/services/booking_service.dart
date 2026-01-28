@@ -1,6 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../models/booking.dart';
 import '../models/trip_type.dart';
 import '../models/passenger_info.dart';
@@ -21,10 +19,7 @@ class BookingService {
   // ✅ Clean Architecture: OrdersService фасад
   final OrdersService _ordersService = OrdersService();
 
-  // Ключи для локального хранения (используется как fallback при отсутствии сети)
-  static const String _offlineBookingsKey = 'offline_bookings';
-
-  /// Создание нового бронирования (гибридный режим: API + локальное хранение)
+  /// Создание нового бронирования (отправка на backend API)
   /// ✅ ОБНОВЛЕНО: Сначала отправка на backend, затем локальное сохранение
   Future<String> createBooking(Booking booking) async {
     debugPrint('📤 Создание бронирования: сначала отправка на backend API...');
@@ -96,7 +91,7 @@ class BookingService {
       
       debugPrint('✅ Заказ успешно создан на backend с ID: ${result.order!.id}');
       
-      // 4. Сохраняем локально с реальным ID от сервера
+      // 4. Получаем ID от сервера
       final bookingId = result.order!.id;
       final bookingWithId = Booking(
         id: bookingId,
@@ -122,35 +117,15 @@ class BookingService {
         vehicleClass: booking.vehicleClass,
       );
       
-      await _saveBookingToSharedPreferences(bookingWithId);
-      
       // 5. Планируем уведомления
       await _planBookingNotifications(bookingWithId);
       
       return bookingId;
     } catch (e) {
-      debugPrint('⚠️ Ошибка отправки на backend: $e');
-      debugPrint('📱 Сохраняем заказ локально для последующей синхронизации');
-      
-      // Fallback: сохраняем локально, если сервер недоступен
-      return _createOfflineBooking(booking);
+      debugPrint('❌ Ошибка создания заказа: $e');
+      // ✅ Не сохраняем локально - показываем ошибку пользователю
+      rethrow;
     }
-  }
-
-  /// Сохранение бронирования в SharedPreferences
-  Future<void> _saveBookingToSharedPreferences(Booking booking) async {
-    final prefs = await SharedPreferences.getInstance();
-    final existingBookingsJson = prefs.getString(_offlineBookingsKey);
-    List<Map<String, dynamic>> bookingsList = [];
-
-    if (existingBookingsJson != null) {
-      final decoded = jsonDecode(existingBookingsJson) as List<dynamic>;
-      bookingsList = decoded.cast<Map<String, dynamic>>();
-    }
-
-    bookingsList.add(booking.toJson());
-    await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));
-    debugPrint('💾 Бронирование ${booking.id} сохранено локально');
   }
 
   /// Планирование уведомлений для бронирования
@@ -171,149 +146,23 @@ class BookingService {
     debugPrint('📋 Всего запланировано уведомлений: ${pending.length}');
   }
 
-  /// Создание локального бронирования
-  Future<String> _createOfflineBooking(Booking booking) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // Генерируем уникальный ID
-    final bookingId = 'offline_${DateTime.now().millisecondsSinceEpoch}';
-    
-    // Генерируем красивый номер заказа в формате 2026-01-27-123-G
-    final now = DateTime.now();
-    String typeSuffix;
-    if (booking.tripType == TripType.group) {
-      typeSuffix = 'G'; // Групповая
-    } else if (booking.tripType == TripType.individual) {
-      typeSuffix = 'I'; // Индивидуальная
-    } else {
-      typeSuffix = 'S'; // Свободная (Svobodnaya)
-    }
-    final orderId = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}-${(now.millisecondsSinceEpoch % 1000).toString().padLeft(3, '0')}-$typeSuffix';
-
-    // Создаем бронирование с ID
-    final bookingWithId = Booking(
-      id: bookingId,
-      orderId: orderId, // ✅ Красивый номер заказа
-      clientId: booking.clientId,
-      tripType: booking.tripType,
-      direction: booking.direction,
-      departureDate: booking.departureDate,
-      departureTime: booking.departureTime,
-      passengerCount: booking.passengerCount,
-      pickupPoint: booking.pickupPoint,
-      pickupAddress: booking.pickupAddress,
-      dropoffAddress: booking.dropoffAddress,
-      fromStop: booking.fromStop,
-      toStop: booking.toStop,
-      totalPrice: booking.totalPrice,
-      status: booking.status,
-      createdAt: booking.createdAt,
-      notes: booking.notes,
-      trackingPoints: booking.trackingPoints,
-      baggage: booking.baggage,
-      pets: booking.pets,
-      passengers: booking.passengers,
-      vehicleClass: booking.vehicleClass, // ← ДОБАВЛЯЕМ ПОЛЕ vehicleClass!
-    );
-
-    print('🚗 [SERVICE] Исходный booking.vehicleClass: ${booking.vehicleClass}');
-    print('🚗 [SERVICE] bookingWithId.vehicleClass: ${bookingWithId.vehicleClass}');
-
-    // Получаем существующие бронирования
-    final existingBookingsJson = prefs.getString(_offlineBookingsKey);
-    List<Map<String, dynamic>> bookingsList = [];
-
-    if (existingBookingsJson != null) {
-      final decoded = jsonDecode(existingBookingsJson) as List<dynamic>;
-      bookingsList = decoded.cast<Map<String, dynamic>>();
-    }
-
-    // Добавляем новое бронирование
-    final bookingJson = bookingWithId.toJson();
-    print('💾 JSON бронирования: ${jsonEncode(bookingJson)}');
-    print('💾 Багаж в JSON: ${bookingJson['baggage']}');
-    print('🚗 [JSON] vehicleClass в JSON: ${bookingJson['vehicleClass']}');
-    print('🚗 [JSON] booking.vehicleClass: ${bookingWithId.vehicleClass}');
-    bookingsList.add(bookingJson);
-
-    // Сохраняем обратно
-    await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));
-
-    print('📱 Создано оффлайн бронирование: $bookingId');
-
-    // 🔔 ПЛАНИРУЕМ УВЕДОМЛЕНИЯ СРАЗУ ПОСЛЕ СОЗДАНИЯ ЗАКАЗА
-    debugPrint('🔔 ========================================');
-    debugPrint('🔔 ПЛАНИРОВАНИЕ УВЕДОМЛЕНИЙ ДЛЯ ЗАКАЗА');
-    debugPrint('🔔 ID заказа: $bookingId');
-    debugPrint('🔔 Дата поездки: ${bookingWithId.departureDate}');
-    debugPrint('🔔 Время поездки: ${bookingWithId.departureTime}');
-    debugPrint('🔔 ========================================');
-
-    final notificationService = NotificationService.instance;
-    final notificationsScheduled = await notificationService
-        .scheduleAllBookingNotifications(bookingWithId);
-
-    if (notificationsScheduled) {
-      debugPrint('✅ Уведомления успешно запланированы для заказа $bookingId');
-    } else {
-      debugPrint(
-        '⚠️ Не все уведомления были запланированы для заказа $bookingId',
-      );
-    }
-
-    // Показать список запланированных уведомлений
-    final pending = await notificationService.getPendingNotifications();
-    debugPrint(
-      '📋 Всего запланировано уведомлений в системе: ${pending.length}',
-    );
-    for (final notification in pending) {
-      debugPrint(
-        '   - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}',
-      );
-    }
-
-    return bookingId;
-  }
-
-  /// Получение бронирования по ID (локально)
-  /// TODO: Интеграция с Firebase - реализуется позже
+  /// Получение бронирования по ID (загрузка с backend)
   Future<Booking?> getBookingById(String bookingId) async {
-    debugPrint('ℹ️ Поиск бронирования по ID локально (Firebase не подключен)');
-    return _getOfflineBookingById(bookingId);
-  }
-
-  /// Получение локального бронирования по ID
-  Future<Booking?> _getOfflineBookingById(String bookingId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final bookingsJson = prefs.getString(_offlineBookingsKey);
-
-    print('🔍 [BOOKING] Поиск заказа по ID: $bookingId');
-
-    if (bookingsJson != null) {
-      final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
-      print('🔍 [BOOKING] Найдено заказов в SharedPreferences: ${bookingsList.length}');
-
-      for (final bookingData in bookingsList) {
-        final jsonData = bookingData as Map<String, dynamic>;
-        
-        // Отладка: показываем vehicleClass в JSON ПЕРЕД парсингом
-        print('🔍 [BOOKING] JSON данные заказа ${jsonData['id']}: vehicleClass = ${jsonData['vehicleClass']}');
-        
-        final booking = Booking.fromJson(jsonData);
-        
-        // Отладка: показываем vehicleClass ПОСЛЕ парсинга
-        print('🔍 [BOOKING] ПОСЛЕ fromJson заказа ${booking.id}: vehicleClass = ${booking.vehicleClass}');
-        
-        if (booking.id == bookingId) {
-          print('✅ [BOOKING] Найден заказ с ID: $bookingId, vehicleClass: ${booking.vehicleClass}');
-          return booking;
-        }
+    debugPrint('🔍 Поиск заказа по ID: $bookingId');
+    
+    try {
+      // Загружаем с backend через OrdersService
+      final result = await _ordersService.getOrderById(bookingId);
+      
+      if (result.isSuccess && result.order != null) {
+        return _convertDomainOrderToBooking(result.order!);
       }
-    } else {
-      print('❌ [BOOKING] SharedPreferences пуст, заказы не найдены');
+      
+      return null;
+    } catch (e) {
+      debugPrint('❌ Ошибка загрузки заказа: $e');
+      return null;
     }
-    print('❌ [BOOKING] Заказ с ID $bookingId не найден');
-    return null;
   }
 
   /// Получение всех бронирований текущего клиента
@@ -359,27 +208,9 @@ class BookingService {
       }
     } catch (e) {
       debugPrint('⚠️ Исключение при загрузке с backend: $e');
-      debugPrint('📱 Загружаем только локальные данные');
     }
     
-    // 2. Загружаем локальные данные (индивидуальные трансферы из SharedPreferences)
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final bookingsJson = prefs.getString(_offlineBookingsKey);
-      
-      if (bookingsJson != null) {
-        final decoded = jsonDecode(bookingsJson) as List<dynamic>;
-        final localBookings = decoded
-            .map((json) => Booking.fromJson(json as Map<String, dynamic>))
-            .toList();
-        debugPrint('📦 Загружено ${localBookings.length} локальных индивидуальных трансферов');
-        allBookings.addAll(localBookings);
-      }
-    } catch (e) {
-      debugPrint('⚠️ Ошибка загрузки локальных данных: $e');
-    }
-    
-    // 3. Удаляем дубликаты (по ID) - backend данные в приоритете
+    // 2. Удаляем дубликаты (по ID) - backend данные в приоритете
     final uniqueBookings = <String, Booking>{};
     for (final booking in allBookings) {
       uniqueBookings[booking.id] = booking;
@@ -524,7 +355,7 @@ class BookingService {
       
       if (!result.isSuccess || result.orders == null) {
         debugPrint('❌ Ошибка загрузки заказов: ${result.error}');
-        return _getOfflineActiveBookings();
+        return [];
       }
       
       debugPrint('📥 Получено ${result.orders!.length} заказов с сервера');
@@ -548,39 +379,9 @@ class BookingService {
       return bookings;
     } catch (e) {
       debugPrint('❌ Ошибка загрузки заказов с сервера: $e');
-      debugPrint('⚠️ Fallback: загружаем локальные заказы');
-      return _getOfflineActiveBookings();
+      // ✅ Возвращаем пустой список вместо offline fallback
+      return [];
     }
-  }
-
-  /// Получение локальных активных бронирований
-  Future<List<Booking>> _getOfflineActiveBookings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bookingsJson = prefs.getString(_offlineBookingsKey);
-
-    if (bookingsJson == null) return [];
-
-    final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
-    final activeBookings = <Booking>[];
-
-    for (final bookingData in bookingsList) {
-      final booking = Booking.fromJson(bookingData as Map<String, dynamic>);
-
-      // Фильтруем активные статусы
-      if ([
-        BookingStatus.pending,
-        BookingStatus.confirmed,
-        BookingStatus.assigned,
-        BookingStatus.inProgress,
-      ].contains(booking.status)) {
-        activeBookings.add(booking);
-      }
-    }
-
-    // Сортируем по дате отправления
-    activeBookings.sort((a, b) => a.departureDate.compareTo(b.departureDate));
-
-    return activeBookings;
   }
 
   /// Получение бронирований по дате (локально)
@@ -628,37 +429,22 @@ class BookingService {
     // В будущем здесь будет обновление в Firebase
   }
 
-  /// Отмена бронирования (локально)
-  /// TODO: Интеграция с Firebase - реализуется позже
+  /// Отмена бронирования (через backend API)
   Future<void> cancelBooking(String bookingId, [String? reason]) async {
-    debugPrint('ℹ️ Отмена бронирования локально (Firebase не подключен)');
-    await _cancelOfflineBooking(bookingId, reason);
-  }
-
-  /// НОВОЕ: Отмена оффлайн бронирования
-  Future<void> _cancelOfflineBooking(String bookingId, [String? reason]) async {
-    final prefs = await SharedPreferences.getInstance();
-    final bookingsJson = prefs.getString(_offlineBookingsKey);
-
-    if (bookingsJson != null) {
-      final bookingsList = jsonDecode(bookingsJson) as List<dynamic>;
-
-      // Находим и обновляем статус бронирования
-      for (int i = 0; i < bookingsList.length; i++) {
-        final bookingData = bookingsList[i] as Map<String, dynamic>;
-        if (bookingData['id'] == bookingId) {
-          bookingData['status'] = BookingStatus.cancelled.toString();
-          bookingData['updatedAt'] = DateTime.now().toIso8601String();
-          if (reason != null) {
-            bookingData['notes'] = reason;
-          }
-          break;
-        }
+    debugPrint('🔍 Отмена заказа: $bookingId');
+    
+    try {
+      // Отменяем на backend через OrdersService
+      final result = await _ordersService.cancelOrder(bookingId);
+      
+      if (!result.isSuccess) {
+        throw Exception(result.error ?? 'Ошибка отмены заказа');
       }
-
-      // Сохраняем обновленный список
-      await prefs.setString(_offlineBookingsKey, jsonEncode(bookingsList));
-      print('📱 Бронирование $bookingId отменено в оффлайн режиме');
+      
+      debugPrint('✅ Заказ $bookingId отменён');
+    } catch (e) {
+      debugPrint('❌ Ошибка отмены заказа: $e');
+      rethrow;
     }
   }
 
