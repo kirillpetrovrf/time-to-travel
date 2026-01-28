@@ -17,6 +17,7 @@ class User {
   final String role;
   final bool isVerified;
   final bool isActive;
+  final bool isDispatcher; // ✅ НОВОЕ: флаг диспетчера
   final DateTime createdAt;
   final DateTime updatedAt;
   
@@ -35,6 +36,7 @@ class User {
     this.role = 'client',
     this.isVerified = false,
     this.isActive = true,
+    this.isDispatcher = false, // ✅ ДОБАВЛЕНО: по умолчанию не диспетчер
     required this.createdAt,
     required this.updatedAt,
     this.telegramId,
@@ -54,8 +56,8 @@ class User {
     return name;
   }
 
-  /// Является ли диспетчером
-  bool get isDispatcher => role == 'dispatcher';
+  // ✅ УДАЛЁН старый getter - теперь isDispatcher это поле из БД
+  // bool get isDispatcher => role == 'dispatcher';
 
   /// Создание из JSON
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
@@ -74,6 +76,7 @@ class User {
       role: row['role'] as String? ?? 'client',
       isVerified: row['is_verified'] as bool? ?? false,
       isActive: row['is_active'] as bool? ?? true,
+      isDispatcher: row['is_dispatcher'] as bool? ?? false, // ✅ ДОБАВЛЕНО: читаем из БД
       createdAt: parseDbDateTime(row['created_at']),
       updatedAt: parseDbDateTime(row['updated_at']),
       telegramId: row['telegram_id'] as int?,

@@ -59,6 +59,7 @@ abstract class OrdersRepository {
   /// [status] - Filter by order status (optional)
   /// [limit] - Maximum number of orders to fetch
   /// [forceRefresh] - Bypass cache and fetch from server
+  /// [userType] - User type mode: 'client' or 'dispatcher' (for UI filtering)
   /// 
   /// Returns Either:
   /// - Left(Failure) if operation failed
@@ -67,6 +68,7 @@ abstract class OrdersRepository {
     OrderStatus? status,
     int limit = 100,
     bool forceRefresh = false,
+    String? userType, // ✅ ДОБАВЛЕНО
   });
 
   /// Create a new order

@@ -34,19 +34,17 @@ Future<Response> _getOrders(RequestContext context) async {
     // Получаем токен (опционально)
     final authHeader = context.request.headers['authorization'];
     String? userId;
-    String? userRole;
 
     if (authHeader != null && authHeader.startsWith('Bearer ')) {
       final token = authHeader.substring(7);
       final payload = jwtHelper.verifyToken(token);
       userId = payload?['userId'] as String?;
-      userRole = payload?['role'] as String?;
       
       // Для авторизованных пользователей проверяем существование
       if (userId != null) {
         final user = await userRepo.findById(userId);
-        if (user != null) {
-          userRole = user.role; // Берём роль из БД
+        if (user == null) {
+          userId = null; // Пользователь не найден - считаем неавторизованным
         }
       }
     }
@@ -56,6 +54,7 @@ Future<Response> _getOrders(RequestContext context) async {
     final phone = uri.queryParameters['phone'];
     final status = uri.queryParameters['status'];
     final limit = int.tryParse(uri.queryParameters['limit'] ?? '100');
+    final userType = uri.queryParameters['userType']; // ✅ НОВОЕ: режим UI
 
     List<Order> orders;
 
@@ -74,18 +73,50 @@ Future<Response> _getOrders(RequestContext context) async {
       }
       orders = await orderRepo.findByStatus(orderStatus, limit: limit);
     }
-    // ✅ ДИСПЕТЧЕРЫ И АДМИНЫ - видят ВСЕ заказы
-    else if (userRole == 'dispatcher' || userRole == 'admin') {
+    // ✅ РЕЖИМ ДИСПЕТЧЕРА (userType=dispatcher из query) - видит ВСЕ заказы
+    else if (userType == 'dispatcher') {
+      // Проверяем авторизацию
+      if (userId == null) {
+        return Response.json(
+          statusCode: HttpStatus.unauthorized,
+          body: {
+            'error': 'Authentication required',
+            'message': 'Please login to view all orders',
+          },
+        );
+      }
+      
+      // 🔐 ПРОВЕРКА ПРАВ: Только пользователи с is_dispatcher = true могут видеть все заказы
+      final user = await userRepo.findById(userId);
+      print('🔍 [DISPATCHER CHECK] userId=$userId, user found=${user != null}, isDispatcher=${user?.isDispatcher}');
+      
+      if (user == null || !user.isDispatcher) {
+        print('❌ [DISPATCHER CHECK] Access denied for userId=$userId');
+        return Response.json(
+          statusCode: HttpStatus.forbidden,
+          body: {
+            'error': 'Access denied',
+            'message': 'You do not have dispatcher privileges',
+          },
+        );
+      }
+      
+      print('✅ [DISPATCHER CHECK] User ${user.fullName} has dispatcher privileges, returning ALL orders');
       orders = await orderRepo.findAll(limit: limit);
     }
     // Обычные пользователи - свои заказы
     else if (userId != null) {
       orders = await orderRepo.findByUserId(userId, limit: limit);
     }
-    // ✅ НЕ авторизованные - ВСЕ заказы (для обратной совместимости)
-    // Это позволит диспетчеру без токена видеть заказы
+    // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Требуем авторизацию вместо показа всех заказов
     else {
-      orders = await orderRepo.findAll(limit: limit);
+      return Response.json(
+        statusCode: HttpStatus.unauthorized,
+        body: {
+          'error': 'Authentication required',
+          'message': 'Please login to view orders',
+        },
+      );
     }
 
     return Response.json(

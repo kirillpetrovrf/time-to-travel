@@ -16,11 +16,13 @@ class OrdersService {
     OrderStatus? status,
     int limit = 100,
     bool forceRefresh = false,
+    String? userType, // ✅ ДОБАВЛЕНО для режима диспетчера
   }) async {
     final result = await _repository.getOrders(
       status: status,
       limit: limit,
       forceRefresh: forceRefresh,
+      userType: userType, // ✅ ПЕРЕДАЁМ в репозиторий
     );
 
     return result.fold(

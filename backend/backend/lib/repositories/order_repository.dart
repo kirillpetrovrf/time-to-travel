@@ -10,7 +10,6 @@ class OrderRepository {
 
   /// Создать новый заказ
   Future<Order> create(CreateOrderDto dto, {String? userId}) async {
-    // Генерируем order_id в новом формате: 2026-01-26-391-G
     final now = DateTime.now();
     
     // Определяем суффикс типа поездки
@@ -25,8 +24,16 @@ class OrderRepository {
       typeSuffix = 'S'; // По умолчанию свободная
     }
     
-    // Формат: 2026-01-26-391-G
-    final orderId = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}-${(now.millisecondsSinceEpoch % 1000).toString().padLeft(3, '0')}-$typeSuffix';
+    // Генерируем orderId с названиями маршрута
+    String routeName = _getRouteName(dto.direction);
+    
+    // Получаем номер заказа для сегодняшнего дня (последний заказ + 1)
+    final todayOrderCount = await _getTodayOrderCount(now);
+    final orderNumber = (todayOrderCount + 1).toString().padLeft(3, '0');
+    
+    // НОВЫЙ ФОРМАТ: Донецк-Ростов-27.01.2026-001-G
+    final dateStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
+    final orderId = '$routeName-$dateStr-$orderNumber-$typeSuffix';
 
     // Парсим дату и время
     DateTime? parsedDateTime;
@@ -354,5 +361,59 @@ class OrderRepository {
       'cancelled': row?['cancelled'] ?? 0,
       'totalRevenue': row?['total_revenue'] ?? 0.0,
     };
+  }
+
+  /// Получить название маршрута по direction
+  String _getRouteName(String? direction) {
+    if (direction == null || direction.isEmpty) {
+      return 'Свободный';
+    }
+
+    // Мапинг направлений на читаемые названия
+    final routes = {
+      'donetskToRostov': 'Донецк-Ростов',
+      'rostovToDonetsk': 'Ростов-Донецк',
+      'donetskToMoscow': 'Донецк-Москва',
+      'moscowToDonetsk': 'Москва-Донецк',
+      'donetskToStPetersburg': 'Донецк-СПб',
+      'stPetersburgToDonetsk': 'СПб-Донецк',
+      'donetskToKrasnodar': 'Донецк-Краснодар',
+      'krasnodarToDonetsk': 'Краснодар-Донецк',
+      'donetskToSochi': 'Донецк-Сочи',
+      'sochiToDonetsk': 'Сочи-Донецк',
+      'donetskToVolgograd': 'Донецк-Волгоград',
+      'volgogradToDonetsk': 'Волгоград-Донецк',
+      'donetskToVoronezh': 'Донецк-Воронеж',
+      'voronezhToDonetsk': 'Воронеж-Донецк',
+      'donetskToYekaterinburg': 'Донецк-Екб',
+      'yekaterinburgToDonetsk': 'Екб-Донецк',
+      'donetskToNovosibirsk': 'Донецк-Новосибирск',
+      'novosibirskToDonetsk': 'Новосибирск-Донецк',
+      'donetskToKazan': 'Донецк-Казань',
+      'kazanToDonetsk': 'Казань-Донецк',
+    };
+
+    return routes[direction] ?? 'Свободный';
+  }
+
+  /// Получить количество заказов за сегодня (для генерации номера)
+  Future<int> _getTodayOrderCount(DateTime date) async {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    final row = await db.queryOne(
+      '''
+      SELECT COUNT(*) as count
+      FROM orders
+      WHERE created_at >= @startOfDay AND created_at < @endOfDay
+      ''',
+      parameters: {
+        'startOfDay': startOfDay.toIso8601String(),
+        'endOfDay': endOfDay.toIso8601String(),
+      },
+    );
+
+    final count = row?['count'];
+    return count is int ? count : 0;
   }
 }

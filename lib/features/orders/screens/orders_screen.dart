@@ -8,7 +8,9 @@ import '../../../theme/theme_manager.dart';
 import 'booking_detail_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({super.key});
+  final UserType? userType; // ✅ ДОБАВЛЕНО: принимаем userType из HomeScreen
+  
+  const OrdersScreen({super.key, this.userType});
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -31,15 +33,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
     try {
       final user = await AuthService.instance.getCurrentUser();
       if (user != null) {
-        setState(() => _userType = user.userType);
+        // ✅ ИСПРАВЛЕНО: используем userType из widget (из HomeScreen), а не из user
+        final currentUserType = widget.userType ?? user.userType;
+        setState(() => _userType = currentUserType);
 
-        if (user.userType == UserType.client) {
+        print('📥 Загрузка бронирований через OrdersService...');
+        
+        if (currentUserType == UserType.client) {
           // Загружаем заказы клиента
           final bookings = await BookingService().getClientBookings(user.id);
           setState(() => _bookings = bookings);
         } else {
           // Загружаем все активные заказы для диспетчера
-          final bookings = await BookingService().getActiveBookings();
+          final bookings = await BookingService().getActiveBookings(
+            userType: 'dispatcher', // ✅ ДОБАВЛЕНО: передаём режим диспетчера
+          );
           setState(() => _bookings = bookings);
         }
       }
@@ -73,7 +81,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       child: Center(
                         child: Text(
                           _userType == UserType.dispatcher
-                              ? 'Все заказы'
+                              ? 'Заказы'
                               : 'Мои заказы',
                           style: TextStyle(
                             color: theme.label,

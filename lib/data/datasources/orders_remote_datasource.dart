@@ -10,6 +10,7 @@ abstract class OrdersRemoteDataSource {
   Future<List<OrderModel>> getOrders({
     String? status,
     int limit = 100,
+    String? userType, // ✅ ДОБАВЛЕНО для режима диспетчера
   });
 
   Future<OrderModel> createOrder(Map<String, dynamic> orderData);
@@ -28,11 +29,13 @@ class OrdersRemoteDataSourceImpl implements OrdersRemoteDataSource {
   Future<List<OrderModel>> getOrders({
     String? status,
     int limit = 100,
+    String? userType, // ✅ ДОБАВЛЕНО
   }) async {
     try {
       final queryParams = <String, dynamic>{
         'limit': limit,
         if (status != null) 'status': status,
+        if (userType != null) 'userType': userType, // ✅ Передаём на backend
       };
 
       final response = await dio.get(

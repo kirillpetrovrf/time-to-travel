@@ -7,7 +7,6 @@ import '../../../theme/theme_manager.dart';
 import '../../../providers/auth_provider.dart';
 import '../../booking/screens/booking_screen.dart';
 import '../../orders/screens/orders_screen.dart';
-import '../../tracking/screens/tracking_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../admin/screens/admin_panel_screen.dart';
 import '../../main_screen.dart'; // Импорт MainScreen (Свободный маршрут)
@@ -157,11 +156,8 @@ class HomeScreenState extends State<HomeScreen> {
           case '/orders':
             tabIndex = 2;
             break;
-          case '/tracking':
-            tabIndex = 3;
-            break;
           case '/profile':
-            tabIndex = 4;
+            tabIndex = 3;
             break;
         }
       } else {
@@ -193,6 +189,18 @@ class HomeScreenState extends State<HomeScreen> {
       }
     } else {
       print('📖 _restoreLastTab: Последняя вкладка не найдена');
+      
+      // Устанавливаем дефолтную вкладку в зависимости от типа пользователя
+      if (_userType == UserType.dispatcher) {
+        // Для диспетчера открываем вкладку "Заказы" (индекс 2)
+        if (mounted) {
+          print('📖 _restoreLastTab: Устанавливаем дефолтную вкладку для диспетчера: Orders (2)');
+          setState(() {
+            _currentIndex = 2;
+          });
+        }
+      }
+      // Для клиента остаётся 0 (Booking)
     }
   }
 
@@ -228,9 +236,6 @@ class HomeScreenState extends State<HomeScreen> {
           route = '/orders';
           break;
         case 3:
-          route = '/tracking';
-          break;
-        case 4:
           route = '/profile';
           break;
       }
@@ -269,8 +274,8 @@ class HomeScreenState extends State<HomeScreen> {
     _isTabRestored = false;
     
     // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем границы индекса вкладки
-    // Диспетчер: 5 вкладок (0-4), Клиент: 4 вкладки (0-3)
-    int maxTabIndex = newUserType == UserType.dispatcher ? 4 : 3;
+    // Диспетчер: 4 вкладки (0-3), Клиент: 4 вкладки (0-3)
+    int maxTabIndex = newUserType == UserType.dispatcher ? 3 : 3;
     
     if (_currentIndex > maxTabIndex) {
       print('⚠️ [HomeScreen] Индекс $_currentIndex превышает максимальный $maxTabIndex для $newUserType. Сбрасываем на $maxTabIndex');
@@ -325,7 +330,7 @@ class HomeScreenState extends State<HomeScreen> {
             height: 55.0, // Компактная высота панели без текста
             items: _userType == UserType.dispatcher
                 ? [
-                    // Для диспетчеров: Главная, Админ панель, Заказы, Отслеживание, Профиль
+                    // Для диспетчеров: Главная, Админ панель, Заказы, Профиль
                     BottomNavigationBarItem(
                       icon: Icon(CupertinoIcons.home, size: 24),
                       label: '',
@@ -336,10 +341,6 @@ class HomeScreenState extends State<HomeScreen> {
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(CupertinoIcons.list_dash, size: 24),
-                      label: '',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(CupertinoIcons.location, size: 24),
                       label: '',
                     ),
                     BottomNavigationBarItem(
@@ -377,10 +378,9 @@ class HomeScreenState extends State<HomeScreen> {
                 case 2:
                   return OrdersScreen(
                     key: ValueKey('orders_$_ordersScreenKey'),
+                    userType: _userType, // ✅ ИСПРАВЛЕНО: передаём актуальный userType
                   );
                 case 3:
-                  return const TrackingScreen();
-                case 4:
                   return const ProfileScreen();
                 default:
                   return const DispatcherHomeScreen();
@@ -395,6 +395,7 @@ class HomeScreenState extends State<HomeScreen> {
                 case 2:
                   return OrdersScreen(
                     key: ValueKey('orders_$_ordersScreenKey'),
+                    userType: _userType, // ✅ ИСПРАВЛЕНО: передаём актуальный userType
                   ); // Мои заказы
                 case 3:
                   return const ProfileScreen(); // Профиль

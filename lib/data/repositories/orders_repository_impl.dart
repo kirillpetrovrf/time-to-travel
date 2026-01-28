@@ -27,6 +27,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
     OrderStatus? status,
     int limit = 100,
     bool forceRefresh = false,
+    String? userType, // ✅ ДОБАВЛЕНО
   }) async {
     // Check internet connection
     final isConnected = await networkInfo.isConnected;
@@ -55,6 +56,7 @@ class OrdersRepositoryImpl implements OrdersRepository {
       final remoteOrders = await remoteDataSource.getOrders(
         status: status?.value,
         limit: limit,
+        userType: userType, // ✅ ПЕРЕДАЁМ на datasource
       );
 
       // Cache only if fetching all orders (no filter)

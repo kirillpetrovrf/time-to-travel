@@ -32,7 +32,9 @@ class _DispatcherHomeScreenState extends State<DispatcherHomeScreen> {
     try {
       final user = await AuthService.instance.getCurrentUser();
       if (user != null) {
-        final bookings = await BookingService().getActiveBookings();
+        final bookings = await BookingService().getActiveBookings(
+          userType: 'dispatcher', // ✅ ДОБАВЛЕНО: показываем ВСЕ заказы для диспетчера
+        );
         final stats = await BookingService().getBookingStats();
 
         setState(() {

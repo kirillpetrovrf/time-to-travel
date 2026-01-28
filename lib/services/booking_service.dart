@@ -340,7 +340,11 @@ class BookingService {
     try {
       // 1. Пытаемся загрузить с backend через Clean Architecture
       debugPrint('🌐 Загрузка заказов через OrdersService...');
-      final ordersResult = await _ordersService.getOrders(limit: 100, forceRefresh: true);
+      final ordersResult = await _ordersService.getOrders(
+        limit: 100,
+        forceRefresh: true,
+        userType: 'client', // ✅ Для клиента всегда используем режим 'client'
+      );
       
       if (ordersResult.isSuccess && ordersResult.orders != null) {
         debugPrint('✅ Получено ${ordersResult.orders!.length} заказов с backend');
@@ -491,7 +495,7 @@ class BookingService {
       dropoffAddress: order.toAddress,
       fromStop: null,
       toStop: null,
-      totalPrice: order.totalPrice.toInt(),
+      totalPrice: order.finalPrice.toInt(), // ✅ ИСПРАВЛЕНО: используем finalPrice вместо totalPrice
       status: status,
       createdAt: order.createdAt,
       notes: order.notes,
@@ -505,12 +509,18 @@ class BookingService {
 
   /// Получение всех активных бронирований
   /// ✅ ОБНОВЛЕНО: Использует Clean Architecture через OrdersService
-  Future<List<Booking>> getActiveBookings() async {
+  /// 
+  /// [userType] - Режим пользователя: 'client' видит только свои, 'dispatcher' видит все
+  Future<List<Booking>> getActiveBookings({String? userType}) async {
     debugPrint('🔍 Получение активных бронирований через OrdersService...');
     
     try {
       // Получаем все заказы через Clean Architecture
-      final result = await _ordersService.getOrders(limit: 100, forceRefresh: true);
+      final result = await _ordersService.getOrders(
+        limit: 100,
+        forceRefresh: true,
+        userType: userType, // ✅ ПЕРЕДАЁМ userType
+      );
       
       if (!result.isSuccess || result.orders == null) {
         debugPrint('❌ Ошибка загрузки заказов: ${result.error}');

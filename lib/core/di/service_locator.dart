@@ -1,5 +1,6 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/network/network_info.dart';
 import '../../data/datasources/orders_cache_datasource.dart';
@@ -108,15 +109,47 @@ class ServiceLocator {
 /// Auth Interceptor for adding JWT token to requests
 class _AuthInterceptor extends Interceptor {
   final SharedPreferences prefs;
+  final FlutterSecureStorage secureStorage;
 
-  _AuthInterceptor(this.prefs);
+  _AuthInterceptor(this.prefs) 
+      : secureStorage = const FlutterSecureStorage(
+          aOptions: AndroidOptions(encryptedSharedPreferences: true),
+        );
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    final token = prefs.getString('access_token');
+  Future<void> onRequest(
+    RequestOptions options, 
+    RequestInterceptorHandler handler,
+  ) async {
+    // 🔐 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Читаем токен из FlutterSecureStorage И SharedPreferences
+    String? token;
+    
+    try {
+      // 1. Пробуем прочитать из FlutterSecureStorage (основной метод)
+      token = await secureStorage.read(key: 'access_token');
+      if (token != null && token.isNotEmpty) {
+        print('🔐 [AUTH_INTERCEPTOR] Токен найден в FlutterSecureStorage');
+      }
+    } catch (e) {
+      print('⚠️ [AUTH_INTERCEPTOR] Ошибка чтения из FlutterSecureStorage: $e');
+    }
+    
+    // 2. Fallback: пробуем SharedPreferences
+    if (token == null || token.isEmpty) {
+      token = prefs.getString('auth_access_token_fallback') ?? 
+              prefs.getString('access_token');
+      if (token != null && token.isNotEmpty) {
+        print('🔐 [AUTH_INTERCEPTOR] Токен найден в SharedPreferences');
+      }
+    }
+    
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
+      print('✅ [AUTH_INTERCEPTOR] Добавлен токен: ${token.substring(0, 20)}...');
+    } else {
+      print('❌ [AUTH_INTERCEPTOR] Токен НЕ НАЙДЕН ни в FlutterSecureStorage, ни в SharedPreferences!');
     }
+    
     handler.next(options);
   }
 

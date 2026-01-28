@@ -55,6 +55,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       print('📱 [PROFILE] Текущая UI должна показывать тип: ${userType == UserType.dispatcher ? "Диспетчер" : "Клиент"}');
       print('📱 [PROFILE] Кнопка должна показывать: "Переключиться в режим ${userType == UserType.dispatcher ? "клиента" : "диспетчера"}"');
       
+      // ВАЖНО: Синхронизируем тип с HomeScreen при загрузке
+      final homeScreenState = HomeScreen.currentState;
+      if (homeScreenState != null) {
+        homeScreenState.updateUserType(userType);
+        print('✅ [PROFILE] Синхронизировали тип с HomeScreen: $userType');
+      }
+      
       if (mounted) {
         setState(() {
           _currentUser = user;
@@ -438,6 +445,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? UserType.client
           : UserType.dispatcher;
 
+      // Показываем диалог подтверждения ПЕРЕД переключением
+      final shouldSwitch = await showCupertinoDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: Text(
+            newType == UserType.dispatcher
+                ? 'Переключиться в режим диспетчера?'
+                : 'Переключиться в режим клиента?',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              child: const Text('Отмена'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              child: const Text('Переключиться'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+            ),
+          ],
+        ),
+      );
+
+      // Если пользователь отменил - выходим
+      if (shouldSwitch != true || !mounted) return;
+
       print('🔄 [PROFILE] Переключаем с $_currentUserType на $newType');
 
       // Сохраняем новый тип
@@ -453,56 +492,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!mounted) return;
 
-      // Показываем уведомление
-      final shouldNavigate = await showCupertinoDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => CupertinoAlertDialog(
-          title: Text(
-            newType == UserType.dispatcher
-                ? 'Режим диспетчера активирован'
-                : 'Режим клиента активирован',
-          ),
-          content: const Text(
-            'Приложение будет перезапущено для применения изменений.',
-          ),
-          actions: [
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-            ),
-          ],
-        ),
-      );
-
-      // После закрытия диалога обновляем HomeScreen без навигации
-      if (mounted && (shouldNavigate ?? false)) {
-        // Находим HomeScreen и обновляем его тип пользователя
-        final homeScreenState = HomeScreen.currentState;
-        if (homeScreenState != null) {
-          // Обновляем тип пользователя в HomeScreen
-          homeScreenState.updateUserType(newType);
-          print('✅ [PROFILE] HomeScreen обновлен с новым типом: $newType');
-        } else {
-          print('❌ [PROFILE] HomeScreen.currentState не найден, используем навигацию');
-          // Fallback к навигации если HomeScreen не доступен
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
-              Future.delayed(const Duration(milliseconds: 100), () {
-                if (mounted) {
-                  Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
-                    '/home',
-                    (route) => false,
-                  );
-                }
-              });
-            }
-          });
-        }
+      // Обновляем HomeScreen без навигации
+      final homeScreenState = HomeScreen.currentState;
+      if (homeScreenState != null) {
+        // Обновляем тип пользователя в HomeScreen
+        homeScreenState.updateUserType(newType);
+        print('✅ [PROFILE] HomeScreen обновлен с новым типом: $newType');
+      } else {
+        print('❌ [PROFILE] HomeScreen.currentState не найден, используем навигацию');
+        // Fallback к навигации если HomeScreen не доступен
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted) {
+                Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                  '/home',
+                  (route) => false,
+                );
+              }
+            });
+          }
+        });
       }
     } catch (e) {
       print('❌ [PROFILE] Ошибка переключения режима: $e');

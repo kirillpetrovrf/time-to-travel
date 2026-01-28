@@ -84,7 +84,9 @@ class AuthStorageService {
     if (_useSharedPreferences) {
       final prefs = await SharedPreferences.getInstance();
       await Future.wait([
+        // ✅ Сохраняем в оба ключа для совместимости
         prefs.setString(_accessTokenKeyFallback, accessToken),
+        prefs.setString('access_token', accessToken), // Для Dio interceptor
         prefs.setString(_refreshTokenKeyFallback, refreshToken),
         if (userId != null) prefs.setString(_userIdKeyFallback, userId),
       ]);
