@@ -54,12 +54,12 @@ Future<Response> _getOrder(RequestContext context, String id) async {
     }
 
     // Проверяем права доступа (только свои заказы или если нет userId)
+    final userRepo = UserRepository(db);
     if (userId != null && order.userId != null && order.userId != userId) {
-      // Проверяем, является ли пользователь админом
-      final userRepo = UserRepository(db);
+      // Проверяем, является ли пользователь админом или диспетчером
       final user = await userRepo.findById(userId);
       
-      if (user?.role != 'admin') {
+      if (user?.role != 'admin' && user?.isDispatcher != true) {
         return Response.json(
           statusCode: HttpStatus.forbidden,
           body: {'error': 'Access denied'},
@@ -67,8 +67,43 @@ Future<Response> _getOrder(RequestContext context, String id) async {
       }
     }
 
+    // Формируем базовый ответ
+    final responseBody = <String, dynamic>{'order': order.toJson()};
+
+    // Если запрос от диспетчера и есть клиент - добавляем контакты
+    if (userId != null) {
+      print('🔍 [GET ORDER] userId из токена: $userId');
+      final user = await userRepo.findById(userId);
+      print('🔍 [GET ORDER] user найден: ${user?.firstName}, isDispatcher: ${user?.isDispatcher}, role: ${user?.role}');
+      
+      if (user?.isDispatcher == true && order.userId != null) {
+        print('✅ [GET ORDER] Пользователь является диспетчером, загружаем контакты клиента');
+        print('🔍 [GET ORDER] order.userId (ID клиента): ${order.userId}');
+        
+        final clientUser = await userRepo.findById(order.userId!);
+        print('🔍 [GET ORDER] clientUser найден: ${clientUser?.firstName} ${clientUser?.lastName}, phone: ${clientUser?.phone}');
+        
+        if (clientUser != null) {
+          responseBody['client_contact'] = {
+            'phone': clientUser.phone,
+            'telegram_id': clientUser.telegramId,
+            'username': clientUser.username,
+            'first_name': clientUser.firstName,
+            'last_name': clientUser.lastName,
+          };
+          print('✅ [GET ORDER] Добавлены контакты клиента в ответ: ${clientUser.phone}');
+        } else {
+          print('❌ [GET ORDER] clientUser не найден в базе!');
+        }
+      } else {
+        print('ℹ️ [GET ORDER] Пользователь НЕ диспетчер или нет userId у заказа');
+      }
+    } else {
+      print('ℹ️ [GET ORDER] userId отсутствует в запросе (нет токена)');
+    }
+
     return Response.json(
-      body: {'order': order.toJson()},
+      body: responseBody,
     );
   } on Exception catch (e) {
     return Response.json(
